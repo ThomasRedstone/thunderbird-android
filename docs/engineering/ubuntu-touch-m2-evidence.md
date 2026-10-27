@@ -2295,3 +2295,23 @@ Log `/tmp/thunderbird-attachment-reader-full.log`; XML `app-ubuntu-touch/build/e
 Scoped docs formatting/checks pass. No Android device/instrumentation target exists for this JVM app; no shared source
 changed and previous Android assembly evidence is unchanged. Phone/native checks were not run. Frozen 0.1.20 probe
 SHA-256 was independently rechecked unchanged before source delivery.
+
+
+### Verified 0.1.21 ARM64 package
+
+Candidate23 built from clean `5dc68ccddbc51f11c08478856cd65cdab6bcadd4`; embedded SOURCE-CHANGES is empty.
+Artifact: `app-ubuntu-touch/build/ut-candidate-23/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.21_arm64.click`.
+Size 147607604 bytes; SHA-256 `3255df53fae96163fbcd4be235bf6c21625084ab01780a32d1bc14e5ca2fc87d`.
+Click review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-021-click.log`). The same pinned builder
+and candidate5 runtime were reused, so this does not establish cold reproducibility.
+
+Matching drivers frozen from the tested source: `build/evidence/oauth-native-021/candidate-021-probes.jar`, 62 classes,
+SHA-256 `507d11f9c142e16c529234b7f413ffa9f1260c369f2b796f07f3d820d56c86db`;
+`host-server-021.jar`, 2 classes, SHA-256 `703e1b87073239af7f1d768c6333260323dbab7e519e45dac70b7f824ba988f2`.
+MailContent constructor changed, so use the matching driver with installed 0.1.21 classes rather than any previous
+probe JAR. Older packages/drivers remain preserved.
+
+The bounded phone SSH reachability check again timed out. No transfer, Phone Manager installation or native 0.1.21
+verification was attempted. Latest verified installed version remains 0.1.18. The existing upgrade script is specific
+to 0.1.19 and must be updated and reviewed for an explicitly chosen newer version/hash before use. Phone b-nnxn and
+provider decision q-ar74 remain partial gaps; neither blocks independent later roadmap requirements.

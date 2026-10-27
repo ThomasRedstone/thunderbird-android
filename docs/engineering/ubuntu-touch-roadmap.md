@@ -211,7 +211,8 @@ phone acceptance and large-mailbox performance remain open; 0.1.20 ARM64 Click i
 Reader attachment names, MIME types and counts are implemented in 0.1.21 development source for complete cached
 messages, including HTML-only bodies. Incomplete messages request full download; shared sanitization and classification,
 account isolation and rendered reader checks pass. Content Hub Open/Save, outgoing attachments, orphan cleanup and
-native/physical acceptance remain open. Listing metadata does not complete attachment handling.
+native/physical acceptance remain open. The 0.1.21 ARM64 Click is built and reviewed, with installation pending.
+Listing metadata does not complete attachment handling.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

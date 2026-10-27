@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.17 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.18 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
 | Engineering | 191 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Unified search committed/pushed as `a938b0424e`; installed 0.1.17 embeds that clean source | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager install; fleet commit `41ac3db` pins installed 0.1.17/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
+| Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth token storage/HTTPS source is committed separately | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager 0.1.18 install verified; fleet `41ac3db` still pins 0.1.17 pending refresh | Repeat controlled TLS journey on 0.1.18, fleet refresh, physical foreground/cancellation/lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,7 +27,7 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.17 is installed on the FP4 with account
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.18 is installed on the FP4 with account
 setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
@@ -310,3 +310,9 @@ inside the debounce interval.
 The immediate work is milestone 2: verify the cached mailbox and composer/outbox UI on device, complete
 cancellation and recovery gaps, and verify receiving/sending on the phone. Keep outstanding source/package
 alignment and physical checks visible as candidates advance; record concrete blockers and continue independent work.
+
+
+The 0.1.18 enforcing-profile cache/resource/attachment, composer and synthetic socket/browser OAuth callback probes
+pass. Browser callback delivery is established for the headless fixture; actual setup UI restoration/suspension and
+real-provider OAuth remain open. Later host-tested token storage/exchange/refresh code is not part of this installed
+artifact. See the latest milestone evidence for exact source, hashes and remaining integration work.

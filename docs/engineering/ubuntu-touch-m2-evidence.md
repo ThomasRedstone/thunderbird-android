@@ -1649,3 +1649,30 @@ All 191 host app tests pass with zero failures/errors/skips, plus detekt/install
 no-configuration-cache/isolated-projects=false/max-workers=4. Shared Android code is unchanged; Android assembly/
 device suites were not rerun and this JVM module has no Android lint/device task. This token HTTP code and its
 new direct dependency are not included in the frozen 0.1.18 candidate and need a later version for native acceptance.
+
+
+### 0.1.18 deployment and synthetic browser callback verified
+
+The original transfer completed successfully before installation (log /tmp/thunderbird-018-transfer.log).
+The exact phone-side hash matched 8601068f17ebc5793897fbfaac1115955ea19d01c40dd709bbbb23274288ca47.
+The guarded install stopped only the old 0.1.17 app service and created a private pre-upgrade SQLite backup with
+quick_check and schema 9, then Phone Manager installed successfully (/tmp/thunderbird-018-install.log).
+Development signature/user-bus/old-profile-cache warnings remain recorded; an independent SSH check confirms current
+0.1.18, embedded f18314918dca741bed2c3add7cbfaae25857752e, empty patch and new profile
+(/tmp/thunderbird-018-installed.log). Installed candidate bytes/source/hash are unchanged from the build evidence.
+
+The frozen 57-class test-only JAR ran with installed production JVM/app JARs and the exact enforcing 0.1.18 profile.
+ConfinedSearchProbe passes account-safe search/reader/flags/reply/Back, MIME resource cleanup and private decoded
+attachment preparation/cleanup. ConfinedComposerProbe passes Swing Main, schema migration, draft/outbox lifecycle
+flush and uncertain-send recovery. Logs: /tmp/thunderbird-018-native-{search,composer}.log.
+
+ConfinedOAuthCallbackProbe passes both socket and browser modes (/tmp/thunderbird-018-oauth-{socket,browser}.log).
+Browser mode used the permitted real DispatchURL call to open only a synthetic local callback URL. The installed
+production receiver accepted its HTTP callback/state and returned a code whose verifier matches the request challenge.
+No provider URL, account or token endpoint was used. This proves the headless enforcing-profile browser-to-listener
+path; it does not prove account-setup UI foreground restoration, suspend/relaunch survival or Gmail/Outlook login.
+No AppArmor permission/lifecycle exemption was added. Generic SLF4J no-provider warnings are retained in the browser log.
+
+Current remaining delivery work: repeat the controlled TLS receive/reply/Sent and fresh-JVM offline journey on 0.1.18,
+then refresh only the owned fleet entry (currently still pins 0.1.17). Native token storage/HTTPS acceptance needs a
+later package version; do not rebuild changed source as another 0.1.18 or replace its frozen matching driver JAR.

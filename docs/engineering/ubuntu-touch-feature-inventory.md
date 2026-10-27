@@ -2,7 +2,7 @@
 
 Reviewed against Thunderbird baseline `de8a03268415ce8e0c8b0327d3bbcb6b40a06a91` on 2026-10-27.
 Each source anchor below was checked to exist at that commit and to match the working tree byte-for-byte.
-UT implementation checkpoint: `a938b0424efadb2c9753ef80e58ee4b11fd5992f`; phone deployment is recorded separately
+UT implementation checkpoint: `1b716904bc` (later token-client source); installed 0.1.18 embeds `f18314918d`. Deployment is recorded separately
 in [milestone 2 evidence](ubuntu-touch-m2-evidence.md). A source/module anchor proves an implementation exists to
 investigate, not that it can be linked into the UT application or that its feature is complete upstream.
 
@@ -18,7 +18,7 @@ item, not automatic inclusion or exclusion. No architecture or provider configur
 | IMAP / SMTP | [ImapBackend.kt](../../backend/imap/src/main/java/com/fsck/k9/backend/imap/ImapBackend.kt) | Partial | ForegroundMailSession; protected accounts and confined TLS flows pass | Physical/provider setup, lifecycle and interruption matrix |
 | POP3 | [Pop3Backend.kt](../../backend/pop3/src/main/java/com/fsck/k9/backend/pop3/Pop3Backend.kt) | Not started | JVM backend exists; UT account validation currently accepts IMAP only | POP3 adapter/storage/UIDL retention, reconnect and provider journeys; respect unsupported flag/move capabilities |
 | JMAP | [JmapBackend.kt](../../backend/jmap/src/main/java/com/fsck/k9/backend/jmap/JmapBackend.kt) | Incomplete baseline / not started on UT | Backend exists, but complete-message download throws UnsupportedOperationException and push is disabled | Assess baseline product availability and required scope explicitly; do not call a JVM module complete protocol support |
-| Provider OAuth | [GetOAuthRequestIntent.kt](../../feature/account/oauth/src/main/kotlin/app/k9mail/feature/account/oauth/domain/usecase/GetOAuthRequestIntent.kt) | Partial, source only | PKCE/state, loopback HTTP receiver and dispatcher adapter; setup/token/provider integration absent | Browser/callback, registration, refresh/expiry/revocation/cancel; no provider config edits without explicit instruction |
+| Provider OAuth | [GetOAuthRequestIntent.kt](../../feature/account/oauth/src/main/kotlin/app/k9mail/feature/account/oauth/domain/usecase/GetOAuthRequestIntent.kt) | Partial, source only | PKCE/state and synthetic browser callback pass on phone; token storage/HTTPS client pass on host; setup/provider integration absent | Browser/callback, registration, refresh/expiry/revocation/cancel; no provider config edits without explicit instruction |
 | Plain-text / MIME reading | [MessageExtractor.java](../../mail/common/src/main/java/com/fsck/k9/mail/internet/MessageExtractor.java) | Partial | Engine extraction, cached reader, attachment classification tests and native cache recovery | Charset/malformed/large MIME suite and physical reader acceptance |
 | HTML / remote content / links | [MessageWebView.kt](../../legacy/ui/legacy/src/main/java/com/fsck/k9/view/MessageWebView.kt) | Not started | Android WebView disables JavaScript and initially blocks network loads | Reviewed Linux renderer boundary, sanitisation, remote-content policy, inline images and safe links; privacy network oracle |
 | Attachment open / save / share | [AttachmentProvider.java](../../legacy/core/src/main/java/com/fsck/k9/provider/AttachmentProvider.java) | Not started | Android provider is a portability boundary | UT Content Hub/file handling, filenames/MIME safety, cancellation, lifetime and confinement tests |

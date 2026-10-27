@@ -150,5 +150,6 @@ creation, including failure/cancellation paths. It avoids the reader's duplicate
 messages. The regression failed before the fix; all 137 app tests now pass. This fix is not yet installed on FP4.
 
 OAuth development includes PKCE/state validation, a bounded loopback receiver and a Lomiri URL Dispatcher adapter.
-These are not connected to account setup or real provider registrations. Gmail/Outlook login, protected token storage,
-refresh and authenticated transport integration remain unfinished. See the milestone evidence for source/device status.
+The installed 0.1.18 synthetic browser callback passes under confinement. Later source adds protected token storage
+and HTTPS exchange/refresh clients with host tests, but these are not yet connected to account setup or deployed.
+Gmail/Outlook registration/login and authenticated transport integration remain unfinished. See the milestone evidence for source/device status.

@@ -187,3 +187,17 @@ with the printed private fixture directory. Verify credential/account/directory 
 2026-10-27: this complete STARTTLS flow passes under 0.1.11 confinement, including fresh-JVM recovery after server
 teardown. Evidence is in `build/evidence/starttls/native-run-2/`. It uses installed production code without overlays;
 the phone remains 0.1.11. Physical UI/provider acceptance and broader interruption coverage remain open.
+
+
+## Native offline read/star reconciliation
+
+On installed 0.1.13, start the host fixture with `-PutProtocolSecurity=starttls -PutProtocolFlags=flags` and a new output
+directory. Build/upload only the matching `ConfinedProtocolProbe*.class` JAR and this run's certificate. Append
+`retain-for-restart starttls flags` to the preparation arguments. The probe queues SEEN/FLAGGED locally and reconciles
+on explicit folder refresh, then checks the pending queue is empty. No production class overlay or trust change is used.
+
+Stop the host only after preparation exits 0. Host teardown independently reads flags through a separate Jakarta IMAP
+connection and requires both SEEN and FLAGGED, alongside the existing independent SMTP assertions. Wait for host exit 0
+before the two-argument fresh-JVM recovery probe. That probe also verifies cached flags and removes its protected account
+and private fixture; check absence over SSH. The complete flow passes on 0.1.13, with evidence in
+`build/evidence/flags/native-run-1/`. Physical UI/provider and broader authenticated interruption gates remain open.

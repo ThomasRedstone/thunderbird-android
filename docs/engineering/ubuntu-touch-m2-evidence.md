@@ -877,3 +877,41 @@ The model regression fails with immediate-close behaviour substituted (assertion
 `build/evidence/flags/immediate-close-before.xml`), then passes with the wait restored. This is a model close-contract
 regression; no claim is made that it drove the phone window. Candidate14 was built but not deployed and is superseded
 by the forthcoming clean candidate containing this close fix.
+
+
+### 0.1.13 deployment and independent native flag verification
+
+Feature commit `d01a2719c1` and close fix are committed/pushed as clean production
+`dafce5b2070af025db3eea1929ab5c6f00d57613`. Candidate 15 (superseding undeployed candidate14) has an empty source patch,
+passes Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks, and uses the same pinned builder/runtime.
+Artifact: `app-ubuntu-touch/build/ut-candidate-15/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.13_arm64.click`,
+147158890 bytes, SHA-256 `fcc45f1128ef2e5bf72f824a274fa876821f4c6d813568b5af1f1c5b8bcc813b`.
+
+Rsync exited 0 before the exact phone checksum guard and Phone Manager installation (exit 0). No existing database was
+present at standard/doubled application data paths; private backup handling remains in the guarded install. Known
+unsigned-development/user-bus-hook/old-profile-cache warnings occurred. Independent current version/source/empty-patch/
+new-profile checks pass for 0.1.13. Fleet scoped commit `f4e49d2` pins this artifact while preserving unrelated dirty
+work, without running whole-fleet converge.
+
+Confined tests use the installed bundled ARM64 JVM and production JARs, with only 33 test probe classes added:
+
+- ConfinedComposerProbe passes Swing Main, schema3→7, draft/queue/uncertainty, Cc/Bcc and lifecycle checks.
+- ConfinedProtocolProbe uses a disposable protected SignOn account and required STARTTLS. Default trust rejects the
+  unknown IMAP fixture certificate; injected test trust then permits settings/folders/sync/body and guarded SMTP delivery.
+  Local read/star actions show pending state/flags, explicit folder refresh applies them and pending count becomes zero.
+- The host independently asserts exactly one intended SMTP message and its Unicode/dot-stuffed body. A separate
+  Jakarta IMAP connection asserts the remote INBOX message is both SEEN and FLAGGED. Both protocol upgrade counters pass.
+- The host exits 0 before a fresh phone JVM verifies cached read/star flags, protected passwords, cached body and SENT
+  outbox state with servers stopped. Account/credential/private-directory cleanup passes; independent SSH confirms absence.
+- ConfinedCancellationProbe replays the refactored mailbox model under schema7. Phone and host exit 0; Cancel settles and
+  the independent stalled peer sees EOF without any protocol/credential bytes. No fixture listener is left running.
+
+Native logs are in `app-ubuntu-touch/build/evidence/flags/`, including `native-run-1/`. All preparation/server/restart/
+cleanup/composer/cancellation commands exit 0. These headless/model checks do not prove physical reader/keyboard/window
+close/suspend or provider acceptance. UID-reset/conflict/discard cases are host integration tests, not native reset tests.
+
+Final verification after close wiring: 96 app tests pass, detekt/installDist/spotlessCheck pass, and actual Xvfb composer
+window close still persists the exact typed subject. Logs: `/tmp/thunderbird-flags-verified.log` and
+`/tmp/thunderbird-flags-close-format.log`; XML is retained in the evidence directory. The full command adds
+`:app-ubuntu-touch:desktopDraftCloseProbe` with the isolated synthetic/Xvfb environment to the command above.
+No shared Android changes were introduced; prior shared-mail verification remains unchanged.

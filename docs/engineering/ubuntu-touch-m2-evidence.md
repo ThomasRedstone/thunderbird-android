@@ -1357,3 +1357,64 @@ Exclusions remain required follow-ups: parser failures before a Message is retur
 shared backend/SMTP transport ownership, cache retention/limits and long-session memory/disk soak. This local ownership
 fix does not complete storage or attachment acceptance. Attachment export/open/save through Content Hub and the full
 HTML/background/provider/security roadmap remain open.
+
+
+## Cached attachment preparation (source only)
+
+CachedAttachmentStore lists MIME attachments from a complete cached message, scoped by account/folder/UID.
+References include a SHA-256 source fingerprint and part ordinal; changed or cross-account selections are rejected.
+Preparation decodes into a fresh private directory (0700) and file (0600), with 96 MiB raw and 64 MiB decoded
+limits. Limits apply to actual bytes, irrespective of declared sizes. The caller owns an AutoCloseable lease and
+must retain it until any future receiver has finished. Cancellation and failures release provisional exports.
+Filename normalisation removes traversal separators, control/bidi formatting and excessive UTF-8 length. Unknown
+transfer encodings are rejected without logging their input. Attached messages are serialised as valid MIME;
+byte-for-byte preservation of their original wire representation is not promised.
+
+Twelve new tests cover exact base64/quoted-printable/default decoding, empty and attached-message files,
+account/folder/UID and stale-reference rejection, raw/decoded limits, cancellation after partial writes,
+filename attacks, symlink rejection and independent simultaneous leases. Two regressions failed before fixes:
+message/rfc822 requires serialisation instead of getInputStream, and RFC2231 newline filenames require control
+filtering. Evidence is retained in build/evidence/attachments/{message-before,filename-before}.xml.
+The confined-search fixture now exercises attachment preparation too, but native execution awaits a matching package.
+
+All 149 app tests pass (zero failures/errors/skips), plus detekt/installDist/spotlessCheck; log:
+/tmp/thunderbird-attachments-final.log, XML: build/evidence/attachments/. Command, with JDK 21 and Android SDK set:
+
+```sh
+./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt \
+  :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck \
+  --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4
+```
+
+No new dependencies, permissions or shared Android changes. Android assembly/device suites were not rerun;
+this JVM module has no Android lint/device task. Installed 0.1.17 does not contain this foundation or the MIME
+resource fix. The next package must use a new version and a matching native test fixture.
+
+Attachment UI and Content Hub Open/Save are still outstanding, as are crash-orphan cleanup, partial-message
+fetching, outgoing attachments and retention/soak tests. Preparation alone does not meet attachment acceptance.
+Upstream Content Hub 2.2.3 [exporter source](https://gitlab.com/ubports/development/core/lomiri-content-hub/-/blob/6cb421c0788f71abc3f1237f19229b7015ee957c/tools/send/exporter.cpp)
+shows its send CLI rejects file URLs; it cannot be assumed to export arbitrary private attachments.
+A broker adapter still needs live API/confinement and terminal-transfer lifetime verification. No guard was bypassed.
+
+
+## OAuth readiness audit
+
+Ubuntu Touch OAuth remains unimplemented. The shared core/common OAuthConfiguration is platform-neutral, but
+feature/account/oauth uses the Android Compose plugin, AppAuth and Android Intent (including FinishOAuthSignIn).
+It cannot be added unchanged to this JVM application. mail/common OAuth2TokenProvider provides the existing
+transport contract: timed token retrieval, invalidation and provider-derived usernames. The latter matters for
+Microsoft primary-account SMTP authentication and must not be replaced with the typed address unconditionally.
+
+Next bounded implementation: browser authorization-code flow with PKCE and one-use state; a verified confined
+callback route; protected per-account token persistence; serialized refresh and invalidation; IMAP/SMTP wiring;
+and provider-specific setup/error UI. Test callback mismatch/replay, cancellation/timeout, refresh rotation,
+expiry/revocation, account isolation and log redaction before real-provider phone journeys. Do not embed browser
+credentials or reuse Android registration assumptions. Provider registrations and production approval remain unresolved;
+no upstream OAuth configuration was edited during this audit.
+
+Google documents [loopback support by client type](https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration):
+desktop clients retain support while Android/iOS client types do not. This does not establish eligibility of this
+port or its current registration. Microsoft requires a [registered matching redirect URI](https://learn.microsoft.com/entra/identity-platform/reply-url).
+Thus a loopback receiver is only a candidate pending registration, confinement, browser and suspend/resume tests.
+OAuth can proceed independently of HTML and attachment UI; neither provider is accepted until actual login,
+refresh and authenticated receive/send succeed on the phone.

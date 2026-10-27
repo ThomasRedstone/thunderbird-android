@@ -40,3 +40,9 @@ private class CachedMessageResources(val message: Message) : AutoCloseable {
         failure?.let { throw IllegalStateException("Unable to release cached message resources", it) }
     }
 }
+
+/** Own a fresh parse of an immutable cached snapshot, returning detached data only. */
+internal fun <T> withParsedCachedMime(raw: ByteArray, read: (Message) -> T): T {
+    val message = com.fsck.k9.mail.internet.MimeMessage.parseMimeMessage(raw.inputStream(), true)
+    return CachedMessageResources(message).use { read(it.message) }
+}

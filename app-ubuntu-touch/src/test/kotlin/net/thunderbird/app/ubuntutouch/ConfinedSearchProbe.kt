@@ -76,6 +76,12 @@ internal object SearchRuntimeFixture {
                 check(PendingFlagStore(database).list(secondary.id).single().folder == "INBOX")
                 check(OutgoingMailStore(database).list(primary.id).isEmpty())
                 check(OutgoingMailStore(database).list(secondary.id).single().state == OutgoingState.DRAFT)
+                val attachments = CachedAttachmentStore(database, directory.resolve("exports"))
+                val info = attachments.list(secondary.id, "INBOX", "1").single()
+                attachments.prepare(secondary.id, "INBOX", "1", info.reference).use {
+                    check(Files.readAllBytes(it.file).contentEquals(byteArrayOf(0, 1, 2, 3, 4, 5)))
+                }
+                Files.list(directory.resolve("exports")).use { check(it.count() == 0L) }
             } finally {
                 withContext(Dispatchers.Main) { model.close() }
             }

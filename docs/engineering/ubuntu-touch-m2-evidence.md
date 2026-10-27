@@ -2542,3 +2542,26 @@ Scoped docs checks pass. Shared Android sources are unchanged; this JVM app has 
 and prior shared-engine Android assembly evidence remains applicable. Native/physical/provider acceptance remains open.
 A bounded SSH recheck succeeded and reports installed 0.1.18; delivery recovery is being investigated before claiming
 any transfer or installation. No 0.1.25 phone installation has run at this checkpoint.
+
+
+### Verified 0.1.25 ARM64 package and recovered delivery
+
+Candidate27 built from clean `a1948b0768d12899c18ae8ff04852e29e769ab44`; embedded SOURCE-CHANGES is empty.
+Artifact: `app-ubuntu-touch/build/ut-candidate-27/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.25_arm64.click`.
+Size 147708118 bytes; SHA-256 `b5d5f9b8edd3d5c5d5d0b2939bff88fa5dc7e4a6e528178917ab57437776613f`.
+Click review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-025-click.log`). The same pinned builder
+and candidate5 runtime were reused; cold reproducibility remains open.
+
+Matching frozen drivers: `build/evidence/oauth-native-025/candidate-025-probes.jar` (62 classes),
+SHA-256 `68f186d55f3ada455cf756e85bd26cbef7d1ede3e69368477d9cd7c043e04dd3`;
+`host-server-025.jar` (2 classes), SHA-256 `f8f11d99934b26256d96df63ead470ea1aec01b2a00fa2ae5aac0660b22a9958`.
+Use matching 0.1.25 production classes; token/provider/manager ABIs changed. These existing native fixtures do not
+establish all new profile-identity paths or protected-format migration acceptance.
+
+Phone SSH has recovered: UID32011 and installed 0.1.18/f18314918d were independently rechecked. The phone remains on
+mobile data with no Wi-Fi IPv4 and has20GB free. Its old 0.1.19 partial is125337600bytes and remains preserved. A new,
+separate 0.1.25 rsync upload is running, with partial/resume verification and keepalives; log
+`/tmp/thunderbird-025-transfer.log`. Transfer speed is currently about40–50kB/s. No second copy is started while this
+transfer is live. Connectivity blocker b-nnxn is resolved; transfer, full remote hash, private SQLite backup, installation
+and native acceptance remain pending. Main0.1.18 is still running; a normal close will be requested after staging,
+without force-killing or bypassing its draft/save close handler. No OS/modem/network or whole-fleet changes were made.

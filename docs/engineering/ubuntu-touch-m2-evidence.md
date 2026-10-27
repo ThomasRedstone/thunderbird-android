@@ -1478,3 +1478,40 @@ Commands use the existing JDK 21/Android SDK environment and app-scoped tasks wi
 --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4.
 No dependencies, permissions or shared Android code changed. Android assembly/device suites were not rerun;
 this JVM module has no Android lint/device task. This authorization component is not in installed 0.1.17.
+
+
+### Bounded OAuth loopback HTTP receiver (source only)
+
+OAuthLoopbackReceiver allocates a listener on IPv4 127.0.0.1 and an ephemeral port. The caller must explicitly
+supply configuration matching its allocated /oauth2/callback redirect. Construction failures close the listener.
+It owns one OAuthAuthorizationAttempt, permits one waiter and closes on completion, explicit setup-owner close or
+coroutine cancellation. It uses the existing coroutines IO dispatcher and creates no independent global worker.
+
+The listener has an absolute overall deadline (default five minutes from construction), a separate absolute request
+read deadline (two seconds), a 16 KiB header cap and a 32-connection cap. Per-byte read timeouts use the remaining
+request budget so slow input cannot renew its deadline. HTTP requires GET, HTTP/1.1, an origin-form target, exact
+127.0.0.1:port Host and unique valid ASCII header fields. Transfer-Encoding and nonzero Content-Length are rejected.
+The existing attempt validator then checks the callback path/state/parameters. Invalid clients do not consume state.
+Responses are fixed plain text with no-store, no-referrer and default-src none; request/code/state/error text is never
+reflected. A browser disconnect while writing the small fixed response does not discard an already validated code.
+Socket read limits are not a general proof of bounded output under arbitrary kernel/backpressure conditions;
+cancellation closes the active peer and listener. IO failures exposed to the owner use a generic token-free exception.
+
+Required follow-ups remain browser dispatch/return on the phone, foreground/suspend behavior, account-setup ownership
+and UI, token exchange/refresh/persistence and real-provider registration/login/receive/send. This HTTP component alone
+does not establish Gmail or Outlook OAuth acceptance and is not yet included in installed 0.1.17.
+
+
+Receiver socket tests cover success and listener closure, token-free responses, valid denial, malformed HTTP,
+wrong/duplicate Host, body framing, folded/oversized headers, wrong state/path, absolute slow-client timeout,
+cancellation during a partial request, total expiry, expiry before await, configuration-failure cleanup,
+repeated close and rejecting a second waiter while preserving the first. These are host loopback tests,
+not substitutes for the upcoming confined phone/browser and real-provider journeys.
+
+
+All 166 app tests pass (zero failures/errors/skips), plus detekt/installDist/spotlessCheck:
+/tmp/thunderbird-oauth-receiver-full.log; XML in build/evidence/oauth-receiver/.
+The app-scoped Gradle command used JDK 21/Android SDK and the standard
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4 options.
+No new dependencies, permissions or shared Android changes. Android assembly/device suites were not rerun;
+the JVM app has no Android lint/device task. Installed 0.1.17 remains unchanged.

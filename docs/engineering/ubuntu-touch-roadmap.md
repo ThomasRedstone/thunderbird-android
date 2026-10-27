@@ -379,3 +379,9 @@ The 0.1.18 enforcing-profile cache/resource/attachment, composer and synthetic s
 pass. Browser callback delivery is established for the headless fixture; actual setup UI restoration/suspension and
 real-provider OAuth remain open. Later host-tested token storage/exchange/refresh code is not part of this installed
 artifact. See the latest milestone evidence for exact source, hashes and remaining integration work.
+
+Content Hub adapter checkpoint: private-bus receiver selection, exact file-item
+wire encoding, unique-owner replacement rejection and authenticated/spoofed signal
+checks pass. Full373 app tests and quality/distribution checks pass. Save UI/model,
+DI/lifecycle integration, permission review and native/physical acceptance remain
+open; this does not yet provide a user-facing Save action. See M2 evidence.

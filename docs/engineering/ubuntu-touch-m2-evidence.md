@@ -2982,3 +2982,52 @@ on controller IO. Validate unique service owner and exact app-scoped object path
 replay uncertain transfers. Include upgrade tests: standard policy paths contain the app version, so an earlier
 version's pending transfer may become inaccessible and needs explicit uncertainty review rather than broader grants
 or automatic resend. No incoming provider registration is needed by the reviewed manual-export broker path.
+
+### Content Hub adapter work in progress
+
+The app-local DBusJava adapter now compiles and passes detekt/spotless. It selects
+receivers through the platform service, pins the service's unique owner, validates
+app-scoped transfer paths and private export files, and queues authenticated state
+signals without performing controller IO on the receive thread. No permission,
+source handler, production OAuth registration or phone installation was changed.
+
+Three focused `ContentHubProtocolTest` tests pass, covering identity/path escaping,
+method/item signatures and malformed/unknown protocol inputs. Command:
+`JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test --tests '*ContentHubProtocolTest' :app-ubuntu-touch:detekt :app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Log: `/tmp/thunderbird-content-hub-protocol-test-3.log` (exit 0).
+This is not private-bus integration, real receiver, Save UI or native acceptance.
+The adapter remains work in progress: independent wire tests, subscription cleanup,
+constructor failure cleanup, model/picker/DI/lifecycle wiring and permission review
+are still required. The previously verified full suite remains 369 tests; it was
+not rerun for this adapter. Phone remains on 0.1.27, source 0.1.30 is unpackaged.
+
+### Private Content Hub wire verification
+
+The adapter now passes an owned private `dbus-daemon` integration test. The test
+exports a controlled service/transfer, selects a receiver, verifies no Start before
+selection, checks full app identity and platform arguments, decodes the charged
+`(sayss)` item independently, and reads the exact binary fixture through its
+space-escaped file URI. Replacing the service owner invalidates the old reference
+without calling the replacement transfer. A third connection's spoofed signal is
+ignored while authenticated CHARGED/COLLECTED signals arrive. Owned daemon and
+connections are closed; no real receivers or personal session bus are used.
+
+Wire testing found and fixed two issues: generic variant byte arrays decode as
+byte lists, and requesting activation unconditionally fails for already-owned
+services without activation files. Byte-list elements are validated; activation
+is requested only when the service has no owner. Adapter subscriptions are
+forgotten after durable controller release and connection initialization failure
+closes the connection. Native confinement, actual platform receiver behavior,
+activation from an absent service and crash/upgrade acceptance remain unverified.
+
+Full app suite: **373 tests, zero failures/errors/skips**, plus detekt,
+installDist and spotlessCheck pass (`/tmp/thunderbird-content-hub-full.log`).
+The subsequent test-only authenticated/spoofed signal assertions pass with detekt
+and spotlessCheck (`/tmp/thunderbird-content-hub-signals.log`). Commands use the
+same JDK/SDK/Gradle flags above; full run uses `:app-ubuntu-touch:test` without a
+filter, and signal run filters `*DbusContentExportBrokerTest`.
+
+Save model/picker/DI/lifecycle wiring, permission approval, native transfer tests
+and physical acceptance remain open. No new permission was added; phone remains
+0.1.27 and source0.1.30 remains unpackaged. This supersedes the adapter compilation
+checkpoint's pending constructor/subscription cleanup and private-bus test gaps.

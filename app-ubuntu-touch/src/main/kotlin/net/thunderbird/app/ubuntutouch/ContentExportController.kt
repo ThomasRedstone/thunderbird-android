@@ -19,6 +19,7 @@ internal interface ContentExportBroker {
     fun charge(reference: ExportTransferReference, file: Path)
     fun state(reference: ExportTransferReference): ExportBrokerState
     fun abort(reference: ExportTransferReference)
+    fun forget(reference: ExportTransferReference) = Unit
 }
 
 internal data class ExportReconcileResult(val record: ExportLeaseRecord?, val state: ExportBrokerState? = null)
@@ -170,6 +171,7 @@ internal class ContentExportController(
     private fun release(record: ExportLeaseRecord) {
         journal.release(record)
         active -= record.id
+        record.transfer?.let { runCatching { broker.forget(it) } }
     }
 
     private fun preservingUncertainty(id: UUID, work: () -> ExportReconcileResult): ExportReconcileResult = try {

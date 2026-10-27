@@ -145,6 +145,7 @@ class UtAccountManagerTest {
             }
             backend.setExtraNumber("checkpoint", 42)
             // Reconstruct the previously committed schema boundary, retaining the real mail tables.
+            database.execute("DROP TABLE signon_identity_index")
             database.execute("DROP TABLE servers")
             database.execute("DROP TABLE accounts")
             database.execute("DROP TABLE credential_cleanup")
@@ -156,7 +157,7 @@ class UtAccountManagerTest {
             val backend = PersistentBackendStorage(database, "existing-account")
             assertThat(backend.getFolderServerIds()).isEqualTo(listOf("INBOX"))
             assertThat(backend.getExtraNumber("checkpoint")).isEqualTo(42L)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(2L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(3L)
         }
     }
 

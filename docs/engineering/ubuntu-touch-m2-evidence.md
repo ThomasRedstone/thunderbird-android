@@ -194,3 +194,44 @@ the service's global clear operation or broaden another app's credential access.
 The screen was off during installation/headless checks. An unlock request is pending; physical password entry,
 foreground setup, rotation/lifecycle and reboot acceptance remain open. No visual phone acceptance is inferred from
 these probes. Live receiving/sending and later roadmap requirements remain unimplemented.
+
+## SignOn adapter candidate 0.1.6
+
+The Ubuntu Touch composition now selects `SignonCredentialStore`; desktop Linux retains Secret Service. This
+addresses the platform API mismatch behind `b-zxbi`, pending confined-device acceptance. The manifest adds the standard
+`accounts` policy group: the installed Ubuntu Touch policy grants SignOn AuthService/Identity/AuthSession calls through
+this group. This permission is necessary for the requested protected account credentials. No policy override, global
+unconfinement or privileged companion is introduced, and no other app's permissions are changed.
+
+The Kotlin D-Bus adapter follows the sibling Lightning integration and the official
+[SignOn daemon source](https://gitlab.com/accounts-sso/signond), inspected at
+`a08b05b79100bfd535100b8341df4e8bf1441802`, together with actual FP4 interface introspection. Secrets are read through
+the password/password auth session, with `UiPolicy=NoUserInteraction`; identity metadata never supplies a password.
+Daemon ACL/ownership checks remain intact. The adapter verifies its own namespace/key metadata before reads, writes
+and deletes, and does not expose global enumeration or clear operations.
+
+Schema 3 adds an index of our opaque credential references to SignOn identity IDs. Enumeration is restricted to
+privileged keychain clients, so the app cannot use it to rediscover IDs. The adapter first stores an **empty** identity,
+commits its ID to SQLite, then sends the secret. A crash before the index commit can leave only empty metadata, never
+an unindexed password. Failed index commits attempt to remove the empty reservation; failed secret stores retain an
+indexed entry that the account cleanup journal can remove. A failed deletion keeps its index for retry. Empty metadata
+left by a crash between reservation and indexing remains a resource-cleanup limitation; do not broaden enumeration
+permissions or clear other identities to address it. The existing account schema, mail and cleanup journal survive
+migration. Password bytes are encoded only for transport inside the protected service secret; encoding is not
+encryption and no password payload is written to the app database.
+
+Verification so far:
+
+- All 37 app tests pass, along with detekt, spotlessCheck and installDist. New cases cover commit-before-secret
+  ordering, index failure without sending passwords, secret-write failure/restart cleanup, deletion retry, ownership
+  mismatch, schema-2 migration and D-Bus signatures. Existing schema-1 migration and mail/account tests still pass.
+- The bundled-JVM `SignonProbe` passed on FP4 outside confinement: indexed create/read/replace/delete and identity
+  isolation. Only fresh synthetic probe identities were created/removed. Evidence:
+  `app-ubuntu-touch/build/evidence/signon/unconfined-result.txt`.
+- `AccountRestartProbe` is a test-only two-process executable for account creation, cold JVM restart/read, editing,
+  password replacement and removal. Its synthetic database uses a marked private cache directory, not the real app DB.
+  Failed operations retain that directory for scoped recovery instead of discarding its credential index.
+
+0.1.6 packaging and the enforcing-profile round trip are next. Physical secure input, upgrade identity access and
+daemon failure/prompt behaviour remain device gates. No encrypted-at-rest claim is inferred solely from using the
+system service. The phone is still on 0.1.5 until the new candidate is installed.

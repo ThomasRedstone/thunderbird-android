@@ -43,7 +43,7 @@ fun main() {
     // Xwayland/Mir maximises the outer frame without resizing Compose's initial
     // canvas. Match the actual screen explicitly, as in the mobileapp port.
     val screenSize = if (isUbuntuTouch) Toolkit.getDefaultToolkit().screenSize else null
-    val koin = startApplicationKoin()
+    val koin = startApplicationKoin(isUbuntuTouch)
     val keyboard = if (isUbuntuTouch) koin.get<MaliitKeyboard>() else null
     application {
         var viewModel by remember { mutableStateOf<DemoMailViewModel?>(null) }
@@ -94,13 +94,15 @@ fun main() {
     }
 }
 
-private fun startApplicationKoin() = startKoin {
+private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
     modules(
         module {
             single { DemoMailRepository() }
             single { MailDatabase(mailDatabasePath()) }
             single { AccountSettingsStorage(get()) }
-            single<CredentialStore> { SecretServiceCredentialStore() }
+            single<CredentialStore> {
+                if (isUbuntuTouch) SignonCredentialStore(SignonIdentityIndex(get())) else SecretServiceCredentialStore()
+            }
             single { UtAccountManager(get(), get()) }
             factory { AccountSetupViewModel(get()) }
             single<Logger> { DefaultLogger(sink = ConsoleLogSink()) }

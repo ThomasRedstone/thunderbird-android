@@ -3470,3 +3470,29 @@ The32 launcher returned0 and printed Started (`/tmp/thunderbird-032-launch.log`)
 Independent inspection found exact32 enforcing JVM PID478802 and one owned main window
 (`/tmp/thunderbird-032-window.log`). The process is T(stopped) while the phone is inactive.
 No focused/visible screenshot or touch acceptance is inferred from process/window existence.
+
+### Native retained Move recovery on 0.1.32 (2026-10-27)
+
+Test-only `ConfinedMoveRecoveryProbe` creates a private synthetic SQLite fixture, claims
+a move (leaving its journal WORKING), retains 65553 binary bytes/full-download and SEEN
+flags/date, and deletes its live source folder. A fresh installed32 JVM reopens it as
+UNKNOWN with persistent uncertainty and attempt1. It rejects retry without confirmation,
+queued-only cancellation and release without a confirmed destination. Bounded pages match
+the original binary data; foreign-account payload access is rejected. Fixture cleanup succeeds.
+Neither process reads production accounts/credentials or opens a network connection. This is
+fresh-process recovery after normal database close, not SIGKILL/power-loss durability or native
+protocol submission, large-message performance or physical UI acceptance.
+
+Both processes run with the installed32 JVM/JARs under exact32 enforcing confinement. Logs:
+`/tmp/thunderbird-032-move-prepare.log` and `/tmp/thunderbird-032-move-reopen.log`; both exit0.
+Driver: `build/evidence/native-032/candidate-032-move-probe.jar`, SHA256
+`26f24a4a183f92f3f76754fc00b39c68e55a88b47e9a987489a54b23655ef102` (3 classes).
+The driver was compiled after the immutable package; it calls the unchanged installed32 APIs.
+Two host fixture/path-validation tests pass with detekt and spotlessCheck:
+`/tmp/thunderbird-032-move-probe-check.log`. Existing full419 app tests remain the production
+baseline; this test-only addition was verified with `:app-ubuntu-touch:test --tests '*ConfinedMoveRecoveryProbeTest'`
+and the standard JDK21/SDK/Gradle flags. No production source/package was changed.
+
+Local phone-fleet commit `bd04d29` pins exactly the installed32 artifact/hash and passes scoped
+`pm lint`. The temporary-index commit preserved unrelated manifest/worktree/index changes.
+No fleet sync, prune or push was performed.

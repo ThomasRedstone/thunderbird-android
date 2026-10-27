@@ -462,3 +462,9 @@ The clean 0.1.32/schema15 artifact is now installed on FP4. Click/ARM64 checks a
 actual production11→15 migration/integrity check under confinement pass. The new Move UI
 and native recovery workflow still require phone acceptance; packaging and migration do not
 complete that gate. See M2 evidence for the immutable artifact hash and private backup.
+
+Native32 synthetic retained-move recovery now passes across fresh JVMs under confinement:
+WORKING becomes UNKNOWN, source-cache deletion preserves binary pages/flags, foreign-account
+access is rejected, and no unconfirmed retry/release is permitted. This does not establish
+physical Move acceptance, abrupt power-loss durability or real-provider protocol behavior.
+The local fleet pin matches installed32; see M2 evidence for exact logs and driver hash.

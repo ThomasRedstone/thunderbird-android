@@ -7,6 +7,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 private const val SIGNON_SCHEMA_VERSION = 3L
+private const val CURRENT_SCHEMA_VERSION = 4L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught") // Always close/roll back on failure, including cancellation; rethrow unchanged.
@@ -20,10 +21,13 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             execute("PRAGMA foreign_keys=ON")
             execute("PRAGMA busy_timeout=5000")
             val version = query("PRAGMA user_version") { getLong(0) }.single()
-            check(version in 0L..SIGNON_SCHEMA_VERSION) { "Unsupported mail database version" }
+            check(version in 0L..CURRENT_SCHEMA_VERSION) { "Unsupported mail database version" }
             if (version == 0L) createSchema()
             if (version < 2L) createAccountSchema()
             if (version < SIGNON_SCHEMA_VERSION) createSignonSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createOutgoingSchema()
+            // A process stopped before its SMTP result was committed. Never automatically resend these rows.
+            execute("UPDATE outgoing SET state='UNCERTAIN' WHERE state='SENDING'")
         } catch (exception: Exception) {
             connection.close()
             throw exception
@@ -64,6 +68,16 @@ internal class MailDatabase(path: Path) : AutoCloseable {
 
     @Synchronized
     override fun close() = connection.close()
+
+    private fun createOutgoingSchema() = transaction {
+        execute(
+            """CREATE TABLE outgoing (
+                id TEXT PRIMARY KEY NOT NULL, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                recipients TEXT NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL,
+                message_id TEXT NOT NULL UNIQUE, state TEXT NOT NULL, mime BLOB)""",
+        )
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
 
     private fun createSignonSchema() = transaction {
         execute("CREATE TABLE signon_identity_index (key TEXT PRIMARY KEY NOT NULL, identity_id INTEGER NOT NULL)")

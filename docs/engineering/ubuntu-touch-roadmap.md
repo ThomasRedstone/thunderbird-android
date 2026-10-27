@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.8 installed on FP4; 0.1.4 sizing/typing confirmed; SQLite/SignOn confinement checks pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Cached foreground mailbox UI and controlled TLS IMAP/SMTP engine tests; phone journey pending |
-| Engineering | 49 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 57 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Mailbox UI committed/pushed as `6958418eac`; installed 0.1.8 embeds that clean source | Ongoing live-mail work and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `a07d3ad` pins installed 0.1.8/hash | Foreground journeys, recovery and lifecycle verification |
 
@@ -151,7 +151,8 @@ Acceptance: the complete flow works against a controlled test server on the devi
 test account. Verify rejected credentials, invalid certificates, interrupted sync and send failure recovery. Do not
 request or log production credentials to substitute for controlled tests. Measure package size, startup time and memory.
 This milestone is in progress. Storage, protected setup and controlled-server protocol integration are implemented;
-cached mailbox UI is implemented; drafts/outbox, cancellation and the phone vertical slice remain incomplete.
+cached mailbox UI and persistent draft/outbox engine are implemented; composer/outbox UI, cancellation and
+the phone vertical slice remain incomplete.
 
 ## Milestone 3 Daily use in the foreground
 

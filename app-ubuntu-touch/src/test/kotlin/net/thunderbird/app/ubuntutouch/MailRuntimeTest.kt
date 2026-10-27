@@ -3,18 +3,32 @@ package net.thunderbird.app.ubuntutouch
 import assertk.assertThat
 import assertk.assertions.isFalse
 import com.fsck.k9.mail.K9MailLib
+import com.fsck.k9.mail.internet.BinaryTempFileBody
 import net.thunderbird.components.core.logging.DefaultLogger
 import net.thunderbird.components.core.logging.LogEvent
 import net.thunderbird.components.core.logging.LogLevel
 import net.thunderbird.components.core.logging.LogSink
 import net.thunderbird.components.core.logging.LoggingControl
 import net.thunderbird.legacy.logging.Log
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class MailRuntimeTest {
     @get:Rule val directory = TemporaryFolder()
+    private var previousMimeDirectory: java.io.File? = null
+
+    @Before
+    fun preserveMimeDirectory() {
+        previousMimeDirectory = BinaryTempFileBody.getTempDirectory()
+    }
+
+    @After
+    fun restoreMimeDirectory() {
+        BinaryTempFileBody.setTempDirectory(previousMimeDirectory)
+    }
 
     @Test
     fun `mail logging does not evaluate content or enable protocol debugging`() {

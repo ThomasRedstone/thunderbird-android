@@ -132,6 +132,47 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `persistent outbox delivers frozen MIME once through the real SMTP transport`() {
+        val sessions = factory()
+        val store = OutgoingMailStore(database)
+        val draft = store.create(account.id)
+        store.save(account.id, draft.id, RECIPIENT, "Outbox fixture", "Hello λ\r\n.A leading dot")
+        val queued = store.queue(account, draft.id)
+        val testSubject = OutgoingMailSender(store, SessionOutgoingTransport(sessions))
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.SENT)
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.SENT)
+        assertThat(server.waitForIncomingEmail(5000, 1)).isTrue()
+        val received = server.receivedMessages.single()
+        assertThat(received.messageID).isEqualTo(queued.messageId)
+        assertThat(received.subject).isEqualTo("Outbox fixture")
+        assertThat(received.content.toString().trim()).isEqualTo("Hello λ\r\n.A leading dot")
+        assertThat(received.allRecipients.single().toString()).isEqualTo(RECIPIENT)
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `acceptance followed by lost local outcome does not blindly redeliver`() {
+        val sessions = factory()
+        val store = OutgoingMailStore(database)
+        val draft = store.create(account.id)
+        store.save(account.id, draft.id, RECIPIENT, "Uncertain fixture", "Controlled body")
+        store.queue(account, draft.id)
+        val transport = SessionOutgoingTransport(sessions)
+        var attempts = 0
+        val testSubject = OutgoingMailSender(store) { id, mime ->
+            attempts++
+            transport.send(id, mime)
+            // Fault injection after the real SMTP server accepts; no reliable outcome reaches the sender.
+            throw net.thunderbird.core.common.exception.MessagingException("Lost outcome fixture", true)
+        }
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.UNCERTAIN)
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.UNCERTAIN)
+        assertThat(attempts).isEqualTo(1)
+        assertThat(server.receivedMessages.size).isEqualTo(1)
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
     fun `unknown certificate and rejected credentials fail instead of creating successful mailbox state`() {
         val testSubject = factory(trusted = false)
         val certificateFailure = runCatching {

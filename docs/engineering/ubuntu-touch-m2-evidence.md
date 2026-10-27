@@ -380,3 +380,41 @@ convergence was run. Source commits are pushed to `feat/ubuntu-touch-demo`.
 Next: verify actual confined protocol operations on FP4 with controlled fixtures, complete the phone mailbox journey,
 and implement persistent composition/drafts/outbox. Physical secure-field input, rotation and lifecycle checks remain
 open. Existing installed 0.1.7 credential proofs are historical evidence, not a substitute for new 0.1.8 device checks.
+
+
+## Work package 2.4: persistent drafts and guarded SMTP attempts
+
+Brief: preserve editable drafts and immutable queued MIME across restart, then allow exactly one foreground attempt
+per queued row. An interrupted or ambiguous attempt must remain visible and must not be silently retried. Keep all
+outgoing records account-scoped, cascade selected account removal, and reject header injection without overwriting
+the previous draft. Composer/outbox UI and phone acceptance are separate unfinished parts of this work package.
+
+Implemented: schema 4 adds `outgoing` with draft fields, a stable generated Message-ID, state and frozen MIME.
+`OutgoingMailStore` stores drafts, freezes validated recipients and UTF-8 quoted-printable MIME when queued, atomically
+claims queued rows, and commits results. Queued messages cannot be edited in place. `OutgoingMailSender` uses the
+existing foreground session/SMTP transport. SENT means SMTP acceptance, not final recipient delivery or successful
+Sent-folder filing. No automatic send/retry loop exists. These blocking APIs require IO callers.
+
+After a process restart, SENDING becomes UNCERTAIN before UI access. SMTP negative replies and failures explicitly
+classified by the engine as safe become FAILED; possibly accepted or unclassified errors conservatively become
+UNCERTAIN. No raw error text is stored. A failed row can be explicitly requeued; an uncertain row additionally requires
+an explicit duplicate-risk acknowledgement. Its Message-ID is retained, but that is not a promise of server-side
+deduplication. A second send call on SENDING/SENT/UNCERTAIN cannot claim another attempt.
+
+Verification: 57 app tests pass, zero failures/errors/skips; detekt, spotlessCheck and installDist pass with the scoped
+JDK 21/Xvfb command above. Log: `/tmp/thunderbird-outbox-final.log`. Six new persistence tests verify draft/queue reopen,
+stable Message-ID, Unicode MIME/body, immutable queue, interrupted-send recovery and explicit retry gate, single claim,
+account isolation/deletion, safe versus uncertain failures, injection rollback and schema-3 upgrade preserving account
+and secret-index data. A new real SMTP test observes exactly one server-received queued message with intended content.
+A second real-server test injects loss of the local result after actual SMTP acceptance: state remains UNCERTAIN and
+another send call produces no second attempt/delivery. This fault injection is not a wire-level lost-ack fixture.
+The suite also exposed a stale global MIME temporary path in test isolation; tests now restore that path after use.
+
+Schema 4 is forward-only for older previews: 0.1.8 rejects it rather than deleting/resetting data. Installation rollback
+requires a documented compatible backup/migration strategy; it has not been tested. Single application database
+ownership remains required; a concurrent second process opening the same store is not a supported send coordinator.
+Version 0.1.9 is development only. FP4 and fleet remain at 0.1.8/source `6958418eac`; no new phone result is claimed.
+
+Still required: composer/outbox UI, autosave and recovery, send/retry/uncertain-decision journeys, recipients/Cc/Bcc and
+identities, attachments, Sent-folder filing/reconciliation, cancellation, wire-level interruptions and full confined
+phone verification. These are continuing roadmap requirements, not exclusions from the final application.

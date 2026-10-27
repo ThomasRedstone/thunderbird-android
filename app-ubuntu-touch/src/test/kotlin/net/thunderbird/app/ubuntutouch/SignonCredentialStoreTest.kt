@@ -103,6 +103,7 @@ class SignonCredentialStoreTest {
     fun `schema two upgrades without replacing account tables`() {
         val path = directory.root.toPath().resolve("mail.sqlite")
         MailDatabase(path).use { database ->
+            database.execute("DROP TABLE outgoing")
             database.execute("DROP TABLE signon_identity_index")
             database.execute("PRAGMA user_version=2")
             database.execute("INSERT INTO credential_cleanup(key) VALUES(?)", "pending")

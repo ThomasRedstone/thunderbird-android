@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.apache.httpclient5)
     implementation(libs.androidx.sqlite.bundled)
     implementation(libs.dbus.java.core)
+    implementation(libs.kotlinx.coroutines.swing)
     runtimeOnly(libs.dbus.java.transport.junixsocket)
     implementation(projects.backend.demo)
     implementation(projects.backend.api)

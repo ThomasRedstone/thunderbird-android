@@ -327,3 +327,36 @@ limitations above remain unchanged. Version 0.1.8 is a development version, not 
 Next acceptance work: cached mailbox UI and explicit sync/error states, persistent draft/outbox and compose/send,
 active cancellation and interrupted-operation recovery, successful STARTTLS against a supporting server, then the
 complete confined FP4 journey. A direct SMTP transport test is not evidence of an outbox or a usable mail app.
+
+
+## Work package 2.3: cached mailbox UI
+
+Brief: connect the protected account manager, persistent backend and tested foreground protocol engine to usable
+account/folder/message navigation. Cached reads must not require secrets or network availability. Refresh and full-body
+fetch must be explicit; failure must retain existing cached mail and must not display raw server exception text.
+
+Implemented: `LiveMailRepository` and its persistent adapter, `LiveMailViewModel` and `LiveMailScreen`, wired through
+Koin and application navigation. Mailboxes lists configured accounts, opens cached folders and messages, discovers
+folders on Refresh, syncs a selected folder and renders cached plain text. It shows unread state and provides an
+explicit complete-body download for partial messages. No HTML is rendered or remote content fetched by the reader.
+Navigation and repeated operations are disabled while busy; this is not an implementation of active cancellation.
+The demo and secure account setup remain available. Leaving setup disposes its model and clears input state.
+
+The Click `networking` policy group is added for foreground connections to the user's configured IMAP/SMTP servers;
+`accounts` remains for protected SignOn storage. This is required by the requested live-mail journey and does not add
+an execution exemption or background service. The new package policy still needs actual confined device verification.
+
+Verification: four new tests cover offline navigation with zero refresh calls, readable cache after network failure,
+non-disclosure of a synthetic sensitive exception, explicit complete-body download, busy-state navigation exclusion,
+and Compose reader/disabled controls. The real controlled-server integration test additionally asserts repository
+folder discovery, unread state and body recovery after database reopen. The previous 45 tests are retained.
+Final verification: 49 app tests, zero failures/errors/skips; detekt, spotlessCheck and installDist pass.
+Command is the same scoped JDK 21/Xvfb Gradle invocation recorded for the engine foundation above, with final log
+`/tmp/thunderbird-mailbox-final.log`. Android/instrumentation checks were not run for this JVM-app-only change;
+shared Bolt checks and their existing baseline limitation remain unchanged. Version 0.1.8 has not yet been installed;
+FP4 remains on 0.1.7.
+
+Remaining gates: phone build/install and controlled-server journey, meaningful typed account/TLS error UI, successful
+STARTTLS interoperability, active cancellation, subject filtering/search and efficient envelope-only list reads.
+Current lists parse cached MIME and are suitable for the bounded preview window, not a measured large-mailbox solution.
+Message reading does not yet mark mail seen. Composition/drafts/outbox, sending UI and all later roadmap features stay open.

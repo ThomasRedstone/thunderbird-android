@@ -1,0 +1,39 @@
+package net.thunderbird.app.ubuntutouch
+
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.performClick
+import assertk.assertThat
+import assertk.assertions.isEqualTo
+import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
+import net.thunderbird.components.ui.testing.ComposeUiTestHarness
+import net.thunderbird.feature.account.AccountIdFactory
+import org.junit.Test
+
+class LiveMailScreenTest : ComposeUiTestHarness() {
+    @Test
+    fun `partial reader offers explicit full download and displays cached plain text`() = runComposeTest {
+        val summary = MailSummary("1", "Fixture subject", "Fixture sender", true)
+        var event: LiveMailEvent? = null
+        val state = LiveMailState(
+            emptyList(),
+            account = AccountIdFactory.create(),
+            folder = MailFolder("INBOX", "Inbox"),
+            content = MailContent(summary, "Cached plain text", false),
+        )
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state) { event = it } } }
+        onNodeWithText("Cached plain text").assertIsDisplayed()
+        onNodeWithText("Only a preview is cached.").assertIsDisplayed()
+        onNodeWithText("Download full message").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.Download)
+    }
+
+    @Test
+    fun `busy mailbox disables sync and navigation`() = runComposeTest {
+        val state = LiveMailState(emptyList(), account = AccountIdFactory.create(), busy = true)
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state) {} } }
+        onNodeWithText("Working…").assertIsDisplayed()
+        onNodeWithText("Refresh folders").assertIsNotEnabled()
+        onNodeWithText("Back").assertIsNotEnabled()
+    }
+}

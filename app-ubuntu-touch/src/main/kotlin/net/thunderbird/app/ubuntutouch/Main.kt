@@ -86,7 +86,12 @@ fun main() {
                                 modifier = Modifier.padding(24.dp),
                             )
                         } else {
-                            MailApplicationScreen(loaded, keyboard) { koin.get<AccountSetupViewModel>() }
+                            MailApplicationScreen(
+                                loaded,
+                                keyboard,
+                                createAccounts = { koin.get<AccountSetupViewModel>() },
+                                createMailbox = { koin.get<LiveMailViewModel>() },
+                            )
                         }
                     }
                 }
@@ -106,6 +111,9 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             }
             single { UtAccountManager(get(), get()) }
             factory { AccountSetupViewModel(get()) }
+            single { ForegroundMailSessionFactory(get(), get(), JvmTrustedSocketFactory(), get()) }
+            single<LiveMailRepository> { PersistentLiveMailRepository(get(), get()) }
+            factory { LiveMailViewModel(get(), get()) }
             single<Logger> { DefaultLogger(sink = ConsoleLogSink()) }
             single { MaliitKeyboard(get()) }
         },

@@ -109,6 +109,12 @@ class ForegroundMailSessionTest {
         database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
         val reopened = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
         assertThat(reopened.readMessage(firstUid)?.subject).isEqualTo("First")
+        val repository = PersistentLiveMailRepository(database, factory())
+        assertThat(repository.folders(account.id).any { it.id == "INBOX" }).isTrue()
+        assertThat(repository.messages(account.id, "INBOX").single().unread).isFalse()
+        val content = repository.content(account.id, "INBOX", firstUid)
+        assertThat(content.body.trim()).isEqualTo("First controlled body")
+        assertThat(content.complete).isTrue()
         assertThat(logEvents).isEqualTo(0)
     }
 

@@ -1,8 +1,11 @@
-# Ubuntu Touch offline mail demo
+# Ubuntu Touch mail preview
 
-An unofficial Compose Desktop preview using Thunderbird's demo backend and Bolt components. Browse folders, filter
-subjects, read plain-text messages and navigate back. All messages are bundled samples. The preview has no account
-setup, networking, persistent mailbox or background synchronisation.
+An unofficial Compose Desktop preview using Thunderbird's JVM mail engine and Bolt components. The demo mailbox
+contains bundled samples. Accounts supports manual TLS IMAP/SMTP settings and protected credentials. Mailboxes opens
+cached folders/messages offline, discovers folders with Refresh, syncs a selected folder and reads plain-text mail.
+Partial messages offer an explicit full download. Networking is foreground-only; composition, drafts/outbox,
+background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
+version is 0.1.8; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -37,7 +40,8 @@ runtime JARs with embedded notices, dependency coordinates/hashes, packaging ima
 This inventory is a starting point for release licensing review, not a claim that all required dependency sources are bundled.
 
 The launcher uses the session DISPLAY or discovers an existing Xwayland socket, and passes an app-owned writable
-cache directory to Java/AWT/Skiko before JVM startup. No network or Bluetooth policy groups are requested.
+cache directory to Java/AWT/Skiko before JVM startup. The `accounts` policy group accesses protected SignOn storage, and `networking` permits the requested
+foreground IMAP/SMTP connections to configured servers. No background/lifecycle exemption is requested.
 
 ## Phone deployment
 

@@ -66,7 +66,10 @@ internal fun AccountSetupScreen(
 
 @Composable
 private fun AccountList(state: AccountSetupState, onEvent: (AccountSetupEvent) -> Unit) {
-    TextBodyLarge("Manual IMAP/SMTP setup. This preview saves accounts securely; network mail is not connected yet.")
+    TextBodyLarge(
+        "Manual IMAP/SMTP setup. Saved accounts can receive foreground mail from Mailboxes. " +
+            "Sending UI is not available yet.",
+    )
     state.accounts.forEach { account ->
         TextBodyLarge(account.displayName)
         ButtonText("Edit ${account.displayName}", { onEvent(AccountSetupEvent.Edit(account.id)) })

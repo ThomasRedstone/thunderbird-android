@@ -1,6 +1,6 @@
 {
     "name": "mail-demo.thomasredstone",
-    "description": "Unofficial offline mail preview built from Thunderbird components",
+    "description": "Unofficial foreground mail preview built from Thunderbird components",
     "architecture": "arm64",
     "title": "Mail demo",
     "version": "0.1.8",

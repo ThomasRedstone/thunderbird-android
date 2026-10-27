@@ -1446,3 +1446,35 @@ in the device protocol guide. Supply the exact installed profile as the sole arg
 fails when capability resolution is unavailable; do not weaken confinement or mistake this for a provider test.
 Next: implement/test one-use PKCE/state and bounded callback handling, then test DispatchURL/browser return and
 lifecycle under the same profile before connecting any real provider account.
+
+
+### OAuth authorization-attempt implementation (source only)
+
+OAuthAuthorizationAttempt now generates independent 32-byte SecureRandom state and verifier values, URL-safe
+unpadded encoding and an S256 challenge. It builds an authorization-code request from a supplied configuration;
+no provider registration or upstream configuration was changed. It currently accepts only an already allocated
+IPv4 literal loopback redirect with an explicit port and path, and HTTPS authorization endpoints without embedded
+credentials/query/fragment. This is a candidate route, not a declaration that either provider registration supports it.
+
+Callback acceptance bounds URI length (8192), parameter count (32) and code size (4096), matches the exact redirect
+scheme/authority/raw path, rejects fragments and duplicate decoded parameter names, and compares state using
+MessageDigest.isEqual. Invalid callbacks do not consume the attempt. Matching success or denial consumes it;
+cancellation and five-minute monotonic expiry clear its mutable verifier/state fields.
+The authorization URI still contains the spent state and must not be logged. Synchronized acceptance
+allows only one winner during replay. Provider error descriptions are not returned. Attempt and success-result
+string representations redact their contents. Immutable JVM strings cannot promise physical secret-memory erasure.
+
+The tests include the [RFC 7636 Appendix B](https://www.rfc-editor.org/rfc/rfc7636#appendix-B) S256 vector,
+request-value round trips, code/verifier binding, independent attempts, concurrent replay, cancellation/expiry,
+matching denial, wrong host/port/path/scheme/userinfo, fragments, duplicate/encoded parameter names, malformed and
+oversized input and invalid configuration. Native browser delivery remains unverified. The component does not yet
+bind to an account-setup owner, listen for HTTP, dispatch a browser, exchange/refresh/store tokens or authenticate
+IMAP/SMTP. Those remain required OAuth acceptance steps; no Gmail or Outlook sign-in is claimed.
+
+
+All 156 app tests pass with zero failures/errors/skips, plus detekt/installDist/spotlessCheck
+(/tmp/thunderbird-oauth-attempt-full.log); XML retained in build/evidence/oauth-attempt/.
+Commands use the existing JDK 21/Android SDK environment and app-scoped tasks with
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4.
+No dependencies, permissions or shared Android code changed. Android assembly/device suites were not rerun;
+this JVM module has no Android lint/device task. This authorization component is not in installed 0.1.17.

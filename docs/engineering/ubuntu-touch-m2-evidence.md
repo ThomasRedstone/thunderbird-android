@@ -1494,8 +1494,8 @@ request budget so slow input cannot renew its deadline. HTTP requires GET, HTTP/
 The existing attempt validator then checks the callback path/state/parameters. Invalid clients do not consume state.
 Responses are fixed plain text with no-store, no-referrer and default-src none; request/code/state/error text is never
 reflected. A browser disconnect while writing the small fixed response does not discard an already validated code.
-Socket read limits are not a general proof of bounded output under arbitrary kernel/backpressure conditions;
-cancellation closes the active peer and listener. IO failures exposed to the owner use a generic token-free exception.
+A subsequent watchdog closes both sockets at the overall deadline, including during response writes;
+cancellation also closes the active peer and listener. OS scheduling and socket teardown latency remain measured-runtime concerns. IO failures exposed to the owner use a generic token-free exception.
 
 Required follow-ups remain browser dispatch/return on the phone, foreground/suspend behavior, account-setup ownership
 and UI, token exchange/refresh/persistence and real-provider registration/login/receive/send. This HTTP component alone
@@ -1515,3 +1515,44 @@ The app-scoped Gradle command used JDK 21/Android SDK and the standard
 --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4 options.
 No new dependencies, permissions or shared Android changes. Android assembly/device suites were not rerun;
 the JVM app has no Android lint/device task. Installed 0.1.17 remains unchanged.
+
+
+### 0.1.18 browser handoff candidate
+
+LomiriOAuthBrowser sends HTTPS authorization targets through the permitted DispatchURL method without TestURL.
+It validates scheme/host/userinfo/fragment, uses the existing session-bus UID/SASL setup and waits for the reply
+before releasing its private connection. Dispatcher/transport errors become a generic exception without the remote
+message/cause/suppressed data. Three tests cover exact encoded request preservation, rejecting unsafe targets before
+any dispatch and error redaction. The adapter is blocking and must be called on IO; cancellation during the D-Bus
+call and real UI integration remain unverified. Dispatch acknowledgement is not authentication completion.
+
+Upstream [platform client source](https://gitlab.com/ubports/development/core/lomiri-url-dispatcher/-/blob/309775964bc1ecbebf4d52cdc5add2b9b2c0910f/liblomiri-url-dispatcher/lomiri-url-dispatcher.c)
+uses an empty second argument for normal routing. Its header explains that the argument restricts the destination
+package and that app-ID lookup is unavailable to confined callers. Commit 309775964bc1ecbebf4d52cdc5add2b9b2c0910f
+matches the source suffix of the installed dispatcher package, rather than assuming current main's API.
+No caller identity is spoofed and no permission is added.
+
+The receiver now starts an independent coroutine watchdog while awaiting a callback. At the overall deadline it
+closes both listening and active peer sockets, including a response write. Its worker cancels the watchdog on exit.
+The deadline still starts at construction; setup ownership must close a receiver that is never awaited.
+
+ConfinedOAuthCallbackProbe is a new test-only driver for matching installed production code. Socket mode sends a
+synthetic HTTP callback and verifies its status, code and PKCE verifier binding. Browser mode dispatches the same
+local callback directly through the platform interface, solely to test browser-to-listener delivery. This diagnostic
+HTTP URL is not accepted by the production HTTPS-only authorization-browser adapter and does not exercise a provider.
+Both modes must run under the exact enforcing app profile with the installed JVM/app JARs and private temp directory.
+A headless probe cannot prove actual account-setup foreground restoration or survival of app UI suspension.
+
+Version 0.1.18 is reserved in Gradle, manifest and packager for these changes, attachment preparation and the MIME
+resource fix. Installed phone/fleet still remain 0.1.17 until a new artifact is built and independently verified.
+
+
+The browser adapter's host tests do not prove real dispatcher delivery or connection cancellation. The matching
+native callback probe is prepared for 0.1.18; results must be recorded after deployment, without treating a successful
+headless/browser callback as normal app UI lifecycle acceptance. No real OAuth provider has been contacted.
+
+
+Candidate host verification: all 169 app tests pass (zero failures/errors/skips), plus detekt/installDist/spotlessCheck
+(/tmp/thunderbird-018-checks.log; XML build/evidence/oauth-browser/). JDK 21/SDK, app-scoped Gradle tasks with the
+standard no-configuration-cache/isolated-projects=false/max-workers=4 options. No dependencies, permissions or shared
+Android changes. Android assembly/device suites were not rerun; the JVM module has no Android lint/device task.

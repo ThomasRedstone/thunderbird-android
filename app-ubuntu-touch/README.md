@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.17; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.18; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -148,3 +148,7 @@ Physical UI/provider acceptance, server search, filters/indexing and a unified i
 A further source fix releases freshly parsed MIME temp files after cached listing, reading, search and response-draft
 creation, including failure/cancellation paths. It avoids the reader's duplicate parse and preserves caller-owned
 messages. The regression failed before the fix; all 137 app tests now pass. This fix is not yet installed on FP4.
+
+OAuth development includes PKCE/state validation, a bounded loopback receiver and a Lomiri URL Dispatcher adapter.
+These are not connected to account setup or real provider registrations. Gmail/Outlook login, protected token storage,
+refresh and authenticated transport integration remain unfinished. See the milestone evidence for source/device status.

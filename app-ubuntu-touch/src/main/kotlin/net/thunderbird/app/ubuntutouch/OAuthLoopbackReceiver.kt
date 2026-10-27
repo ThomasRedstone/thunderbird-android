@@ -12,6 +12,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import net.thunderbird.core.common.oauth.OAuthConfiguration
@@ -33,12 +34,18 @@ internal class OAuthLoopbackReceiver private constructor(
         check(waiting.compareAndSet(false, true)) { "Callback receiver already awaited" }
         suspendCancellableCoroutine { continuation ->
             continuation.invokeOnCancellation { close() }
+            val watchdog = launch {
+                val remaining = ((deadline - System.nanoTime()) / NANOS_PER_MILLI).coerceAtLeast(0)
+                delay(remaining)
+                close()
+            }
             launch(Dispatchers.IO) {
                 try {
                     continuation.resume(receive())
                 } catch (_: IOException) {
                     continuation.resumeWithException(OAuthLoopbackException())
                 } finally {
+                    watchdog.cancel()
                     close()
                 }
             }

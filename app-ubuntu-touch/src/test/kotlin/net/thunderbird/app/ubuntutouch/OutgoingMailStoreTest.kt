@@ -182,7 +182,7 @@ class OutgoingMailStoreTest {
             assertThat(OutgoingMailStore(database).list(accountId)).isEqualTo(emptyList())
             assertThat(SignonIdentityIndex(database).find("fixture")).isEqualTo(42L)
             assertThat(AccountSettingsStorage(database).all().single().id).isEqualTo(accountId)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(13L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(14L)
         }
     }
 

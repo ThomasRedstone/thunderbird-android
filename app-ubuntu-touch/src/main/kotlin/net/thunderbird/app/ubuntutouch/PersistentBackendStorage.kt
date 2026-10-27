@@ -9,6 +9,7 @@ import com.fsck.k9.mail.FolderType
 internal class PersistentBackendStorage(
     private val database: MailDatabase,
     private val account: String,
+    private val binding: String? = null,
 ) : BackendStorage {
     init {
         require(account.isNotBlank())
@@ -18,7 +19,7 @@ internal class PersistentBackendStorage(
         val id = database.query("SELECT id FROM folders WHERE account=? AND server_id=?", account, folderServerId) {
             getLong(0)
         }.single()
-        return PersistentBackendFolder(database, account, id)
+        return PersistentBackendFolder(database, account, id, binding)
     }
 
     override fun getFolderServerIds(): List<String> =

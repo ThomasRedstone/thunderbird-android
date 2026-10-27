@@ -14,6 +14,7 @@ internal class PersistentBackendFolder(
     private val database: MailDatabase,
     account: String,
     val id: Long,
+    private val binding: String? = null,
 ) : BackendFolder {
     private val metadata = MailMetadata(database, account, id)
     override val name: String
@@ -80,12 +81,14 @@ internal class PersistentBackendFolder(
         }
         database.transaction {
             database.execute(
-                """INSERT INTO messages(folder,uid,mime,effective_date) VALUES(?,?,?,?)
-                    ON CONFLICT(folder,uid) DO UPDATE SET mime=excluded.mime,effective_date=excluded.effective_date""",
+                """INSERT INTO messages(folder,uid,mime,effective_date,origin_binding) VALUES(?,?,?,?,?)
+                    ON CONFLICT(folder,uid) DO UPDATE SET mime=excluded.mime,effective_date=excluded.effective_date,
+                    origin_binding=excluded.origin_binding""",
                 id,
                 uid,
                 raw,
                 (message.sentDate ?: message.internalDate)?.time,
+                binding.orEmpty(),
             )
             database.execute("DELETE FROM flags WHERE folder=? AND uid=?", id, uid)
             flags.forEach { flag ->
@@ -93,6 +96,12 @@ internal class PersistentBackendFolder(
             }
         }
     }
+
+    fun messageBinding(uid: String): String? = database.query(
+        "SELECT origin_binding FROM messages WHERE folder=? AND uid=?",
+        id,
+        uid,
+    ) { getText(0) }.singleOrNull()
 
     fun readMessage(uid: String): MimeMessage? {
         val raw = database.query("SELECT mime FROM messages WHERE folder=? AND uid=?", id, uid) { getBlob(0) }

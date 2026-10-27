@@ -128,6 +128,10 @@ class ForegroundMailSessionTest {
                 logger,
                 directory.root.toPath().resolve("move-mime"),
             )
+            sessions.open(account.id).use {
+                it.downloadMessage("INBOX", key.uid)
+                it.sync("Move fixture target")
+            }
             val store = MailMoveStore(database)
             val queued = store.enqueue(key, "Move fixture target")
             val testSubject = MailMoveRunner(store, SessionMailMoveTransport(sessions))
@@ -163,6 +167,10 @@ class ForegroundMailSessionTest {
                 logger,
                 directory.root.toPath().resolve("move-cancel-mime"),
             )
+            sessions.open(account.id).use {
+                it.downloadMessage("INBOX", key.uid)
+                it.sync("Move fixture target")
+            }
             val store = MailMoveStore(database)
             val queued = store.enqueue(key, "Move fixture target")
             val operation = MailOperation()
@@ -180,6 +188,49 @@ class ForegroundMailSessionTest {
                 workers.shutdownNow()
                 check(workers.awaitTermination(5, TimeUnit.SECONDS))
             }
+        }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `failed source verification retains old cache and cannot authorize a move for the new connection`() {
+        val key = prepareMoveSource()
+        val folder = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        val original = database.query("SELECT mime FROM messages WHERE folder=? AND uid=?", folder.id, key.uid) {
+            getBlob(0)
+        }.single()
+        val origin = folder.messageBinding(key.uid)
+        val material = StartTlsMaterial(directory.root.toPath())
+        StartTlsGateway(true, server.imap.port, material.context, dropFetchBody = true).use { gateway ->
+            accounts.updateSync(account.id) {
+                it.copy(
+                    incoming = settings(
+                        "imap",
+                        gateway.port,
+                    ).copy(connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED),
+                )
+            }
+            val sessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("verify-mime"),
+            )
+            assertThat(
+                runCatching {
+                    sessions.open(account.id).use { it.downloadMessage("INBOX", key.uid) }
+                }.isFailure,
+            ).isTrue()
+            sessions.open(account.id).use { it.sync("Move fixture target") }
+            val retained = database.query("SELECT mime FROM messages WHERE folder=? AND uid=?", folder.id, key.uid) {
+                getBlob(0)
+            }.single()
+            assertThat(retained.contentEquals(original)).isTrue()
+            assertThat(folder.messageBinding(key.uid)).isEqualTo(origin)
+            assertThat(runCatching { MailMoveStore(database).enqueue(key, "Move fixture target") }.isFailure).isTrue()
+            withOracleInbox { assertThat(it.messageCount).isEqualTo(1) }
+            withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(0) }
         }
         assertThat(logEvents).isEqualTo(0)
     }

@@ -60,7 +60,8 @@ internal class ForegroundMailSessionFactory(
             }
             operation?.ensureActive()
             resources.ensureActive()
-            val storage = PersistentBackendStorage(database, id.toString())
+            val binding = mailCacheBinding(account)
+            val storage = PersistentBackendStorage(database, id.toString(), binding)
             val imap = ImapStore.create(
                 authentication.incoming,
                 PreviewImapConfig,
@@ -83,7 +84,7 @@ internal class ForegroundMailSessionFactory(
                 smtp,
                 resources,
                 operation,
-                AccountHandoff(account.id) { submit -> accounts.withCurrentAccount(account, submit) },
+                moveHandoff(account, storage, binding),
             )
         } catch (failure: Throwable) {
             try {
@@ -96,6 +97,15 @@ internal class ForegroundMailSessionFactory(
             throw failure
         }
     }
+    private fun moveHandoff(
+        account: UtMailAccount,
+        storage: PersistentBackendStorage,
+        binding: String,
+    ) = AccountHandoff(
+        account.id,
+        { submit -> accounts.withCurrentAccount(account, submit) },
+        { folder -> storage.getFolder(folder).setFolderExtraString(CACHE_BINDING_KEY, binding) },
+    )
 }
 
 internal class ForegroundMailSession(
@@ -152,6 +162,11 @@ internal class ForegroundMailSession(
         val listener = ForegroundSyncListener(onProgress)
         backend.sync(folder, SYNC_CONFIG, listener)
         listener.throwIfFailed()
+        handoff.authorize {
+            resources.ensureActive()
+            operation?.ensureActive()
+            handoff.recordSynced(folder)
+        }
     }
 
     fun setFlag(folder: String, uid: String, flag: Flag, value: Boolean, uidValidity: Long) {

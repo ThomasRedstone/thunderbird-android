@@ -3,7 +3,11 @@ package net.thunderbird.app.ubuntutouch
 import kotlinx.coroutines.CancellationException
 import net.thunderbird.feature.account.AccountId
 
-internal class AccountHandoff(val account: AccountId, val authorize: (() -> Unit) -> Unit)
+internal class AccountHandoff(
+    val account: AccountId,
+    val authorize: (() -> Unit) -> Unit,
+    val recordSynced: (String) -> Unit,
+)
 
 internal fun interface MailMoveTransport {
     fun move(action: MailMove, operation: MailOperation, beforeSubmit: () -> Unit)

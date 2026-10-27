@@ -19,6 +19,53 @@ class MailMoveStoreTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `schema thirteen cache bytes survive upgrade and are not implicitly assigned a current origin`() {
+        val path = directory.root.toPath().resolve("mail.sqlite")
+        lateinit var account: AccountId
+        MailDatabase(path).use { database ->
+            account = populate(database)
+            database.execute("ALTER TABLE messages DROP COLUMN origin_binding")
+            database.execute("PRAGMA user_version=13")
+        }
+        MailDatabase(path).use { database ->
+            val cache = PersistentBackendStorage(database, account.toString())
+            assertThat(cache.getFolder("INBOX").messageBinding("1")).isEqualTo("")
+            assertThat(
+                database.query("SELECT mime FROM messages") {
+                    getBlob(0).decodeToString()
+                }.single(),
+            ).isEqualTo("Fixture")
+            assertThat(
+                runCatching {
+                    MailMoveStore(database).enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+                }.isFailure,
+            ).isTrue()
+        }
+    }
+
+    @Test
+    fun `new intent after server change rejects old cached bytes despite matching mailbox generations`() = fixture {
+            database,
+            account,
+            store,
+        ->
+        val settings = AccountSettingsStorage(database)
+        val original = settings.all().single()
+        val replacement = original.copy(incoming = original.incoming.copy(host = "other.example.invalid"))
+        settings.update(replacement)
+        val cache = PersistentBackendStorage(database, account.toString())
+        cache.getFolder("Archive").setFolderExtraString(CACHE_BINDING_KEY, mailCacheBinding(replacement))
+        val key = MailMessageKey(account, "INBOX", "1")
+        assertThat(runCatching { store.enqueue(key, "Archive") }.isFailure).isTrue()
+        assertThat(
+            database.query("SELECT mime FROM messages") {
+                getBlob(0).decodeToString()
+            }.single(),
+        ).isEqualTo("Fixture")
+        assertThat(cache.getFolder("INBOX").messageBinding("1")).isEqualTo(mailCacheBinding(original))
+    }
+
+    @Test
     fun `schema twelve intents stay unbound after migration and cannot use current connection implicitly`() {
         val path = directory.root.toPath().resolve("mail.sqlite")
         lateinit var account: AccountId
@@ -175,7 +222,7 @@ class MailMoveStoreTest {
             database.execute("PRAGMA user_version=11")
         }
         MailDatabase(path).use { database ->
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(13L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(14L)
             assertThat(MailSignatureStore(database).read(account).text).isEqualTo("Fixture")
             assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
             assertThat(MailMoveStore(database).list(account)).isEqualTo(emptyList())
@@ -201,16 +248,16 @@ class MailMoveStoreTest {
                 null,
                 null,
             )
-        AccountSettingsStorage(database).insert(
-            UtMailAccount(
-                id,
-                "Fixture",
-                "fixture@example.invalid",
-                server,
-                server.copy(type = "smtp", port = 465),
-                "fixture-key",
-            ),
+        val account = UtMailAccount(
+            id,
+            "Fixture",
+            "fixture@example.invalid",
+            server,
+            server.copy(type = "smtp", port = 465),
+            "fixture-key",
         )
+        AccountSettingsStorage(database).insert(account)
+        val binding = mailCacheBinding(account)
         val storage = PersistentBackendStorage(database, id.toString())
         storage.createFolderUpdater().use { updater ->
             updater.createFolders(
@@ -222,8 +269,16 @@ class MailMoveStoreTest {
         }
         val source = storage.getFolder("INBOX")
         source.setFolderExtraNumber("imapUidValidity", 1)
+        source.setFolderExtraString(CACHE_BINDING_KEY, binding)
         storage.getFolder("Archive").setFolderExtraNumber("imapUidValidity", 2)
-        database.execute("INSERT INTO messages(folder,uid,mime) VALUES(?,?,?)", source.id, "1", "Fixture".toByteArray())
+        storage.getFolder("Archive").setFolderExtraString(CACHE_BINDING_KEY, binding)
+        database.execute(
+            "INSERT INTO messages(folder,uid,mime,origin_binding) VALUES(?,?,?,?)",
+            source.id,
+            "1",
+            "Fixture".toByteArray(),
+            binding,
+        )
         return id
     }
 }

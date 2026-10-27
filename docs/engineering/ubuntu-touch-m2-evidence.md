@@ -3338,3 +3338,42 @@ bulk/copy/archive/trash/delete and native/physical tests remain required. Confir
 remote reply is not a general proof of every move fallback/interruption path; the
 controlled tests cover the fixture's advertised protocol capabilities. History
 retention/performance and concurrent/background owners remain open.
+
+### Cache provenance guard for moves (0.1.32/schema14)
+
+Schema14 preserves existing message bytes and adds origin_binding with an empty
+legacy default. No migration guesses an old message's server identity. Engine
+storage receives the immutable account fingerprint from its registered session;
+when it saves an envelope/partial/full message, bytes and origin are written in the
+same SQLite transaction. Generic/local storage without a trusted engine context
+writes an unknown origin rather than claiming current-account provenance.
+
+Successful folder sync records the connection fingerprint only after engine
+success, under the exact account snapshot/retirement guard. Move enqueue and
+claim require the cached source message's origin and destination's completed-sync
+context to match the current connection binding. Thus a newly queued move cannot
+reinterpret old cached bytes after settings change, even when UID/UIDVALIDITY match
+and the destination has already synced through the new context. Existing cache stays
+readable; an explicit successful source fetch can establish new provenance. Legacy
+or changed-context moves require that verification; no cache was cleared silently.
+This guard covers moves, not all existing flag/reply/cache-presentation transitions.
+Those broader connection-change semantics remain part of the full roadmap review.
+
+**407 full app tests pass**, zero failures/errors/skips, plus detekt/installDist/
+spotlessCheck: `/tmp/thunderbird-cache-binding-full.log`. Same JDK/SDK/Gradle flags
+above, unfiltered app tests. Mutation removal of the enqueue source-origin guard
+makes the new settings-change regression fail; restored guard passes. XML:
+`build/evidence/cache-binding/without-source-origin-guard.xml`.
+Additional tests verify schema13→14 retains bytes without inventing provenance,
+and real TLS interruption during source verification retains the original BLOB/
+origin and prevents a move even though destination sync succeeds. Existing actual
+move/lost-reply/cancellation tests verify source bytes through the new context
+before submission and continue to pass.
+
+Current helper sources expect32/schema14; immutable31 artifact/driver remain
+unchanged. No32 package or phone changes. Native origin/migration/verification,
+destination/review UI and physical acceptance are still required. Before adding
+Move UI, retain a recoverable cached payload through the interval where source
+sync removes its row but destination sync fails; current journal stores intent
+metadata only. Unknown partial-move reconciliation, bulk/copy/archive/trash/delete,
+cache history retention/performance and broader cache-origin presentation remain open.

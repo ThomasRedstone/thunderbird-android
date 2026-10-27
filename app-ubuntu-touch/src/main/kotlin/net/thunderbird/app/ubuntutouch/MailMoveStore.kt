@@ -1,7 +1,5 @@
 package net.thunderbird.app.ubuntutouch
 
-import java.nio.ByteBuffer
-import java.security.MessageDigest
 import java.util.UUID
 import net.thunderbird.feature.account.AccountId
 
@@ -44,6 +42,11 @@ internal class MailMoveStore(private val database: MailDatabase) {
                     it.state == MailMoveState.COMPLETE
             },
         ) { "Confirmed move cannot be repeated from stale source cache" }
+        val currentBinding = binding(key.account)
+        checkSourceBinding(sourceFolder, key.uid, currentBinding)
+        check(targetFolder.getFolderExtraString(CACHE_BINDING_KEY) == currentBinding) {
+            "Sync the destination before moving"
+        }
         val id = UUID.randomUUID().toString()
         database.execute(
             """INSERT INTO mail_moves(id,account,source,uid,target,source_validity,target_validity,state,binding)
@@ -55,7 +58,7 @@ internal class MailMoveStore(private val database: MailDatabase) {
             target,
             sourceValidity,
             targetValidity,
-            binding(key.account),
+            currentBinding,
         )
         get(key.account, id)
     }
@@ -96,22 +99,20 @@ internal class MailMoveStore(private val database: MailDatabase) {
     fun checkCurrent(expected: MailMove) {
         check(get(expected.account, expected.id) == expected)
         check(binding(expected.account) == expected.binding) { "Account connection changed; move retained for review" }
+        val storage = PersistentBackendStorage(database, expected.account.toString())
+        checkSourceBinding(storage.getFolder(expected.source), expected.uid, expected.binding)
+        check(storage.getFolder(expected.target).getFolderExtraString(CACHE_BINDING_KEY) == expected.binding)
+    }
+
+    private fun checkSourceBinding(folder: PersistentBackendFolder, uid: String, binding: String) {
+        check(folder.messageBinding(uid) == binding) {
+            "Verify cached message against the current account before moving"
+        }
     }
 
     private fun binding(id: AccountId): String {
         val account = AccountSettingsStorage(database).all().single { it.id == id }
-        val server = account.incoming
-        val digest = MessageDigest.getInstance("SHA-256")
-        listOf(
-            account.id.toString(), account.credentialKey, account.address, account.oauthProviderId.orEmpty(),
-            server.type, server.host, server.port.toString(), server.connectionSecurity.name,
-            server.authenticationType.name, server.username,
-        ).forEach { value ->
-            val bytes = value.toByteArray(Charsets.UTF_8)
-            digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(bytes.size).array())
-            digest.update(bytes)
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return mailCacheBinding(account)
     }
 
     fun finish(claim: MailMove, confirmed: Boolean): MailMove = database.transaction {

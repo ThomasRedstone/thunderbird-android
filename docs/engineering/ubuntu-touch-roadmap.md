@@ -399,3 +399,10 @@ account removal/isolation and new-draft snapshot/no-duplicate reopen tests pass;
 full386 app tests and quality/distribution checks pass. Signature editor/settings
 UI, native schema migration/composition and physical acceptance remain required.
 HTML signatures and multiple sender identities remain open. No31 package/deploy.
+
+Development0.1.31 now includes the user-facing Signatures destination with account
+selection, multiline Maliit-aware editor, enable/reply/forward preferences, explicit
+save/discard and lifecycle persistence/retry. Full391 host tests and quality checks
+pass. Native schema11 migration, keyboard/editor/composition/restart and physical
+acceptance remain open. HTML signatures, configurable quote placement and multiple
+sender identities are still required; this does not complete the full identity gate.

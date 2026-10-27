@@ -91,6 +91,7 @@ fun main() {
                                 createComposer = { koin.get<ComposerViewModel>() },
                                 lifecycle = lifecycle,
                                 createSave = { koin.get<MessageSaveRuntime>() },
+                                createSignatures = { koin.get<SignatureSettingsViewModel>() },
                             )
                         }
                     }
@@ -130,7 +131,7 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
                     get(),
                     get(),
                     mailDatabasePath().parent,
-                    System.getenv("APP_ID") ?: "mail-demo.thomasredstone_mail-demo_0.1.30",
+                    System.getenv("APP_ID") ?: "mail-demo.thomasredstone_mail-demo_0.1.31",
                 )
             }
             single { OutgoingMailStore(get()) }
@@ -140,6 +141,7 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single { SentCopyFiler(get(), get()) }
             single { OutgoingMailSender(get(), get(), get()) }
             single { MailSignatureStore(get()) }
+            factory { SignatureSettingsViewModel(get(), get()) }
             factory { ComposerViewModel(get(), get(), get(), filing = get(), signatures = get()) }
             single<Logger> { DefaultLogger(sink = ConsoleLogSink()) }
             single { MaliitKeyboard(get()) }

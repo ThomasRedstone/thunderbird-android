@@ -3166,3 +3166,29 @@ feature yet. Continue its model/editor/lifecycle and native acceptance. Source
 metadata advanced0.1.31 after immutable30 freeze; no31 package or deployment.
 Phone remains27/schema10. q-jk4j outbound permission and q-ar74 OAuth decisions
 remain pending; no policy or OAuth configuration changes were made.
+
+### Plain-text signature editor integration
+
+The application now exposes a Signatures destination. Its Koin-created MVI model
+selects an account, edits multiline text with Maliit commit/preedit/Enter support,
+and configures enable/reply/forward preferences through Bolt controls. Account
+settings are saved explicitly, on background and before window close. Failed writes
+retain text/preferences, block close and permit retry; navigation is disabled while
+dirty. Back requests saving or explicit discard, and discard requires review then
+confirmation. Account snapshot identity is rechecked under the manager mutation
+monitor before the SQL write, so a stale editor cannot update a replaced account.
+Existing drafts are never rewritten by saving settings.
+
+Five focused editor model/rendered tests pass. Then **391 full app tests pass**,
+zero failures/errors/skips, plus detekt/installDist/spotlessCheck:
+`/tmp/thunderbird-signature-editor-full.log`. Same JDK/SDK/Gradle flags above;
+unfiltered `:app-ubuntu-touch:test :app-ubuntu-touch:detekt
+:app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck`.
+Tests cover multiline input/preferences, account isolation, injected SQL failure,
+retry/close blocking, stale account save rejection, discard confirmation and rendered
+controls. This is host proof; native Maliit/focus, schema11 migration, fresh-process
+signature settings/composition and physical acceptance remain open. HTML signatures,
+quote placement preferences and multiple sender identities remain required gaps.
+
+Source0.1.31 is prepared for its first immutable package. Phone remains27/schema10;
+no new policy or OAuth configuration was added. q-jk4j/q-ar74 remain unanswered.

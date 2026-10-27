@@ -26,7 +26,7 @@ import kotlinx.coroutines.withContext
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 
-private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX, COMPOSE }
+private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX, COMPOSE, SIGNATURES }
 
 @Composable
 internal fun MailApplicationScreen(
@@ -37,6 +37,7 @@ internal fun MailApplicationScreen(
     createComposer: () -> ComposerViewModel,
     lifecycle: MailWindowLifecycle,
     createSave: (() -> MessageSaveRuntime)? = null,
+    createSignatures: (() -> SignatureSettingsViewModel)? = null,
 ) {
     val save = createSave?.let { loadOwnedMailModel(it)?.model }
     if (save != null) RegisterMailClose(save, lifecycle, save::flushForClose, {})
@@ -51,25 +52,11 @@ internal fun MailApplicationScreen(
             }
         }
 
-        MailDestination.ACCOUNTS -> {
-            val accounts = loadOwnedMailModel(createAccounts)
-            if (accounts != null) {
-                RegisterMailClose(accounts, lifecycle, accounts::flushForClose, {})
-                val state by accounts.state.collectAsState()
-                Column(
-                    Modifier.fillMaxSize().mailBack(!state.busy) {
-                        if (state.editing) {
-                            accounts.event(AccountSetupEvent.Cancel)
-                        } else {
-                            destination = MailDestination.DEMO
-                        }
-                        keyboard?.focus(false)
-                    },
-                ) {
-                    NavigationButtons(state.busy, { destination = it }, keyboard)
-                    AccountSetupScreen(state, accounts::event, keyboard)
-                }
-            }
+        MailDestination.ACCOUNTS -> AccountsDestination({ createAccounts() }, keyboard, lifecycle) { destination = it }
+
+        MailDestination.SIGNATURES -> SignatureSettingsDestination(createSignatures, keyboard, lifecycle) {
+            destination =
+                it
         }
 
         MailDestination.COMPOSE -> {
@@ -96,6 +83,57 @@ internal fun MailApplicationScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AccountsDestination(
+    create: () -> AccountSetupViewModel,
+    keyboard: MaliitKeyboard?,
+    lifecycle: MailWindowLifecycle,
+    navigate: (MailDestination) -> Unit,
+) {
+    val accounts = loadOwnedMailModel(create)
+    if (accounts != null) {
+        RegisterMailClose(accounts, lifecycle, accounts::flushForClose, {})
+        val state by accounts.state.collectAsState()
+        Column(
+            Modifier.fillMaxSize().mailBack(!state.busy) {
+                if (state.editing) {
+                    accounts.event(AccountSetupEvent.Cancel)
+                } else {
+                    navigate(MailDestination.DEMO)
+                }
+                keyboard?.focus(false)
+            },
+        ) {
+            NavigationButtons(state.busy, navigate, keyboard)
+            AccountSetupScreen(state, accounts::event, keyboard)
+        }
+    }
+}
+
+@Composable
+private fun SignatureSettingsDestination(
+    create: (() -> SignatureSettingsViewModel)?,
+    keyboard: MaliitKeyboard?,
+    lifecycle: MailWindowLifecycle,
+    navigate: (MailDestination) -> Unit,
+) {
+    val signatures = create?.let { loadOwnedMailModel(it) } ?: return
+    RegisterMailClose(signatures, lifecycle, signatures::flushForClose, signatures::flushOnBackground)
+    val state by signatures.state.collectAsState()
+    Column(
+        Modifier.fillMaxSize().mailBack(!state.busy) {
+            if (state.account == null) {
+                navigate(MailDestination.DEMO)
+            } else {
+                signatures.event(SignatureSettingsEvent.Back)
+            }
+        },
+    ) {
+        NavigationButtons(state.busy || state.dirty, navigate, keyboard)
+        SignatureSettingsScreen(state, signatures::event, keyboard)
     }
 }
 
@@ -171,6 +209,7 @@ private fun NavigationButtons(busy: Boolean, navigate: (MailDestination) -> Unit
                     MailDestination.ACCOUNTS -> "Accounts"
                     MailDestination.MAILBOX -> "Mailboxes"
                     MailDestination.COMPOSE -> "Write"
+                    MailDestination.SIGNATURES -> "Signatures"
                 },
                 {
                     keyboard?.focus(false)

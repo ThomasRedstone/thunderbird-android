@@ -1741,3 +1741,56 @@ The app-scoped tasks used JDK 21/SDK and standard no-configuration-cache/isolate
 No new dependencies/permissions/shared Android code; Android assembly/device suites were not rerun and this JVM module
 has no Android lint/device task. This coordinator is not included in installed 0.1.18/f18314918d; native acceptance
 requires a later version together with token store/HTTP client, without rebuilding changed source as another 0.1.18.
+
+
+### Engine OAuth token-provider bridge (later source, not installed 0.1.18)
+
+CoordinatedOAuth2TokenProvider implements the existing mail engine OAuth2TokenProvider contract. IMAP can share a provider across its connection pool, so the bridge correlates issued access tokens with each
+calling authentication thread using weak thread keys. The pinned engine's blocking auth/get/invalidate calls stay
+on that thread. All providers share the coordinator; late rejection on one thread cannot invalidate a newer token
+issued on another. Connection/store ownership must close the provider to clear all retained references. This is not
+a contract for an authentication flow that migrates between threads. An owned
+SupervisorJob supports close/interruption cancellation without a transient token failure poisoning subsequent calls.
+Blocking calls reject the Swing UI thread and invalid time budgets; the budget includes waiting for the provider's
+lock. Interrupt status is restored. Errors become generic AuthenticationFailedException messages without remote
+cause/server text or suppressed response data. No password fallback is introduced.
+
+Caller-supplied verified primary identities are bounded, validated and defensively copied. This bridge does not
+parse or trust ID-token claims and does not infer a Microsoft primary identity from the typed address. Empty
+alternatives mean no extra identities, not that Microsoft's identity requirements are complete. Providers must be
+owned/closed by their protocol/store lifecycle and shared coordinator binding still needs app composition.
+Synchronous credential-service calls and NonCancellable rotation persistence can delay cancellation; this does not
+establish a hard wall-clock bound for an unresponsive SignOn service.
+
+Nine bridge tests cover separate-connection invalidation ownership, no-token invalidation, timeout/close, actual
+thread interruption, UI-thread/invalid-timeout/closed/missing-state rejection, sanitized locked-service errors and
+retry, copied identities, lock-wait budget and shared-provider thread correlation. Two integration tests use the real IMAP and SMTP engines against
+GreenMail behind the existing controlled STARTTLS gateway. Both engines reject a stale cached bearer, refresh it
+and authenticate using the replacement; the same coordinator's protected state records the rotation. A separate
+SMTP test proves supplied verified-primary fallback when the typed alias fails with an already fresh token.
+Only synthetic mail identities/tokens and fixture certificate trust are used; production trust and shared engine
+source are unchanged. These tests prove engine compatibility, not app account-setup or provider acceptance.
+
+Still required: ForegroundMailSessionFactory currently supplies null token providers and UtMailAccount still limits
+authentication to PLAIN/CRAM_MD5. Their credential/authentication selection, MailOperation ownership, Koin composition,
+account setup/removal generation/journal integration, native acceptance and real provider registrations remain open.
+The combined alias-plus-rejected-token retry scenario is also untested: SMTP's existing temporary-failure path retries
+one selected username after refresh. It needs a dedicated regression before claiming complete Outlook alias recovery.
+No upstream OAuth factory/configuration, dependency or permission was changed in this slice.
+
+
+All 215 host app tests pass with zero failures/errors/skips, plus detekt/installDist/spotlessCheck
+(/tmp/thunderbird-oauth-provider-full.log; XML build/evidence/oauth-provider/). The app-scoped Gradle tasks used
+JDK 21/SDK and the standard no-configuration-cache/isolated-projects=false/max-workers=4 options.
+No shared Android/engine code changed; Android assembly/device suites were not rerun and this JVM module has no
+Android lint/device task. The bridge and later OAuth client/store/coordinator remain outside installed 0.1.18;
+any candidate containing them must bump all three version locations before packaging.
+
+
+A dedicated two-thread regression failed before correcting the shared-provider correlation: an older authentication
+thread invalidated the newer thread's token, causing a second refresh (access-2 instead of access-1).
+The source audit confirmed RealImapStore passes the same provider to its RealImapConnection instances. Weak-keyed
+per-thread issued references fix that failure without leaving ThreadLocal tokens on shared executor threads;
+provider close clears every reference. Before XML: build/evidence/oauth-provider/shared-thread-before.xml;
+log /tmp/thunderbird-oauth-provider-before.log. Fresh-token SMTP alias fallback passing does not close the separately
+listed alias-plus-refresh acceptance gap.

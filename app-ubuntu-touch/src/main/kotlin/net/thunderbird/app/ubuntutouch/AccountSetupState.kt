@@ -36,6 +36,7 @@ internal data class AccountSetupState(
     val providerId: String? = null,
     val signingIn: Boolean = false,
     val cancelling: Boolean = false,
+    val cleanupPending: Boolean = false,
 ) {
     override fun toString(): String = "AccountSetupState(redacted)"
 
@@ -98,5 +99,6 @@ internal sealed interface AccountSetupEvent {
     data object Cancel : AccountSetupEvent
     data class RequestRemoval(val id: AccountId) : AccountSetupEvent
     data object ConfirmRemoval : AccountSetupEvent
+    data object RetryCredentialCleanup : AccountSetupEvent
     data object CancelRemoval : AccountSetupEvent
 }

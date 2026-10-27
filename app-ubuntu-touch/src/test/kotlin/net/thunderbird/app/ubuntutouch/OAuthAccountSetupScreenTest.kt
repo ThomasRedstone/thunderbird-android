@@ -69,6 +69,33 @@ class OAuthAccountSetupScreenTest : ComposeUiTestHarness() {
         onNodeWithText("Cancel").assertIsEnabled()
     }
 
+    @Test
+    fun `pending cleanup provides an explicit retry action`() = runComposeTest {
+        val events = mutableListOf<AccountSetupEvent>()
+        setContent {
+            ThunderbirdBoltTheme {
+                Surface {
+                    AccountSetupScreen(AccountSetupState(emptyList(), cleanupPending = true), events::add, null)
+                }
+            }
+        }
+        onNodeWithText("Retry credential cleanup").assertIsEnabled().performClick()
+        assertThat(events).isEqualTo(listOf(AccountSetupEvent.RetryCredentialCleanup))
+    }
+
+    @Test
+    fun `pending cleanup disables repeated retry and account navigation while busy`() = runComposeTest {
+        setContent {
+            ThunderbirdBoltTheme {
+                Surface {
+                    AccountSetupScreen(AccountSetupState(emptyList(), cleanupPending = true, busy = true), {}, null)
+                }
+            }
+        }
+        onNodeWithText("Retry credential cleanup").assertIsNotEnabled()
+        onNodeWithText("Add account").assertIsNotEnabled()
+    }
+
     private fun oauthState() = AccountSetupState(
         emptyList(),
         editing = true,

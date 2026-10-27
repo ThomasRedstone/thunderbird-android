@@ -2102,3 +2102,33 @@ Required owner input: use approved existing Desktop/public-client registrations,
 ones and identify their owning Google project/Entra tenant. No passwords or client secrets should be pasted into
 chat. Repository AGENTS.md prohibits OAuth configuration changes without explicit instruction. This is a bounded
 provider-enablement decision, not a blocker on remaining UI/platform/roadmap work.
+
+
+### Pending credential cleanup retry UI (source only)
+
+Accounts now displays pending credential cleanup from the durable journal and offers an explicit Retry credential
+cleanup action. Model construction checks SQL status (the production model factory runs on IO), without contacting
+the keyring; manual/OAuth outcomes refresh that status. A failed account insert therefore exposes its unclaimed key
+for cleanup after leaving the form. Locked protected storage keeps the retry visible. Cleanup rechecks live account
+references before deleting anything, so a journal entry still used by an account is not treated as obsolete.
+
+Retry runs on IO, disables repeated retry and account navigation while busy, and does not discard an account form.
+It does not initiate another OAuth browser flow. OAuth setup directs users to the new action when obsolete keys
+could not be removed. If cleanup-status refresh fails after authorization, setup keeps an attention/retry indicator
+rather than falsely declaring cleanup complete or discarding a successful authorization outcome.
+
+Five new model/SQLite tests cover journal discovery after reopen, retained active credentials, locked retry then
+unlock, active-key journal exclusion, cleanup after failed insert and protection of an in-progress form. Two rendered
+Compose tests verify the retry event and disabled busy controls. The focused suite passes
+(/tmp/thunderbird-credential-cleanup-focused.log).
+
+Full verification: 281 app tests, zero failures/errors/skips; detekt/installDist/spotlessCheck pass.
+Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Log: /tmp/thunderbird-credential-cleanup-full.log; XML: build/evidence/credential-cleanup/. No shared engine or Android
+changes; prior SMTP/Android consumer checks remain applicable. Android instrumentation/native deployment were not
+run for this JVM-only slice. The phone's last verified package remains 0.1.18; next package must use 0.1.19.
+
+Provider registration direction is parked in Desk q-ar74, with halted=false. No provider configuration is enabled
+while that decision is pending. Native controlled acceptance and independent later roadmap requirements can proceed.

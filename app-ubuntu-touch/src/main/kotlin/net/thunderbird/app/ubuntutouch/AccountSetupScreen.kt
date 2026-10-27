@@ -70,12 +70,22 @@ private fun AccountList(state: AccountSetupState, onEvent: (AccountSetupEvent) -
         "Manual IMAP/SMTP setup. Saved accounts can receive foreground mail from Mailboxes. " +
             "Use Write for drafts, the outbox and explicit foreground sending.",
     )
+    if (state.cleanupPending) {
+        TextBodyLarge("Credential cleanup needs attention. Unlock the system keyring, then retry.")
+        ButtonText("Retry credential cleanup", {
+            onEvent(AccountSetupEvent.RetryCredentialCleanup)
+        }, enabled = !state.busy)
+    }
     state.accounts.forEach { account ->
         TextBodyLarge(account.displayName)
-        ButtonText("Edit ${account.displayName}", { onEvent(AccountSetupEvent.Edit(account.id)) })
-        ButtonText("Remove ${account.displayName}", { onEvent(AccountSetupEvent.RequestRemoval(account.id)) })
+        ButtonText("Edit ${account.displayName}", {
+            onEvent(AccountSetupEvent.Edit(account.id))
+        }, enabled = !state.busy)
+        ButtonText("Remove ${account.displayName}", {
+            onEvent(AccountSetupEvent.RequestRemoval(account.id))
+        }, enabled = !state.busy)
     }
-    ButtonText("Add account", { onEvent(AccountSetupEvent.New) })
+    ButtonText("Add account", { onEvent(AccountSetupEvent.New) }, enabled = !state.busy)
 }
 
 @Composable

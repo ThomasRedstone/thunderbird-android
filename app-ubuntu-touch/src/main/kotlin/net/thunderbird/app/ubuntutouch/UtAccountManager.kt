@@ -125,6 +125,9 @@ internal class UtAccountManager(
     }
 
     @Synchronized
+    fun hasPendingCredentialCleanup(): Boolean = storage.unusedCredentialKeys().isNotEmpty()
+
+    @Synchronized
     fun cleanupUnusedCredentials(): Boolean {
         try {
             storage.unusedCredentialKeys().forEach { key ->

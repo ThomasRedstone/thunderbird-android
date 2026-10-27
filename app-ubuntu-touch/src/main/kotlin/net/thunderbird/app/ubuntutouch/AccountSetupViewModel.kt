@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.thunderbird.feature.account.AccountId
 
+@Suppress("TooManyFunctions") // Password, OAuth and pending-credential cleanup share one account setup owner.
 internal class AccountSetupViewModel(
     private val manager: UtAccountManager,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
@@ -25,6 +26,7 @@ internal class AccountSetupViewModel(
     private var closed = false
     private var editingSnapshot: UtMailAccount? = null
     private var activeAuthorization: OAuthAccountAuthorizationAttempt? = null
+    private var cleanupPending = manager.hasPendingCredentialCleanup()
     private val mutableState = MutableStateFlow(initial())
     val state = mutableState.asStateFlow()
 
@@ -59,13 +61,15 @@ internal class AccountSetupViewModel(
                 mutableState.value = initial()
             }
 
-            AccountSetupEvent.Save -> if (current.providerId == null) save(current) else signIn(current)
+            AccountSetupEvent.Save -> save(current)
 
             is AccountSetupEvent.RequestRemoval -> mutableState.value = current.copy(pendingRemoval = event.id)
 
             AccountSetupEvent.CancelRemoval -> mutableState.value = current.copy(pendingRemoval = null)
 
             AccountSetupEvent.ConfirmRemoval -> remove(current)
+
+            AccountSetupEvent.RetryCredentialCleanup -> retryCleanup(current)
         }
     }
 
@@ -78,6 +82,7 @@ internal class AccountSetupViewModel(
     private fun initial(message: String? = null) = AccountSetupState(
         manager.findAll(),
         message = message,
+        cleanupPending = cleanupPending,
         providers = if (authorization == null) emptyList() else providers.choices(),
     )
 
@@ -109,11 +114,15 @@ internal class AccountSetupViewModel(
         work = scope.launch {
             val result = runCatching { attempt.authorize() }
             if (closed || !scope.isActive || activeAuthorization !== attempt) return@launch
+            cleanupPending = withContext(Dispatchers.IO) {
+                runCatching { manager.hasPendingCredentialCleanup() }.getOrDefault(true)
+            }
+            if (closed || !scope.isActive || activeAuthorization !== attempt) return@launch
             activeAuthorization = null
             result.onSuccess {
                 mutableState.value = initial(
                     if (it.cleanupPending) {
-                        "Account saved. Unlock the keyring to finish removing obsolete credentials."
+                        "Account saved. Unlock the keyring, then use Retry credential cleanup in Accounts."
                     } else {
                         "Account signed in. Open Mailboxes to receive mail."
                     },
@@ -123,6 +132,7 @@ internal class AccountSetupViewModel(
                     initial("Sign-in cancelled.")
                 } else {
                     current.copy(
+                        cleanupPending = cleanupPending,
                         message = oauthErrorMessage(it),
                         busy = false,
                         signingIn = false,
@@ -155,23 +165,40 @@ internal class AccountSetupViewModel(
         )
     }
 
-    private fun save(current: AccountSetupState) = perform(current) {
-        val existing = current.editingId?.let { checkNotNull(manager.findById(it)) }
-        val account = current.account(existing)
-        val incoming = current.text(AccountField.IMAP_PASSWORD)
-        val outgoing = current.text(AccountField.SMTP_PASSWORD)
-        val replace = incoming.isNotEmpty() || outgoing.isNotEmpty()
-        var cleaned = true
-        when {
-            current.editingId == null -> manager.createWithPasswords(account, AccountPasswords(incoming, outgoing))
-            replace -> cleaned = manager.replaceAccountAndPasswords(account, AccountPasswords(incoming, outgoing))
-            else -> manager.updateSync(account.id) { account }
+    private fun save(current: AccountSetupState) {
+        if (current.providerId != null) {
+            signIn(current)
+            return
         }
-        if (current.editingId == null || !replace) cleaned = manager.cleanupUnusedCredentials()
-        if (!cleaned) {
-            return@perform "Account saved. Unlock the keyring and save again to remove obsolete passwords."
+        perform(current) {
+            val existing = current.editingId?.let { checkNotNull(manager.findById(it)) }
+            val account = current.account(existing)
+            val incoming = current.text(AccountField.IMAP_PASSWORD)
+            val outgoing = current.text(AccountField.SMTP_PASSWORD)
+            val replace = incoming.isNotEmpty() || outgoing.isNotEmpty()
+            var cleaned = true
+            when {
+                current.editingId == null -> manager.createWithPasswords(account, AccountPasswords(incoming, outgoing))
+                replace -> cleaned = manager.replaceAccountAndPasswords(account, AccountPasswords(incoming, outgoing))
+                else -> manager.updateSync(account.id) { account }
+            }
+            if (current.editingId == null || !replace) cleaned = manager.cleanupUnusedCredentials()
+            if (!cleaned) {
+                return@perform "Account saved. Unlock the keyring and save again to remove obsolete passwords."
+            }
+            "Account saved. Open Mailboxes to receive mail or Write to compose a message."
         }
-        "Account saved. Open Mailboxes to receive mail or Write to compose a message."
+    }
+
+    private fun retryCleanup(current: AccountSetupState) {
+        if (current.editing || current.pendingRemoval != null) return
+        perform(current) {
+            if (manager.cleanupUnusedCredentials()) {
+                "Obsolete credentials removed."
+            } else {
+                "Unlock the system keyring, then retry credential cleanup."
+            }
+        }
     }
 
     private fun remove(current: AccountSetupState) {
@@ -185,15 +212,33 @@ internal class AccountSetupViewModel(
     private fun perform(current: AccountSetupState, operation: () -> String) {
         mutableState.value = current.copy(busy = true, message = null)
         work = scope.launch {
-            runCatching { withContext(Dispatchers.IO) { operation() } }
-                .onSuccess { if (!closed) mutableState.value = initial(it) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val message = try {
+                        operation()
+                    } finally {
+                        cleanupPending = manager.hasPendingCredentialCleanup()
+                    }
+                    message to cleanupPending
+                }
+            }.onSuccess { (message, pending) ->
+                if (!closed) {
+                    cleanupPending = pending
+                    mutableState.value = initial(message)
+                }
+            }
                 .onFailure { failure ->
                     if (failure is CancellationException) throw failure
                     if (closed) return@onFailure
                     val fields = current.fields.mapValues { (field, value) ->
                         if (field.secret) TextFieldValue() else value
                     }
-                    mutableState.value = current.copy(busy = false, fields = fields, message = errorMessage(failure))
+                    mutableState.value = current.copy(
+                        busy = false,
+                        fields = fields,
+                        cleanupPending = cleanupPending,
+                        message = errorMessage(failure),
+                    )
                 }
         }
     }

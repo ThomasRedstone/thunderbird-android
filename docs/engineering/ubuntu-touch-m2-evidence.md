@@ -1676,3 +1676,26 @@ No AppArmor permission/lifecycle exemption was added. Generic SLF4J no-provider 
 Current remaining delivery work: repeat the controlled TLS receive/reply/Sent and fresh-JVM offline journey on 0.1.18,
 then refresh only the owned fleet entry (currently still pins 0.1.17). Native token storage/HTTPS acceptance needs a
 later package version; do not rebuild changed source as another 0.1.18 or replace its frozen matching driver JAR.
+
+
+### 0.1.18 controlled live-mail/restart and fleet pin verified
+
+A new controlled server fixture ran at build/evidence/oauth-browser/native-mail-018 with STARTTLS, flags, reply and
+Sent-copy oracles. The installed 0.1.18 engine and frozen matching 57-class driver passed under its enforcing profile:
+protected credentials, default certificate rejection then fixture-only trust, IMAP cache/search, queued read/star
+reconciliation, threaded reply, SMTP acceptance and guarded Sent-copy handling (/tmp/thunderbird-018-phone.log).
+Only synthetic fixture credentials/mail were used; no provider account was contacted.
+
+The host server was stopped and completed successfully before the offline restart probe. Its independent oracles
+confirmed a single intended-recipient SMTP delivery with the expected body/threading, read/star flags and exactly one
+matching read Sent copy. STARTTLS gateway upgrade-count assertions passed too (/tmp/thunderbird-018-server.log).
+A fresh installed phone JVM then reopened the retained protected credentials, cached body/search and outbox state
+with that server stopped, and cleaned its fixture (/tmp/thunderbird-018-restart.log). An independent SSH check confirms
+the exact retained protocol-runtime-9498098442069196560 directory is absent (/tmp/thunderbird-018-mail-cleanup.log).
+No controlled server or probe remains running.
+
+Fleet commit 9333240 now pins 0.1.18/candidate-20/source f18314918d and SHA-256
+8601068f17ebc5793897fbfaac1115955ea19d01c40dd709bbbb23274288ca47. YAML parsing and an independent local artifact hash
+check passed. Only the owned mail entry was staged/committed; unrelated manifest/payload/artifact changes were
+preserved. The fleet-wide hook was bypassed for this scoped commit; no whole-fleet converge or fleet remote push ran.
+This closes the local fleet-pin gap, not physical UI/provider acceptance or the later token-client deployment gap.

@@ -16,7 +16,7 @@ and a reproducible supported release.
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
 | Engineering | 191 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth token storage/HTTPS source is committed separately | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager 0.1.18 install verified; fleet `41ac3db` still pins 0.1.17 pending refresh | Repeat controlled TLS journey on 0.1.18, fleet refresh, physical foreground/cancellation/lifecycle verification |
+| Phone delivery | Phone Manager 0.1.18 install verified; fleet `9333240` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,

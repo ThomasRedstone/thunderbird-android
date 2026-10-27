@@ -1929,3 +1929,39 @@ Full log: /tmp/thunderbird-oauth-session-full.log; XML: build/evidence/oauth-ses
 Focused tests and checks also pass (/tmp/thunderbird-oauth-session-focused.log). No shared engine/Android changes;
 prior shared SMTP and Android assemblies remain applicable. No Android instrumentation or phone deployment was run
 for this JVM slice. Installed phone/fleet remain 0.1.18; the next package must use 0.1.19.
+
+
+### Account-scoped session retirement (source only)
+
+The account manager now registers each foreground session against its current in-memory account snapshot.
+Registration shares the mutation monitor; a snapshot from before replacement, removal or identical recreation
+cannot register a new session. Credential, provider, server or address changes retire existing sessions for that
+account; display-name changes preserve them. Explicit session close releases its registration.
+
+Mutation marks obsolete resource bundles retired under the manager lock, preventing new session operations, then
+closes socket/provider resources after releasing that lock. Reentrant account mutations from an update transform
+are rejected before nested teardown can occur under the outer lock. Locked credential deletion and failed SQL
+replacement preserve the current sessions. If credential deletion succeeds but the subsequent SQL removal fails,
+sessions are retired even though account metadata remains, since the protected credentials are already gone.
+
+This cancellation does not revoke provider-side tokens or undo mail already accepted by a server. Outbox/Sent
+uncertainty handling remains necessary for interrupted network operations. Real provider setup and phone acceptance
+remain open, and this source is not in installed 0.1.18.
+
+The authenticated-transfer regression was checked with account-session registration temporarily disabled: the
+credential-replacement case failed with TimeoutException because the existing read was not interrupted
+(/tmp/thunderbird-account-session-before.log; build/evidence/account-session/authenticated-before.xml).
+Registration was restored before verification. The focused ownership/OAuth/real-engine suite passes
+(/tmp/thunderbird-account-session-focused.log). Six new manager tests cover account isolation, display-name
+changes, failed/locked mutations, post-secret-delete SQL failure, teardown outside the manager lock, released
+sessions, stale construction after identical recreation and nested mutation rejection. Additional real-engine
+cases verify replacement interrupts an authenticated body transfer and an owned provider awaiting OAuth refresh.
+
+Full verification: 242 app tests, zero failures/errors/skips; detekt, installDist and spotlessCheck pass.
+Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Full log: /tmp/thunderbird-account-session-full.log; test XML: build/evidence/account-session/.
+No shared engine or Android changes; prior shared SMTP and Android consumer checks remain applicable.
+Android instrumentation was not run for this JVM slice. Phone/fleet remain 0.1.18; no native or real-provider
+acceptance is claimed. Next package must bump to 0.1.19 in all three version locations.

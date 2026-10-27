@@ -10,6 +10,8 @@ import com.fsck.k9.mail.ConnectionSecurity
 import com.fsck.k9.mail.ServerSettings
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -111,6 +113,46 @@ class OAuthAccountOwnershipTest {
             assertThat(withTimeout(5000) { pending.await() }.exceptionOrNull() is StaleOAuthGrantException).isTrue()
             assertThat(credentials.values.keys).isEqualTo(setOf(replacement.credentialKey))
             assertThat(store.read(grant(replacement), configuration)!!.refreshToken).isEqualTo(tokens.refreshToken)
+        }
+    }
+
+    @Test
+    fun `account replacement cancels an owned engine provider waiting for OAuth refresh`() = runBlocking {
+        MailDatabase(path).use { database ->
+            val owner = manager(database)
+            val old = account()
+            owner.createWithOAuth(old, OAuthTokens("expired", "refresh", 0))
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val coordinator = OAuthTokenCoordinator(
+                OAuthTokenStore(ManagedOAuthCredentialStore(owner)),
+                client {
+                    entered.complete(Unit)
+                    release.await()
+                },
+            ) { 0 }
+            val resources = MailSessionResources(CancellableSocketFactory(JvmTrustedSocketFactory()))
+            owner.registerSession(owner.findById(old.id)!!, resources)
+            resources.own(AutoCloseable { owner.releaseSession(resources) })
+            val provider = resources.own(CoordinatedOAuth2TokenProvider(grant(old), configuration, coordinator))
+            val worker = Executors.newSingleThreadExecutor()
+            try {
+                val pending = worker.submit<Boolean> { runCatching { provider.getToken(30000) }.isFailure }
+                withTimeout(5000) { entered.await() }
+                val replacement = old.copy(credentialKey = OAuthGrant(old.id).credentialKey)
+                owner.replaceWithOAuth(old, replacement, tokens)
+                assertThat(pending.get(5, TimeUnit.SECONDS)).isTrue()
+                assertThat(resources.isRetired).isTrue()
+                assertThat(credentials.values.keys).isEqualTo(setOf(replacement.credentialKey))
+                assertThat(
+                    OAuthTokenStore(ManagedOAuthCredentialStore(owner))
+                        .read(grant(replacement), configuration)!!.refreshToken,
+                ).isEqualTo(tokens.refreshToken)
+            } finally {
+                release.complete(Unit)
+                resources.close()
+                worker.shutdownNow()
+            }
         }
     }
 

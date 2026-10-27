@@ -47,6 +47,8 @@ internal class ForegroundMailSessionFactory(
             operation?.register(resources)
             operation?.ensureActive()
             val account = checkNotNull(accounts.findById(id)) { "Account not found" }
+            accounts.registerSession(account, resources)
+            resources.own(AutoCloseable { accounts.releaseSession(resources) })
             val authentication = if (account.isOAuth) {
                 checkNotNull(oauth) { "OAuth authentication unavailable" }.credentials(account, resources)
             } else {
@@ -57,6 +59,7 @@ internal class ForegroundMailSessionFactory(
                 )
             }
             operation?.ensureActive()
+            resources.ensureActive()
             val storage = PersistentBackendStorage(database, id.toString())
             val imap = ImapStore.create(
                 authentication.incoming,
@@ -96,21 +99,26 @@ internal class ForegroundMailSession(
     private val operation: MailOperation?,
 ) : AutoCloseable {
     fun checkSettings() {
+        resources.ensureActive()
         imap.checkSettings()
+        resources.ensureActive()
         smtp.checkSettings()
     }
 
     fun refreshFolders() {
+        resources.ensureActive()
         backend.refreshFolderList()
     }
 
     fun sync(folder: String, onProgress: (Int, Int) -> Unit = { _, _ -> }) {
+        resources.ensureActive()
         val listener = ForegroundSyncListener(onProgress)
         backend.sync(folder, SYNC_CONFIG, listener)
         listener.throwIfFailed()
     }
 
     fun setFlag(folder: String, uid: String, flag: Flag, value: Boolean, uidValidity: Long) {
+        resources.ensureActive()
         require(flag in setOf(Flag.SEEN, Flag.FLAGGED))
         val remote = imap.getFolder(folder)
         try {
@@ -125,6 +133,7 @@ internal class ForegroundMailSession(
     }
 
     fun downloadMessage(folder: String, uid: String) {
+        resources.ensureActive()
         runBlocking { backend.downloadCompleteMessage(folder, uid) }
     }
 
@@ -135,6 +144,7 @@ internal class ForegroundMailSession(
         allowAppend: Boolean,
         messageId: String,
     ): SentCopyResult {
+        resources.ensureActive()
         val message = FrozenSentMessage(raw, messageId)
         operation?.ensureActive()
         val existing = backend.findByMessageId(folder, checkNotNull(message.messageId))
@@ -154,6 +164,7 @@ internal class ForegroundMailSession(
     }
 
     fun send(message: Message) {
+        resources.ensureActive()
         require(
             listOf(Message.RecipientType.TO, Message.RecipientType.CC, Message.RecipientType.BCC).any {
                 message.getRecipients(it).isNotEmpty()

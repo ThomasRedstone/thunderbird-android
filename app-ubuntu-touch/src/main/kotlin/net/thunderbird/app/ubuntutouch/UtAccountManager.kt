@@ -19,6 +19,7 @@ internal class UtAccountManager(
     private val oauthProviders: OAuthProviderRegistry = OAuthProviderRegistry(),
 ) : AccountManager<UtMailAccount>, AccountRepository {
     private val accounts = MutableStateFlow(storage.all())
+    private val sessions = mutableMapOf<MailSessionResources, UtMailAccount>()
 
     override fun findAll(): List<UtMailAccount> = accounts.value
     override fun observeAll(): Flow<List<UtMailAccount>> = accounts
@@ -40,17 +41,20 @@ internal class UtAccountManager(
     override suspend fun update(accountId: AccountId, transform: (UtMailAccount) -> UtMailAccount): UtMailAccount? =
         withContext(Dispatchers.IO) { updateSync(accountId, transform) }
 
-    @Synchronized
-    override fun updateSync(accountId: AccountId, transform: (UtMailAccount) -> UtMailAccount): UtMailAccount? {
-        val current = findById(accountId) ?: return null
+    override fun updateSync(
+        accountId: AccountId,
+        transform: (UtMailAccount) -> UtMailAccount,
+    ): UtMailAccount? = withSessionRetirement {
+        val current = findById(accountId) ?: return@withSessionRetirement null
         val updated = transform(current)
         require(updated.id == accountId) { "Account identity cannot change" }
         require(updated.credentialKey == current.credentialKey) { "Use credential replacement to change credentials" }
         require(updated.oauthProviderId == current.oauthProviderId) { "Use credential replacement to change provider" }
         if (updated.isOAuth) oauthProviders.configurationFor(updated)
         storage.update(updated)
+        if (!sameAuthorization(current, updated)) retireAccountSessions(accountId)
         reload()
-        return updated
+        updated
     }
 
     @Synchronized
@@ -75,14 +79,15 @@ internal class UtAccountManager(
         createSync(account)
     }
 
-    @Synchronized
     fun replacePasswords(accountId: AccountId, passwords: AccountPasswords): Boolean {
-        val current = checkNotNull(findById(accountId)) { "Account not found" }
+        val current = synchronized(this) { checkNotNull(findById(accountId)) { "Account not found" } }
         return replaceAccountAndPasswords(current, passwords)
     }
 
-    @Synchronized
-    fun replaceAccountAndPasswords(account: UtMailAccount, passwords: AccountPasswords): Boolean {
+    fun replaceAccountAndPasswords(
+        account: UtMailAccount,
+        passwords: AccountPasswords,
+    ): Boolean = withSessionRetirement {
         require(!account.isOAuth) { "OAuth accounts require authorization credentials" }
         val current = checkNotNull(findById(account.id)) { "Account not found" }
         require(account.credentialKey == current.credentialKey)
@@ -91,8 +96,9 @@ internal class UtAccountManager(
         writePasswords(replacement.credentialKey, passwords)
         storage.scheduleCredentialCleanup(current.credentialKey)
         storage.update(replacement)
+        retireAccountSessions(replacement.id)
         reload()
-        return cleanupUnusedCredentials()
+        cleanupUnusedCredentials()
     }
 
     @Synchronized
@@ -107,12 +113,12 @@ internal class UtAccountManager(
         }
     }
 
-    @Synchronized
-    override fun delete(accountId: AccountId) {
-        val account = findById(accountId) ?: return
+    override fun delete(accountId: AccountId) = withSessionRetirement {
+        val account = findById(accountId) ?: return@withSessionRetirement
         // Refuse removal while the keyring is locked/unavailable, rather than leave a live orphan credential.
         storage.scheduleCredentialCleanup(account.credentialKey)
         credentials.delete(account.credentialKey)
+        retireAccountSessions(accountId)
         storage.delete(accountId)
         reload()
         storage.completeCredentialCleanup(account.credentialKey)
@@ -170,8 +176,11 @@ internal class UtAccountManager(
         createSync(account)
     }
 
-    @Synchronized
-    fun replaceWithOAuth(expected: UtMailAccount, replacement: UtMailAccount, tokens: OAuthTokens): Boolean {
+    fun replaceWithOAuth(
+        expected: UtMailAccount,
+        replacement: UtMailAccount,
+        tokens: OAuthTokens,
+    ): Boolean = withSessionRetirement {
         require(
             replacement.isOAuth && replacement.id == expected.id && replacement.credentialKey != expected.credentialKey,
         )
@@ -182,8 +191,9 @@ internal class UtAccountManager(
         OAuthTokenStore(credentials).write(OAuthGrant(replacement.id, replacement.credentialKey), configuration, tokens)
         storage.scheduleCredentialCleanup(expected.credentialKey)
         storage.update(replacement)
+        retireAccountSessions(replacement.id)
         reload()
-        return cleanupUnusedCredentials()
+        cleanupUnusedCredentials()
     }
 
     fun readOAuthCredential(grant: OAuthGrant): ByteArray? = withCurrentOAuthGrant(grant) {
@@ -205,6 +215,48 @@ internal class UtAccountManager(
         oauthProviders.configurationFor(account)
         return operation(credentials)
     }
+
+    /** Registration and mutation share this monitor; teardown never runs while holding it. */
+    @Synchronized
+    fun registerSession(account: UtMailAccount, resources: MailSessionResources) {
+        if (findById(account.id) !== account) throw MailOperationCancelledException()
+        sessions[resources] = account
+    }
+
+    @Synchronized
+    fun releaseSession(resources: MailSessionResources) {
+        sessions.remove(resources)
+    }
+
+    private fun <T> withSessionRetirement(action: () -> T): T {
+        check(!Thread.holdsLock(this)) { "Account mutations cannot be nested" }
+        val retired = mutableListOf<MailSessionResources>()
+        try {
+            return synchronized(this) {
+                try {
+                    action()
+                } finally {
+                    val obsolete = sessions.filter { (resources, snapshot) ->
+                        resources.isRetired || !sameAuthorization(snapshot, findById(snapshot.id))
+                    }.keys
+                    obsolete.forEach { it.retire() }
+                    retired.addAll(obsolete)
+                    obsolete.forEach { sessions.remove(it) }
+                }
+            }
+        } finally {
+            closeMailResources(retired)
+        }
+    }
+
+    private fun retireAccountSessions(accountId: AccountId) {
+        sessions.filterValues { it.id == accountId }.keys.forEach { it.retire() }
+    }
+
+    private fun sameAuthorization(old: UtMailAccount, current: UtMailAccount?): Boolean = current != null &&
+        old.id == current.id && old.credentialKey == current.credentialKey &&
+        old.incoming == current.incoming && old.outgoing == current.outgoing &&
+        old.oauthProviderId == current.oauthProviderId && old.address == current.address
 
     private fun reload() {
         accounts.value = storage.all()

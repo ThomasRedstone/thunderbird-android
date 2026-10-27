@@ -608,7 +608,14 @@ class ForegroundMailSessionTest {
     }
 
     @Test
-    fun `cancellation closes authenticated stalled body transfer and retains complete cached mail`() {
+    fun `cancellation closes authenticated stalled body transfer and retains complete cached mail`() =
+        stalledBodyTransfer { it.close() }
+
+    @Test
+    fun `credential replacement closes authenticated stalled transfer and preserves cached mail`() =
+        stalledBodyTransfer { accounts.replacePasswords(account.id, AccountPasswords(PASSWORD, PASSWORD)) }
+
+    private fun stalledBodyTransfer(interrupt: (MailOperation) -> Unit) {
         deliver("Cached before cancel", "Retained complete body")
         factory().open(account.id).use {
             it.refreshFolders()
@@ -642,7 +649,7 @@ class ForegroundMailSessionTest {
                 }
                 check(gateway.bodyTransferStarted.await(3, TimeUnit.SECONDS))
                 assertThat(result.isDone).isFalse()
-                operation.close()
+                interrupt(operation)
                 assertThat(result.get(3, TimeUnit.SECONDS)).isNotNull()
                 check(gateway.clientConnectionClosed.await(3, TimeUnit.SECONDS))
                 assertThat(cached.readMessage(uid)?.subject).isEqualTo("Cached before cancel")

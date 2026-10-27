@@ -28,11 +28,14 @@ internal data class MailSessionAuthentication(
 internal class MailSessionResources(sockets: CancellableSocketFactory) : AutoCloseable {
     private val monitor = Any()
     private var closed = false
+
+    @Volatile var isRetired = false
+        private set
     private val owners = mutableListOf<AutoCloseable>(sockets)
 
     fun <T : AutoCloseable> own(resource: T): T {
         synchronized(monitor) {
-            if (!closed) {
+            if (!closed && !isRetired) {
                 owners += resource
                 return resource
             }
@@ -41,10 +44,19 @@ internal class MailSessionResources(sockets: CancellableSocketFactory) : AutoClo
         throw MailOperationCancelledException()
     }
 
+    fun retire() {
+        synchronized(monitor) { isRetired = true }
+    }
+
+    fun ensureActive() {
+        if (isRetired) throw MailOperationCancelledException()
+    }
+
     override fun close() {
         val pending = synchronized(monitor) {
             if (closed) return
             closed = true
+            isRetired = true
             owners.asReversed().toList().also { owners.clear() }
         }
         closeMailResources(pending)

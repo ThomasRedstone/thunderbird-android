@@ -11,7 +11,7 @@ plugins {
     alias(libs.plugins.compose)
 }
 
-version = "0.1.19"
+version = "0.1.20"
 
 application {
     mainClass.set("net.thunderbird.app.ubuntutouch.MainKt")

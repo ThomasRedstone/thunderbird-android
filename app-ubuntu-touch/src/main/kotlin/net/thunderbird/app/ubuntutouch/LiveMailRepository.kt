@@ -11,6 +11,7 @@ internal data class MailSummary(
     val sender: String,
     val unread: Boolean,
     val starred: Boolean = false,
+    val effectiveDate: Long? = null,
 )
 internal data class MailContent(
     val summary: MailSummary,
@@ -69,8 +70,10 @@ internal class PersistentLiveMailRepository(
 
     override fun messages(account: AccountId, folder: String): List<MailSummary> {
         val cached = storage(account).getFolder(folder)
-        return cached.getAllMessagesAndEffectiveDates().entries.sortedByDescending { it.value ?: 0L }.map { (uid, _) ->
-            cached.withCachedMessage(uid) { message -> summary(account, folder, cached, uid, message) }
+        return cached.getAllMessagesAndEffectiveDates().entries.sortedByDescending {
+            it.value ?: 0L
+        }.map { (uid, date) ->
+            cached.withCachedMessage(uid) { message -> summary(account, folder, cached, uid, message, date) }
         }
     }
 
@@ -79,7 +82,7 @@ internal class PersistentLiveMailRepository(
         return cached.withCachedMessage(uid) { message ->
             val text = plainTextBody(message)
             MailContent(
-                summary(account, folder, cached, uid, message),
+                summary(account, folder, cached, uid, message, cached.getAllMessagesAndEffectiveDates()[uid]),
                 text ?: "No cached plain-text body. HTML viewing is not available yet.",
                 Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid),
                 text != null,
@@ -121,6 +124,7 @@ internal class PersistentLiveMailRepository(
         folder: PersistentBackendFolder,
         uid: String,
         message: Message,
+        effectiveDate: Long?,
     ): MailSummary {
         val flags = actions.overlay(account, name, uid, folder.getMessageFlags(uid))
         return MailSummary(
@@ -129,6 +133,7 @@ internal class PersistentLiveMailRepository(
             message.from?.joinToString { it.toString() }.orEmpty(),
             Flag.SEEN !in flags,
             Flag.FLAGGED in flags,
+            effectiveDate,
         )
     }
 }

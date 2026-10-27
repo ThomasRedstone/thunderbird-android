@@ -34,12 +34,14 @@ internal data class LiveMailState(
     val canCancel: Boolean = false,
     val cancelling: Boolean = false,
     val notice: String? = null,
+    val sort: MailSort = MailSort.NEWEST,
 ) {
     val searchAllFolders: Boolean get() = searchScope != CachedSearchScope.FOLDER
     override fun toString(): String = "LiveMailState(redacted)"
 }
 
 internal sealed interface LiveMailEvent {
+    data class Sort(val sort: MailSort) : LiveMailEvent
     data class OpenAccount(val id: AccountId) : LiveMailEvent
     data class OpenFolder(val folder: MailFolder) : LiveMailEvent
     data class Search(val query: String) : LiveMailEvent {
@@ -66,6 +68,7 @@ internal class LiveMailViewModel(
 ) : AutoCloseable {
     private val mutableState = MutableStateFlow(LiveMailState(manager.findAll()))
     val state = mutableState.asStateFlow()
+    private var selectedSort = MailSort.NEWEST
     private var activeOperation: MailOperation? = null
     private var localWrite: Job? = null
     private var localWriteFailed = false
@@ -78,9 +81,14 @@ internal class LiveMailViewModel(
         }
         if (current.busy || handleActions(event, current)) return
         when (event) {
+            is LiveMailEvent.Sort -> if (current.folder != null && current.content == null) {
+                selectedSort = event.sort
+                load(current.copy(sort = event.sort))
+            }
+
             is LiveMailEvent.OpenAccount -> {
                 require(manager.findById(event.id) != null)
-                load(LiveMailState(manager.findAll(), account = event.id))
+                load(LiveMailState(manager.findAll(), account = event.id, sort = selectedSort))
             }
 
             is LiveMailEvent.OpenFolder -> {
@@ -137,7 +145,7 @@ internal class LiveMailViewModel(
                 searchHits = emptyList(),
             )
 
-            else -> mutableState.value = LiveMailState(manager.findAll())
+            else -> mutableState.value = LiveMailState(manager.findAll(), sort = selectedSort)
         }
     }
 
@@ -331,7 +339,7 @@ internal class LiveMailViewModel(
             },
             content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,
             busy = false,
-        )
+        ).sortedForDisplay()
     }
 
     suspend fun flushForClose(): Boolean {

@@ -1,0 +1,130 @@
+package net.thunderbird.app.ubuntutouch
+
+import assertk.assertThat
+import assertk.assertions.isEqualTo
+import com.fsck.k9.mail.AuthType
+import com.fsck.k9.mail.ConnectionSecurity
+import com.fsck.k9.mail.ServerSettings
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.account.AccountIdFactory
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+class MailSortViewModelTest {
+    @get:Rule val directory = TemporaryFolder()
+
+    @Test
+    fun `sorting cached folder works with locked credentials and survives reader and account navigation`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val raw = FakeCredentialStore()
+            val manager = UtAccountManager(AccountSettingsStorage(database), raw)
+            val account = account(manager)
+            val repository = CachedRepository(account)
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            raw.locked = true
+            testSubject.event(LiveMailEvent.OpenAccount(account))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            assertThat(idle(testSubject).messages.map { it.id }).isEqualTo(listOf("new", "old"))
+            testSubject.event(LiveMailEvent.Sort(MailSort.SUBJECT))
+            assertThat(idle(testSubject).messages.map { it.id }).isEqualTo(listOf("old", "new"))
+            testSubject.event(LiveMailEvent.OpenMessage("old"))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.Sort(MailSort.SENDER))
+            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.SUBJECT)
+            testSubject.event(LiveMailEvent.Back)
+            testSubject.event(LiveMailEvent.Back)
+            testSubject.event(LiveMailEvent.Back)
+            testSubject.event(LiveMailEvent.OpenAccount(account))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            val reopened = idle(testSubject)
+            assertThat(reopened.sort).isEqualTo(MailSort.SUBJECT)
+            assertThat(reopened.messages.map { it.id }).isEqualTo(listOf("old", "new"))
+            assertThat(repository.networkCalls).isEqualTo(0)
+        }
+    }
+
+    @Test
+    fun `sorting unified cached results preserves the account used to open shared UID`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val first = account(manager)
+            val second = account(manager)
+            val repository = CachedRepository(first)
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(first))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ALL_ACCOUNTS))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.Sort(MailSort.OLDEST))
+            val state = idle(testSubject)
+            assertThat(state.searchHits.size).isEqualTo(4)
+            assertThat(state.searchHits.map { it.message.effectiveDate }).isEqualTo(listOf(100L, 100L, 200L, 300L))
+            val hit = state.searchHits.first { it.account == second && it.message.id == "old" }
+            testSubject.event(LiveMailEvent.OpenSearchResult(hit))
+            idle(testSubject)
+            assertThat(repository.openedAccount).isEqualTo(second)
+            assertThat(repository.networkCalls).isEqualTo(0)
+        }
+    }
+
+    private fun account(manager: UtAccountManager): AccountId {
+        val id = AccountIdFactory.create()
+        val server = ServerSettings(
+            "imap",
+            "mail.example.invalid",
+            993,
+            ConnectionSecurity.SSL_TLS_REQUIRED,
+            AuthType.PLAIN,
+            "fixture@example.invalid",
+            null,
+            null,
+        )
+        manager.createWithPasswords(
+            UtMailAccount(
+                id,
+                "Controlled",
+                "fixture@example.invalid",
+                server,
+                server.copy(type = "smtp", port = 465),
+                UUID.randomUUID().toString(),
+            ),
+            AccountPasswords("incoming", "outgoing"),
+        )
+        return id
+    }
+
+    private suspend fun idle(model: LiveMailViewModel) = withContext(Dispatchers.Default) {
+        withTimeout(5000) { model.state.first { !it.busy } }
+    }
+}
+
+private class CachedRepository(private val first: AccountId) : LiveMailRepository {
+    val inbox = MailFolder("INBOX", "Inbox")
+    var networkCalls = 0
+    var openedAccount: AccountId? = null
+    override fun folders(account: AccountId) = listOf(inbox)
+    override fun messages(account: AccountId, folder: String) = listOf(
+        MailSummary("new", "Zulu", "Alice", false, true, if (account == first) 200 else 300),
+        MailSummary("old", "Alpha", "Zed", true, false, 100),
+    )
+    override fun content(account: AccountId, folder: String, uid: String): MailContent {
+        openedAccount = account
+        return MailContent(messages(account, folder).single { it.id == uid }, "Controlled body", true)
+    }
+    override fun refresh(account: AccountId, folder: String?) {
+        networkCalls++
+        error("No network in sorting")
+    }
+    override fun download(account: AccountId, folder: String, uid: String) = error("No downloads in sorting")
+}

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
@@ -178,7 +179,7 @@ private fun MailMessageList(
                 CachedSearchScope.ALL_ACCOUNTS -> "All cached accounts"
             },
         )
-        SearchScopeButtons(state.busy, onEvent)
+        SearchAndSortControls(state, onEvent)
         TextFieldOutlined(
             value = editing,
             onValueChange = { editing = it.copy(text = it.text.take(MAX_SEARCH_LENGTH)) },
@@ -209,7 +210,10 @@ private fun MailMessageList(
                 if (state.query.isBlank()) "No cached messages. Sync to receive mail." else "No cached matches",
             )
         }
-        LazyColumn(Modifier.weight(1f)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).testTag("cached-message-list"),
+            state = rememberMailSortViewport(state.sort, state.busy),
+        ) {
             items(state.searchHits, key = { listOf(it.account.toString(), it.folder.id, it.message.id) }) { hit ->
                 SearchResultButton(state, hit, onEvent)
             }
@@ -241,7 +245,8 @@ private fun SearchResultButton(state: LiveMailState, hit: CachedMailHit, onEvent
 }
 
 @Composable
-private fun SearchScopeButtons(busy: Boolean, onEvent: (LiveMailEvent) -> Unit) {
+private fun SearchAndSortControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Unit) {
+    val busy = state.busy
     Row(Modifier.horizontalScroll(rememberScrollState())) {
         ButtonText("This folder", {
             onEvent(LiveMailEvent.SearchScope(CachedSearchScope.FOLDER))
@@ -253,6 +258,10 @@ private fun SearchScopeButtons(busy: Boolean, onEvent: (LiveMailEvent) -> Unit) 
             onEvent(LiveMailEvent.SearchScope(CachedSearchScope.ALL_ACCOUNTS))
         }, enabled = !busy)
     }
+    ButtonText("Sort: ${state.sort.label}", {
+        val next = MailSort.entries[(state.sort.ordinal + 1) % MailSort.entries.size]
+        onEvent(LiveMailEvent.Sort(next))
+    }, enabled = !busy)
 }
 
 private fun CachedSearchScope.label(): String = when (this) {

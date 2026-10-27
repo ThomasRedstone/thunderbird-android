@@ -2180,3 +2180,37 @@ A host-only fixture JAR is also frozen as build/evidence/oauth-native-019/host-s
 immutable production lib/app JARs, not a later rebuilt installDist. Start a fresh bounded server output directory;
 the old endpoint is stopped and stale. The matching public certificate is already on the phone as
 probes/candidate-019-certificate.der. Preserve both frozen 0.1.18 and 0.1.19 test drivers as source advances.
+
+
+## Cached message sorting (0.1.20 development source, 2026-10-27)
+
+Folder lists and account/unified cached search now offer newest, oldest, subject, sender, unread-first and
+starred-first ordering. Effective dates come from existing SQLite metadata without a schema migration. Sorting runs
+on the cache reader's IO dispatcher and requires neither network access nor an unlocked credential store. Unknown
+dates remain last in either date direction; timestamp comparisons avoid subtraction overflow. Header keys use NFC
+normalization and locale-independent case conversion, with deterministic UID/account/folder ties that retain distinct
+results sharing a UID. The chosen order survives folder/account navigation within the current model lifetime.
+
+Changing order resets the viewport to the first result after the cache operation completes. A rendered regression
+failed before this fix because Compose retained the previously visible UID; the retained failure is
+`app-ubuntu-touch/build/evidence/mail-sort/viewport-before.xml` and
+`/tmp/thunderbird-sort-viewport-before.log`. Additional tests cover all six orders, extreme/missing dates, Unicode and
+Turkish default locale, duplicate identities, locked-keyring operation, navigation, busy controls and real SQLite
+list/reader date projection. The existing account-search regression now asserts the deterministic folder tie order
+and selects its Archive result by identity rather than list position.
+
+Version locations advance to 0.1.20 for changed production source. No 0.1.20 Click has been built or installed.
+The immutable 0.1.19 package and frozen 0.1.18/0.1.19 native probe JARs remain unchanged; both probe hashes were
+rechecked. Phone installation/native sorting and physical UI acceptance remain pending. Durable sort preferences,
+locale-specific collation, pagination and large-mailbox performance remain open. There are no new dependencies,
+permissions, shared Android changes or OAuth registration changes in this slice.
+
+Final verification: all 291 app tests pass with zero failures, errors or skips; `detekt`, `installDist` and
+`spotlessCheck` pass. Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ANDROID_HOME=/home/tom/Android/Sdk ./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test
+:app-ubuntu-touch:detekt :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck --no-configuration-cache
+-Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Log: `/tmp/thunderbird-sort-full-fixed.log`; XML retained under `build/evidence/mail-sort/after/`.
+This JVM application has no Android lint/instrumentation target; shared Android sources were unchanged and the prior
+shared-engine Android assembly evidence still applies. Native checks were not run because the FP4 remains unreachable
+(blocker b-nnxn). Provider registration decision q-ar74 remains pending.

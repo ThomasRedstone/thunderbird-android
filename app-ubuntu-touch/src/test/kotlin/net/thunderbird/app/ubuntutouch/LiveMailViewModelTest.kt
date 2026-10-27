@@ -169,14 +169,15 @@ class LiveMailViewModelTest {
             testSubject.state.first { !it.busy }
             val hits = testSubject.state.value.searchHits
             assertThat(hits.map { it.message.id }).isEqualTo(listOf("1", "1"))
-            assertThat(hits.map { it.folder.id }).isEqualTo(listOf("INBOX", "Archive"))
-            val foreignHit = hits.last().copy(account = AccountIdFactory.create())
+            assertThat(hits.map { it.folder.id }).isEqualTo(listOf("Archive", "INBOX"))
+            val archiveHit = hits.single { it.folder.id == "Archive" }
+            val foreignHit = archiveHit.copy(account = AccountIdFactory.create())
             assertThat(
                 runCatching {
                     testSubject.event(LiveMailEvent.OpenSearchResult(foreignHit))
                 }.isFailure,
             ).isTrue()
-            testSubject.event(LiveMailEvent.OpenSearchResult(hits.last()))
+            testSubject.event(LiveMailEvent.OpenSearchResult(archiveHit))
             testSubject.state.first { !it.busy }
             assertThat(testSubject.state.value.folder?.id).isEqualTo("Archive")
             assertThat(testSubject.state.value.content?.body).isEqualTo("Archive cached body")

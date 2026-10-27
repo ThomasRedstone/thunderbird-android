@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.18 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 281 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 291 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth setup and mail-session integration is verified on host | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.18 install verified; fleet `9333240` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -200,6 +200,12 @@ Account-wide and unified-account cached search are deployed in 0.1.17, with cont
 reader/flag/reply routing and Back restoring the original search account/folder. Confined model and reopened SQLite
 checks pass, as does fresh-process offline search after server shutdown. Physical UI acceptance for these scopes,
 server search, filters, HTML indexing and large-mailbox performance remain required.
+
+Cached sorting is implemented in 0.1.20 development source: newest/oldest, subject/sender, unread-first and
+starred-first modes apply to folder and account/unified search results without network access. Host model, SQLite
+and rendered UI checks pass, including stable identity ties and resetting a scrolled list after changing order.
+Selection survives navigation within the model lifetime. Durable preferences, locale-specific collation, native
+phone acceptance and large-mailbox performance remain open; no 0.1.20 Click is built or installed yet.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

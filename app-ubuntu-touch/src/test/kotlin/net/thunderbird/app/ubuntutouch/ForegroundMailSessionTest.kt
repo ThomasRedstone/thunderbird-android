@@ -85,10 +85,10 @@ class ForegroundMailSessionTest {
         val key = prepareMoveSource()
         withOracleInbox { marker ->
             marker.messages.single { it.subject == "Unrelated" }.setFlag(jakarta.mail.Flags.Flag.DELETED, true)
-            val store = MailMoveStore(database)
-            val queued = store.enqueue(key, "Move fixture target")
-            val testSubject = MailMoveRunner(store, SessionMailMoveTransport(factory()))
-            assertThat(testSubject.run(queued, MailOperation()).state).isEqualTo(MailMoveState.COMPLETE)
+            val testSubject = PersistentMailMoveOperations(database, accounts, factory())
+            testSubject.configureRole(key, MailFolderRole.ARCHIVE, "Move fixture target")
+            val queued = testSubject.enqueue(key, "Move fixture target", MailFolderRole.ARCHIVE)
+            assertThat(testSubject.submit(queued, MailOperation(), false).state).isEqualTo(MailMoveState.COMPLETE)
             withOracleInbox { inbox ->
                 assertThat(inbox.messageCount).isEqualTo(1)
                 assertThat(inbox.messages.single().subject).isEqualTo("Unrelated")
@@ -273,6 +273,26 @@ class ForegroundMailSessionTest {
         assertThat(retained.info(account.id, complete.id)).isEqualTo(null)
         assertThat(target.getMessageServerIds().size).isEqualTo(1)
         assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `changed trash destination cannot queue an old shortcut target or silently retarget an existing intent`() {
+        val key = prepareMoveSource()
+        val testSubject = PersistentMailMoveOperations(database, accounts, factory())
+        testSubject.configureRole(key, MailFolderRole.TRASH, "Move fixture target")
+        testSubject.configureRole(key, MailFolderRole.TRASH, "INBOX")
+        assertThat(
+            runCatching {
+                testSubject.enqueue(key, "Move fixture target", MailFolderRole.TRASH)
+            }.isFailure,
+        ).isTrue()
+        assertThat(MailMoveStore(database).list(account.id)).isEqualTo(emptyList())
+        withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(0) }
+        testSubject.configureRole(key, MailFolderRole.TRASH, "Move fixture target")
+        val queued = testSubject.enqueue(key, "Move fixture target", MailFolderRole.TRASH)
+        testSubject.configureRole(key, MailFolderRole.TRASH, "INBOX")
+        assertThat(testSubject.submit(queued, MailOperation(), false).state).isEqualTo(MailMoveState.COMPLETE)
+        withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(1) }
     }
 
     private fun prepareMoveSource(): MailMessageKey {

@@ -20,7 +20,7 @@ import net.thunderbird.components.ui.bolt.atom.text.TextTitleLarge
 @Composable
 internal fun MailMoveScreen(state: MailMoveUiState, onEvent: (MailMoveEvent) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextTitleLarge("Move messages")
+        TextTitleLarge(state.role?.let { "${it.title} message" } ?: "Move messages")
         MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel move operation") {
             onEvent(MailMoveEvent.Cancel)
         }
@@ -74,6 +74,7 @@ private fun MoveSetup(state: MailMoveUiState, onEvent: (MailMoveEvent) -> Unit) 
     }
     TextBodyLarge(source.subject.ifBlank { "(No subject)" })
     TextBodyLarge("From folder: ${source.key.folder}")
+    FolderRoleControls(state, onEvent)
     if (!source.verified) {
         TextBodyLarge("This cached message needs verification with the current account connection.")
         ButtonText("Verify source message", { onEvent(MailMoveEvent.Verify) }, enabled = !state.busy)
@@ -90,7 +91,7 @@ private fun MoveSetup(state: MailMoveUiState, onEvent: (MailMoveEvent) -> Unit) 
     ButtonText(
         "Queue move",
         { onEvent(MailMoveEvent.Queue) },
-        enabled = !state.busy && source.verified && target?.ready == true,
+        enabled = !state.busy && source.verified && target?.ready == true && state.roleMatchesTarget(),
     )
     TextBodyLarge("Queueing saves intent locally. Move now contacts the server from the review screen.")
 }
@@ -187,6 +188,7 @@ internal fun ReaderTools(
     state: LiveMailState,
     onSave: ((MessageSaveEvent) -> Unit)?,
     onMove: ((MailMessageKey) -> Unit)?,
+    onOrganize: ((MailMessageKey, MailFolderRole) -> Unit)?,
     onEvent: (LiveMailEvent) -> Unit,
 ) {
     Row(Modifier.horizontalScroll(rememberScrollState())) {
@@ -194,6 +196,7 @@ internal fun ReaderTools(
         ReaderSaveAction(state, onSave)
         ReaderAttachmentAction(state, onSave)
         ReaderMoveAction(state, onMove)
+        ReaderFolderRoleActions(state, onOrganize)
     }
 }
 

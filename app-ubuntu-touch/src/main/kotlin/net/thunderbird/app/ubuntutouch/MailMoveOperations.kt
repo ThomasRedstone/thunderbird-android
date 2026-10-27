@@ -20,6 +20,7 @@ internal data class MoveOverview(
     val source: MoveSource? = null,
     val destinations: List<MoveDestination> = emptyList(),
     val history: List<MoveView> = emptyList(),
+    val roles: Map<MailFolderRole, String> = emptyMap(),
 ) {
     override fun toString(): String = "MoveOverview(redacted)"
 }
@@ -28,7 +29,8 @@ internal interface MailMoveOperations {
     fun overview(source: MailMessageKey?): MoveOverview
     fun verify(source: MailMessageKey, operation: MailOperation)
     fun syncDestination(source: MailMessageKey, target: String, operation: MailOperation)
-    fun enqueue(source: MailMessageKey, target: String): MailMove
+    fun configureRole(source: MailMessageKey, role: MailFolderRole, target: String?)
+    fun enqueue(source: MailMessageKey, target: String, role: MailFolderRole? = null): MailMove
     fun submit(move: MailMove, operation: MailOperation, acknowledgeDuplicateRisk: Boolean): MailMove
     fun reconcile(move: MailMove, operation: MailOperation): Boolean
     fun cancelQueued(move: MailMove)
@@ -78,7 +80,7 @@ internal class PersistentMailMoveOperations(
         } else {
             null
         }
-        return MoveOverview(selected, destinations, history)
+        return MoveOverview(selected, destinations, history, MailFolderRoleStore(database).read(owner))
     }
 
     override fun verify(source: MailMessageKey, operation: MailOperation) {
@@ -90,7 +92,22 @@ internal class PersistentMailMoveOperations(
         sessions.open(source.account, operation).use { it.sync(target) }
     }
 
-    override fun enqueue(source: MailMessageKey, target: String) = moves.enqueue(source, target)
+    override fun configureRole(source: MailMessageKey, role: MailFolderRole, target: String?) {
+        val owner = checkNotNull(accounts.findById(source.account))
+        accounts.withCurrentAccount(owner) { MailFolderRoleStore(database).configure(owner, role, target) }
+    }
+
+    override fun enqueue(source: MailMessageKey, target: String, role: MailFolderRole?): MailMove {
+        val owner = checkNotNull(accounts.findById(source.account))
+        var queued: MailMove? = null
+        accounts.withCurrentAccount(owner) {
+            queued = synchronized(database) {
+                if (role != null) check(MailFolderRoleStore(database).read(owner)[role] == target)
+                moves.enqueue(source, target)
+            }
+        }
+        return checkNotNull(queued)
+    }
     override fun submit(move: MailMove, operation: MailOperation, acknowledgeDuplicateRisk: Boolean) =
         runner.run(move, operation, acknowledgeDuplicateRisk)
 

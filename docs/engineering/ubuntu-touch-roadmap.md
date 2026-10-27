@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.33 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 430 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 437 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.33 embeds clean `b21d25e202`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.33 install verified; local fleet `d4ba958` pins its exact artifact/hash | Physical foreground, launch-wrapper registry warning, broader cancellation and lifecycle verification |
 
@@ -500,3 +500,13 @@ Installed 0.1.33 now matches the frozen candidate35 artifact and local fleet pin
 initialization/integrity and native synthetic decoded attachment bytes, Unicode paths, private
 permissions and fresh-JVM uncertain-journal recovery pass. This uses a fake receiver, not a
 real outbound Content Hub transfer. Physical/receiver/provider acceptance remains open.
+
+Development 0.1.34 adds reader Archive and Move to Trash actions with explicit account-scoped
+folder choices. They open the move review flow, preselecting only a configured destination;
+configuration itself is local and never submits mail. Folder mappings bind to the incoming
+account context and become inactive after connection changes or server folder removal.
+Queueing rechecks the chosen role, while a queued intent keeps its reviewed target after
+preferences change. Full 437 tests and quality/distribution checks pass, including real TLS
+archive/trash moves and unrelated deleted-message preservation. Phone 33 remains unchanged
+at this source checkpoint. Native/physical role selection, permanent deletion, bulk moves,
+copy and broader folder management remain required.

@@ -3666,3 +3666,39 @@ Full 430 app tests pass with zero failures/errors/skips plus detekt/spotlessChec
 quality checks also pass in `/tmp/thunderbird-033-attachment-probe-check-2.log`. Existing
 production 428-test/installDist verification is unchanged. Real outbound permission/receiver,
 physical UI, large-file/native-memory/cancellation and power-loss acceptance remain open.
+
+### Explicit Archive and Trash destinations (development 0.1.34, 2026-10-27)
+
+Reader Archive/Move to Trash open the global Move owner with the exact account/folder/UID
+and requested role. The view preselects that account's explicitly configured destination.
+Selecting a different folder offers a local configuration action; queueing remains disabled
+until the role matches the selected target and existing source/target verification gates pass.
+The separate reviewed Move now action submits the existing durable move protocol. Trash
+means a move to the chosen folder, with a visible explanation that it is not permanent deletion.
+No automatic special-folder guessing, background submission or permanent deletion is added.
+
+MailFolderRoleStore uses the existing private folder metadata API, with one enum-keyed role
+marker per account and the current incoming connection binding as its value. No schema
+change is required (15). Save/clear operations are atomic; current persisted account checks
+reject stale writes, and missing targets leave the previous choice intact. Folder/account
+removal removes the role through existing metadata cleanup. No user filename or SQL is
+constructed from server data. Queueing serializes role revalidation and intent creation
+under the account/database owner boundaries; subsequent preference changes do not silently
+retarget an already queued, explicitly reviewed operation.
+
+Full 437 app tests pass, zero failures/errors/skips, plus detekt/installDist/spotlessCheck:
+`/tmp/thunderbird-folder-roles-full.log`, standard JDK21/SDK/Gradle command and flags.
+New store tests cover reopen/account isolation/clear, connection invalidation/stale writes,
+missing destination rollback and folder/account removal. Model/rendered tests cover local
+configuration, preselection, queue gating, actual message routing and busy controls. Real
+TLS tests use configured Archive and Trash destinations; an outdated role cannot queue its
+old target, while changing preferences after queue does not change the saved target.
+Independent IMAP checks verify the resulting destination and preserve unrelated deleted mail.
+Initial rendered test incorrectly overlaid its standalone buttons; using the actual toolbar
+Row fixed that test harness. Production already uses a Row.
+
+Only the Ubuntu Touch app module changed; Android device tests do not exercise this JVM
+application. Source 34 is not native/physical role acceptance. Installed frozen 33, its
+artifacts, test drivers and local fleet pin remain unchanged. No permissions/OAuth settings
+changed. Copy, bulk organisation, permanent deletion, folder creation/rename/subscription,
+physical action acceptance and interruption/performance coverage remain roadmap work.

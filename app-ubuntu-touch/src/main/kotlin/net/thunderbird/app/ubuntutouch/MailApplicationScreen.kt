@@ -246,6 +246,13 @@ private fun MailboxContent(
                 panels.save()
             }
         },
+        onOrganize = transfers.moves?.let {
+            { key, role ->
+                keyboard?.focus(false)
+                transfers.moveEvent(MailMoveEvent.Open(key, role))
+                panels.move()
+            }
+        },
         onMove = transfers.moves?.let {
             { key ->
                 keyboard?.focus(false)

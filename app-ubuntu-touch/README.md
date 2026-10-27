@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.33; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.34; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -158,3 +158,7 @@ Development0.1.33 connects cached attachment Save to the reader's picker and the
 Content Hub transfer owner. Complete cached attachments are decoded locally with source
 fingerprint checks; a destination must be selected explicitly. Outbound permission approval
 and real receiver/phone acceptance remain open; this is not outgoing attachment support.
+
+Development 0.1.34 adds Archive/Move to Trash reader actions. Configure a destination in the
+review flow before queueing; the account's incoming connection binds that choice. These
+actions reuse the explicit move/recovery controls. Permanent deletion is not implemented.

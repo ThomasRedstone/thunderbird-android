@@ -15,6 +15,36 @@ import org.junit.Test
 
 class MailMoveViewModelTest {
     @Test
+    fun `archive and trash require configured destinations and never submit while configuring`() = runTest {
+        val operations = MoveUiFixture().apply {
+            verified = true
+            ready = true
+        }
+        val testSubject = MailMoveViewModel(operations, backgroundScope)
+        testSubject.event(MailMoveEvent.Open(operations.key, MailFolderRole.TRASH))
+        testSubject.state.first { !it.busy }
+        testSubject.event(MailMoveEvent.Target("Archive"))
+        testSubject.event(MailMoveEvent.Queue)
+        testSubject.state.first { !it.busy }
+        assertThat(operations.queues).isEqualTo(0)
+        testSubject.event(MailMoveEvent.ConfigureRole)
+        testSubject.state.first { !it.busy }
+        assertThat(operations.roles).isEqualTo(mapOf(MailFolderRole.TRASH to "Archive"))
+        testSubject.event(MailMoveEvent.Queue)
+        testSubject.state.first { !it.busy }
+        assertThat(operations.queues).isEqualTo(1)
+        assertThat(operations.submissions).isEqualTo(0)
+        testSubject.event(MailMoveEvent.Open(operations.key, MailFolderRole.TRASH))
+        assertThat(testSubject.state.first { !it.busy }.target).isEqualTo("Archive")
+        testSubject.event(MailMoveEvent.ClearRole)
+        testSubject.state.first { !it.busy }
+        testSubject.event(MailMoveEvent.Queue)
+        testSubject.state.first { !it.busy }
+        assertThat(operations.queues).isEqualTo(1)
+        assertThat(operations.submissions).isEqualTo(0)
+    }
+
+    @Test
     fun `selection queueing and history never submit and unknown retry needs fresh confirmation`() = runTest {
         val operations = MoveUiFixture()
         val testSubject = MailMoveViewModel(operations, backgroundScope)
@@ -96,6 +126,7 @@ private class MoveUiFixture : MailMoveOperations {
     val key = MailMessageKey(AccountIdFactory.create(), "INBOX", "1")
     var verified = false
     var ready = false
+    val roles = mutableMapOf<MailFolderRole, String>()
     var queues = 0
     var submissions = 0
     var throwAfterSubmit = false
@@ -107,6 +138,7 @@ private class MoveUiFixture : MailMoveOperations {
         source?.let { MoveSource(it, "Fixture", verified) },
         listOf(MoveDestination(MailFolder("Archive", "Archive"), ready)),
         listOfNotNull(saved?.let { MoveView(it, MailMovePayloadInfo(7, true, null), true) }),
+        roles.toMap(),
     )
     override fun verify(source: MailMessageKey, operation: MailOperation) {
         verified = true
@@ -118,7 +150,11 @@ private class MoveUiFixture : MailMoveOperations {
     ) {
         ready = true
     }
-    override fun enqueue(source: MailMessageKey, target: String): MailMove {
+    override fun configureRole(source: MailMessageKey, role: MailFolderRole, target: String?) {
+        if (target == null) roles.remove(role) else roles[role] = target
+    }
+    override fun enqueue(source: MailMessageKey, target: String, role: MailFolderRole?): MailMove {
+        if (role != null) check(roles[role] == target)
         queues++
         return MailMove(
             "fixture", key.account, key.folder, key.uid, target, 1, 2, MailMoveState.QUEUED, 0, false, "binding",

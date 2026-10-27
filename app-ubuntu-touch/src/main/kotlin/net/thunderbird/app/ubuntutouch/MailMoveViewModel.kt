@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 internal data class MailMoveUiState(
     val overview: MoveOverview = MoveOverview(),
     val request: MailMessageKey? = null,
+    val role: MailFolderRole? = null,
     val target: String? = null,
     val selected: MailMove? = null,
     val page: MailSourcePage? = null,
@@ -27,7 +28,7 @@ internal data class MailMoveUiState(
 }
 
 internal sealed interface MailMoveEvent {
-    data class Open(val source: MailMessageKey? = null) : MailMoveEvent
+    data class Open(val source: MailMessageKey? = null, val role: MailFolderRole? = null) : MailMoveEvent
     data class Target(val folder: String) : MailMoveEvent {
         override fun toString(): String = "MailMoveEvent.Target(redacted)"
     }
@@ -35,6 +36,8 @@ internal sealed interface MailMoveEvent {
     data class Source(val offset: Long = 0) : MailMoveEvent
     data object Verify : MailMoveEvent
     data object SyncDestination : MailMoveEvent
+    data object ConfigureRole : MailMoveEvent
+    data object ClearRole : MailMoveEvent
     data object Queue : MailMoveEvent
     data object Submit : MailMoveEvent
     data object Reconcile : MailMoveEvent
@@ -113,7 +116,7 @@ internal class MailMoveViewModel(
     private fun execute(event: MailMoveEvent, initial: MailMoveUiState, operation: MailOperation?): MailMoveUiState {
         val prepared = initial.copy(page = null, confirmRetry = false, notice = null)
         val next = when (event) {
-            is MailMoveEvent.Open -> MailMoveUiState(request = event.source)
+            is MailMoveEvent.Open -> MailMoveUiState(request = event.source, role = event.role)
 
             is MailMoveEvent.Select -> {
                 require(initial.overview.history.any { it.move == event.move })
@@ -126,11 +129,24 @@ internal class MailMoveViewModel(
                 canCancel = false,
             )
 
+            MailMoveEvent.ConfigureRole, MailMoveEvent.ClearRole -> {
+                operations.configureRole(
+                    checkNotNull(initial.request),
+                    checkNotNull(initial.role),
+                    if (event == MailMoveEvent.ClearRole) null else checkNotNull(initial.target),
+                )
+                prepared
+            }
+
             MailMoveEvent.Queue -> {
                 check(initial.overview.source?.verified == true)
                 check(initial.overview.destinations.any { it.folder.id == initial.target && it.ready })
                 prepared.copy(
-                    selected = operations.enqueue(checkNotNull(initial.request), checkNotNull(initial.target)),
+                    selected = operations.enqueue(
+                        checkNotNull(initial.request),
+                        checkNotNull(initial.target),
+                        initial.role,
+                    ),
                 )
             }
 
@@ -196,6 +212,7 @@ internal class MailMoveViewModel(
         }
         return initial.copy(
             overview = overview,
+            target = initial.target ?: initial.role?.let { overview.roles[it] },
             selected = selected,
             busy = false,
             canCancel = false,

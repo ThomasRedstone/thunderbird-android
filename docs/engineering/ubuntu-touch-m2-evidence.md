@@ -2850,3 +2850,35 @@ Embedded clean source84f80558a8/empty changes verified. Click review and ARM64 l
 (`/tmp/thunderbird-027-click.log`, terminal0). Same pinned builder and verified candidate5 runtime reused, not a new
 cold/CI proof. Phone remains26; no27 upload, installation or native source-reader acceptance yet. Experimental
 SignOn repair is not bundled; production large-credential reads and real provider/physical journeys remain open.
+
+
+### Installed 0.1.27 and confined source paging/recovery
+
+The single rsync transfer completed terminal0 and full remote package SHA matched
+`64fbb6090b958a2d17cec7b67cf38f851caaa73cd369a23890763471378f9102` (`/tmp/thunderbird-027-transfer.log`).
+Old26MainPID220357 processed a normal close/save request after transient owned pidfd SIGCONT; no forced kill or
+lifecycle exemption. Upgrade required no remaining app processes, verified a private SQLite backup/schema10 at
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/0.1.27-pdqnoef6`, then Phone Manager installed27.
+The existing install command was polled through its longer-running phase, with live process/current-version checks;
+no duplicate install was started. Terminal0 log `/tmp/thunderbird-027-install.log` retains root-bus/signature/old-profile
+cache warnings. Installed source84f80558a867163bcbc33e9e551fc5d53b0d937e/empty changes verified. Main JAR SHA
+`be2eb48e219df39581e7652e75c782016020b85bec5360de24d1f05594b6f7e4` matches host/phone.
+
+The frozen source driver runs under `mail-demo.thomasredstone_mail-demo_0.1.27 (enforce)`, with synthetic non-repeating
+binary bytes in its own SQLite fixture. It verifies all three pages against expected escaped bytes, complete status,
+account/folder/UID isolation, overflow rejection and quick_check. A second JVM verifies the same persisted source and
+removes the fixture; zero retained source directories independently verified. Logs:
+`/tmp/thunderbird-027-native-source-{prepare,reopen}.log`.
+Driver `build/evidence/native-027/candidate-027-source-probe.jar`, two classes, SHA
+`5c63f38651a7387925d40fd908575858f49a25c23ee70aa694a88efe6162d97e`, matched on phone.
+Test-only sources committed0b2b356d78 after canonical package creation; they change no production bytecode and are
+not claimed to be in its source archive. Two focused host safety tests (unconfined refusal and recovery path/symlink
+rejection), compileTestKotlin, detekt and spotless pass (`/tmp/thunderbird-027-probe-checks.log`). The full350 app test
+result precedes these two separately-run fixture safety tests.
+
+Actual Main launch exits0; independently foundPID245009, one owned main window and27(enforce), stateT(suspended).
+Production read-only SQLite schema10/quick_checkok. This is platform launch/byte-store evidence, not physical source
+control, selection, paging or keyboard acceptance. Local fleet commit `e1adc10` pins exact installed27; scoped absolute-
+path manifest lint and local artifact hash pass. Temporary-index commit preserved unrelated work/index state and
+skipped whole-fleet sync/prune hook for that invocation; no fleet push/converge. Exact-byte export, large-MIME/native
+memory measurements, production SignOn repair and real OAuth/provider/physical journeys remain open.

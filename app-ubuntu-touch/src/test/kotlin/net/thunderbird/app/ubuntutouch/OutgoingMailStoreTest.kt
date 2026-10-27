@@ -174,6 +174,7 @@ class OutgoingMailStoreTest {
             database.execute("DROP TABLE pending_flags")
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=3")
             account.id
         }
@@ -181,7 +182,7 @@ class OutgoingMailStoreTest {
             assertThat(OutgoingMailStore(database).list(accountId)).isEqualTo(emptyList())
             assertThat(SignonIdentityIndex(database).find("fixture")).isEqualTo(42L)
             assertThat(AccountSettingsStorage(database).all().single().id).isEqualTo(accountId)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(9L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(10L)
         }
     }
 
@@ -239,6 +240,7 @@ class OutgoingMailStoreTest {
             database.execute("DROP TABLE pending_flags")
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=4")
             account.id to draft.id
         }
@@ -295,6 +297,7 @@ class OutgoingMailStoreTest {
             database.execute("DROP TABLE pending_flags")
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=5")
             Triple(account.id, draft.id, mime)
         }
@@ -371,6 +374,7 @@ class OutgoingMailStoreTest {
             database.execute("DROP TABLE pending_flags")
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=6")
             account.id to draft.id
         }
@@ -407,6 +411,7 @@ class OutgoingMailStoreTest {
             database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=7")
             account.id to draft.id
         }
@@ -439,6 +444,7 @@ class OutgoingMailStoreTest {
             val raw = database.query("SELECT mime FROM outgoing WHERE id=?", draft.id) { getBlob(0) }.single()
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=8")
             Triple(account.id, draft.id, raw)
         }

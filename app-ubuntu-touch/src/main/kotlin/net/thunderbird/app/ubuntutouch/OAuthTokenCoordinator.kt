@@ -90,7 +90,14 @@ internal class OAuthTokenCoordinator(
             entries.getOrPut(grant, ::Entry).also { it.users++ }
         }
         try {
-            entry.mutex.withLock { operation(entry) }
+            entry.mutex.withLock {
+                try {
+                    operation(entry)
+                } catch (failure: StaleOAuthGrantException) {
+                    entry.pending = null
+                    throw failure
+                }
+            }
         } finally {
             synchronized(registryLock) {
                 entry.users--

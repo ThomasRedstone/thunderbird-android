@@ -165,7 +165,7 @@ class UtAccountManagerTest {
             val backend = PersistentBackendStorage(database, "existing-account")
             assertThat(backend.getFolderServerIds()).isEqualTo(listOf("INBOX"))
             assertThat(backend.getExtraNumber("checkpoint")).isEqualTo(42L)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(9L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(10L)
         }
     }
 

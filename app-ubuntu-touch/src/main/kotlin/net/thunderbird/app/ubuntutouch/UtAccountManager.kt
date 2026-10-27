@@ -16,6 +16,7 @@ import net.thunderbird.feature.mail.account.api.AccountManager
 internal class UtAccountManager(
     private val storage: AccountSettingsStorage,
     private val credentials: CredentialStore,
+    private val oauthProviders: OAuthProviderRegistry = OAuthProviderRegistry(),
 ) : AccountManager<UtMailAccount>, AccountRepository {
     private val accounts = MutableStateFlow(storage.all())
 
@@ -31,7 +32,7 @@ internal class UtAccountManager(
     override fun createSync(account: UtMailAccount) {
         check(findById(account.id) == null) { "Account already exists" }
         check(findAll().none { it.credentialKey == account.credentialKey }) { "Credentials must belong to one account" }
-        requireCredentials(account.credentialKey)
+        requireCredentials(account)
         storage.insert(account)
         reload()
     }
@@ -44,7 +45,9 @@ internal class UtAccountManager(
         val current = findById(accountId) ?: return null
         val updated = transform(current)
         require(updated.id == accountId) { "Account identity cannot change" }
-        require(updated.credentialKey == current.credentialKey) { "Use credential replacement to change passwords" }
+        require(updated.credentialKey == current.credentialKey) { "Use credential replacement to change credentials" }
+        require(updated.oauthProviderId == current.oauthProviderId) { "Use credential replacement to change provider" }
+        if (updated.isOAuth) oauthProviders.configurationFor(updated)
         storage.update(updated)
         reload()
         return updated
@@ -64,6 +67,7 @@ internal class UtAccountManager(
     /** Write new immutable secret first; the SQL commit claims it. Journal enables crash/failure cleanup. */
     @Synchronized
     fun createWithPasswords(account: UtMailAccount, passwords: AccountPasswords) {
+        require(!account.isOAuth) { "OAuth accounts require authorization credentials" }
         check(findById(account.id) == null) { "Account already exists" }
         require(findAll().none { it.credentialKey == account.credentialKey })
         storage.scheduleCredentialCleanup(account.credentialKey)
@@ -79,6 +83,7 @@ internal class UtAccountManager(
 
     @Synchronized
     fun replaceAccountAndPasswords(account: UtMailAccount, passwords: AccountPasswords): Boolean {
+        require(!account.isOAuth) { "OAuth accounts require authorization credentials" }
         val current = checkNotNull(findById(account.id)) { "Account not found" }
         require(account.credentialKey == current.credentialKey)
         val replacement = account.copy(credentialKey = UUID.randomUUID().toString())
@@ -93,6 +98,7 @@ internal class UtAccountManager(
     @Synchronized
     fun passwords(accountId: AccountId): AccountPasswords {
         val account = checkNotNull(findById(accountId)) { "Account not found" }
+        require(!account.isOAuth) { "OAuth accounts do not use password credentials" }
         val value = credentials.read(account.credentialKey) ?: throw SecretStoreException(SecretFailure.UNAVAILABLE)
         return try {
             AccountPasswords.decode(value)
@@ -135,13 +141,69 @@ internal class UtAccountManager(
         }
     }
 
-    private fun requireCredentials(key: String) {
-        val value = credentials.read(key) ?: throw SecretStoreException(SecretFailure.UNAVAILABLE)
-        try {
-            AccountPasswords.decode(value)
-        } finally {
-            value.fill(0)
+    private fun requireCredentials(account: UtMailAccount) {
+        if (account.isOAuth) {
+            val configuration = oauthProviders.configurationFor(account)
+            checkNotNull(
+                OAuthTokenStore(credentials).read(OAuthGrant(account.id, account.credentialKey), configuration),
+            ) {
+                "OAuth credentials unavailable"
+            }
+        } else {
+            val value = credentials.read(account.credentialKey) ?: throw SecretStoreException(SecretFailure.UNAVAILABLE)
+            try {
+                AccountPasswords.decode(value)
+            } finally {
+                value.fill(0)
+            }
         }
+    }
+
+    @Synchronized
+    fun createWithOAuth(account: UtMailAccount, tokens: OAuthTokens) {
+        require(account.isOAuth) { "OAuth account metadata required" }
+        check(findById(account.id) == null) { "Account already exists" }
+        require(findAll().none { it.credentialKey == account.credentialKey })
+        val configuration = oauthProviders.configurationFor(account)
+        storage.scheduleCredentialCleanup(account.credentialKey)
+        OAuthTokenStore(credentials).write(OAuthGrant(account.id, account.credentialKey), configuration, tokens)
+        createSync(account)
+    }
+
+    @Synchronized
+    fun replaceWithOAuth(expected: UtMailAccount, replacement: UtMailAccount, tokens: OAuthTokens): Boolean {
+        require(
+            replacement.isOAuth && replacement.id == expected.id && replacement.credentialKey != expected.credentialKey,
+        )
+        check(findById(expected.id) == expected) { "Account changed during authorization" }
+        require(findAll().none { it.credentialKey == replacement.credentialKey })
+        val configuration = oauthProviders.configurationFor(replacement)
+        storage.scheduleCredentialCleanup(replacement.credentialKey)
+        OAuthTokenStore(credentials).write(OAuthGrant(replacement.id, replacement.credentialKey), configuration, tokens)
+        storage.scheduleCredentialCleanup(expected.credentialKey)
+        storage.update(replacement)
+        reload()
+        return cleanupUnusedCredentials()
+    }
+
+    fun readOAuthCredential(grant: OAuthGrant): ByteArray? = withCurrentOAuthGrant(grant) {
+        it.read(grant.credentialKey)
+    }
+
+    fun writeOAuthCredential(grant: OAuthGrant, value: ByteArray) = withCurrentOAuthGrant(grant) {
+        it.write(grant.credentialKey, value)
+    }
+
+    fun deleteOAuthCredential(grant: OAuthGrant) = withCurrentOAuthGrant(grant) { it.delete(grant.credentialKey) }
+
+    @Synchronized
+    private fun <T> withCurrentOAuthGrant(grant: OAuthGrant, operation: (CredentialStore) -> T): T {
+        val account = findById(grant.accountId)
+        if (account == null || !account.isOAuth || account.credentialKey != grant.credentialKey) {
+            throw StaleOAuthGrantException()
+        }
+        oauthProviders.configurationFor(account)
+        return operation(credentials)
     }
 
     private fun reload() {

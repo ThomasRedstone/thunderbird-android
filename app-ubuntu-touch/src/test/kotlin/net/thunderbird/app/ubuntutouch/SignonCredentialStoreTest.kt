@@ -112,6 +112,7 @@ class SignonCredentialStoreTest {
             database.execute("DROP TABLE pending_flags")
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=2")
             database.execute("INSERT INTO credential_cleanup(key) VALUES(?)", "pending")
         }

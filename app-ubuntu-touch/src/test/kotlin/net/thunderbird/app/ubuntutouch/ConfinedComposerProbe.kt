@@ -69,7 +69,7 @@ object ConfinedComposerProbe {
         val path = directory.resolve("mail.sqlite")
         prepareLegacyFixture(path, account)
         val id = MailDatabase(path).use { database ->
-            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 9L)
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 10L)
             check(AccountSettingsStorage(database).all().single().id == account.id)
             check(SignonIdentityIndex(database).find("local-index-fixture") == 42L)
             val store = OutgoingMailStore(database)
@@ -105,6 +105,7 @@ object ConfinedComposerProbe {
             database.execute("DROP TABLE pending_flags")
             database.execute("DROP TABLE sent_copies")
             database.execute("DROP TABLE sent_settings")
+            database.execute("ALTER TABLE accounts DROP COLUMN oauth_provider")
             database.execute("PRAGMA user_version=3")
         }
     }

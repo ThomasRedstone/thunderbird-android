@@ -2,6 +2,7 @@ package net.thunderbird.app.ubuntutouch
 
 import java.util.UUID
 import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.account.AccountIdFactory
 
 /** Immutable protected-credential generation, separate from the account's stable identity. */
 internal data class OAuthGrant(
@@ -20,6 +21,16 @@ internal data class OAuthGrant(
             false
         }
         require(valid) { "Invalid OAuth credential generation" }
+    }
+
+    companion object {
+        fun fromKey(key: String): OAuthGrant {
+            require(key.startsWith(KEY_PREFIX) && key.length == KEY_PREFIX.length + GENERATION_LENGTH * 2 + 1) {
+                "Invalid OAuth credential reference"
+            }
+            val account = AccountIdFactory.of(key.substring(KEY_PREFIX.length, KEY_PREFIX.length + GENERATION_LENGTH))
+            return OAuthGrant(account, key)
+        }
     }
 
     override fun toString(): String = "OAuthGrant(redacted)"

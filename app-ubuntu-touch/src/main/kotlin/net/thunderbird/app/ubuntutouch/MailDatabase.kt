@@ -12,7 +12,8 @@ private const val ATTEMPT_SCHEMA_VERSION = 5L
 private const val RECIPIENT_SCHEMA_VERSION = 6L
 private const val FLAG_SCHEMA_VERSION = 7L
 private const val THREAD_SCHEMA_VERSION = 8L
-private const val CURRENT_SCHEMA_VERSION = 9L
+private const val SENT_SCHEMA_VERSION = 9L
+private const val CURRENT_SCHEMA_VERSION = 10L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -35,7 +36,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < RECIPIENT_SCHEMA_VERSION) createRecipientSchema()
             if (version < FLAG_SCHEMA_VERSION) createPendingFlagsSchema()
             if (version < THREAD_SCHEMA_VERSION) createThreadingSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createSentSchema()
+            if (version < SENT_SCHEMA_VERSION) createSentSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createOAuthAccountSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
@@ -80,6 +82,11 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createOAuthAccountSchema() = transaction {
+        execute("ALTER TABLE accounts ADD COLUMN oauth_provider TEXT")
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createSentSchema() = transaction {
         execute(
             """CREATE TABLE sent_settings (
@@ -91,7 +98,7 @@ internal class MailDatabase(path: Path) : AutoCloseable {
                 account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, folder TEXT NOT NULL,
                 state TEXT NOT NULL, uid TEXT, uncertain_attempt INTEGER NOT NULL DEFAULT 0)""",
         )
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$SENT_SCHEMA_VERSION")
     }
 
     private fun createThreadingSchema() = transaction {

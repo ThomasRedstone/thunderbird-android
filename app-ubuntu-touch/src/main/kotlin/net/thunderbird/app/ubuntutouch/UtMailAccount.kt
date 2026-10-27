@@ -21,6 +21,7 @@ internal data class UtMailAccount(
     val incoming: ServerSettings,
     val outgoing: ServerSettings,
     val credentialKey: String,
+    val oauthProviderId: String? = null,
 ) : Account {
     init {
         require(displayName.isNotBlank() && displayName.length <= MAX_DISPLAY_NAME_LENGTH)
@@ -28,7 +29,15 @@ internal data class UtMailAccount(
         require(credentialKey.isNotBlank())
         validateServer(incoming, "imap")
         validateServer(outgoing, "smtp")
+        require((incoming.authenticationType == AuthType.XOAUTH2) == isOAuth)
+        require((outgoing.authenticationType == AuthType.XOAUTH2) == isOAuth)
+        if (isOAuth) {
+            require(validOAuthProviderId(checkNotNull(oauthProviderId)))
+            OAuthGrant(id, credentialKey)
+        }
     }
+
+    val isOAuth: Boolean get() = oauthProviderId != null
 
     override fun toString(): String = "UtMailAccount(id=$id)"
 }
@@ -38,7 +47,7 @@ private fun validateServer(settings: ServerSettings, type: String) {
     require(HostNameUtils.isLegalHostNameOrIP(settings.host) != null) { "Invalid server hostname" }
     require(settings.port in 1..MAX_SERVER_PORT)
     require(settings.connectionSecurity != ConnectionSecurity.NONE) { "TLS is required" }
-    require(settings.authenticationType == AuthType.PLAIN || settings.authenticationType == AuthType.CRAM_MD5)
+    require(settings.authenticationType in setOf(AuthType.PLAIN, AuthType.CRAM_MD5, AuthType.XOAUTH2))
     require(settings.username.isNotBlank())
     require(settings.password == null && settings.clientCertificateAlias == null && settings.extra.isEmpty()) {
         "Account configuration must not contain secrets or unsupported extensions"

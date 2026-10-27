@@ -1871,3 +1871,29 @@ All 221 host app tests pass with zero failures/errors/skips, plus detekt/install
 standard no-configuration-cache/isolated-projects=false/max-workers=4 options. No shared engine/Android code changed;
 the prior SMTP/Android consumer checks remain applicable. Android instrumentation was not run for this JVM change.
 Installed phone/fleet remain verified 0.1.18/f18314918d; a later package must use a new version for these grant APIs.
+
+
+### OAuth account ownership and schema 10 (source only)
+
+OAuth account metadata now persists a provider reference, with both mail protocols required to use XOAUTH2.
+Schema 9 upgrades to 10 without changing password accounts, cached messages or drafts. Tokens remain outside SQLite.
+An injected provider registry validates the incoming and outgoing host, port and TLS mode before protected token
+access. The production default registry is empty; no Gmail or Microsoft registration has been enabled.
+
+The account manager journals initial and replacement credential writes and serializes protected OAuth access with
+account replacement/deletion. ManagedOAuthCredentialStore rejects retired generations, and the refresh coordinator
+discards pending state when ownership is rejected. Nine SQLite-backed tests cover removal/replacement races, failed
+SQL commits, deferred cleanup, stale setup snapshots, locked storage, host restrictions and schema migration.
+These checks do not cancel already issued network operations or revoke credentials remotely. Mail-session routing,
+owned provider cancellation, setup UI and real provider verification remain required.
+
+Installed 0.1.18 still uses schema 9 and does not contain this implementation. The next package must bump all three
+version locations to 0.1.19; current compiled schema-10 probes must not replace the frozen 0.1.18 probe JAR.
+
+Full verification passes: 230 app tests with zero failures/errors/skips, detekt, installDist and spotlessCheck.
+Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Log: /tmp/thunderbird-oauth-ownership-full.log; test XML: build/evidence/oauth-ownership/.
+No shared engine or Android source changed; prior SMTP and Android consumer checks remain applicable.
+Android instrumentation was not run for this JVM-only slice, and native deployment acceptance remains open.

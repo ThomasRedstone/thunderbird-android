@@ -9,8 +9,10 @@ import net.thunderbird.feature.account.AccountIdFactory
 @Suppress("MagicNumber") // SQL column indices match the adjacent explicit SELECT projections.
 internal class AccountSettingsStorage(private val database: MailDatabase) {
     fun all(): List<UtMailAccount> = database.query(
-        "SELECT id,display_name,address,credential_key FROM accounts ORDER BY position,id",
-    ) { listOf(getText(0), getText(1), getText(2), getText(3)) }.map { row ->
+        "SELECT id,display_name,address,credential_key,oauth_provider FROM accounts ORDER BY position,id",
+    ) {
+        listOf(getText(0), getText(1), getText(2), getText(3)) to if (isNull(4)) null else getText(4)
+    }.map { (row, provider) ->
         UtMailAccount(
             AccountIdFactory.of(row[0]),
             row[1],
@@ -18,17 +20,19 @@ internal class AccountSettingsStorage(private val database: MailDatabase) {
             server(row[0], "imap"),
             server(row[0], "smtp"),
             row[3],
+            provider,
         )
     }
 
     fun insert(account: UtMailAccount) = database.transaction {
         database.execute(
-            """INSERT INTO accounts(id,display_name,address,credential_key,position)
-                VALUES(?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM accounts))""",
+            """INSERT INTO accounts(id,display_name,address,credential_key,position,oauth_provider)
+                VALUES(?,?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM accounts),?)""",
             account.id.toString(),
             account.displayName,
             account.address,
             account.credentialKey,
+            account.oauthProviderId,
         )
         saveServers(account)
         database.execute("DELETE FROM credential_cleanup WHERE key=?", account.credentialKey)
@@ -36,10 +40,11 @@ internal class AccountSettingsStorage(private val database: MailDatabase) {
 
     fun update(account: UtMailAccount) = database.transaction {
         database.execute(
-            "UPDATE accounts SET display_name=?,address=?,credential_key=? WHERE id=?",
+            "UPDATE accounts SET display_name=?,address=?,credential_key=?,oauth_provider=? WHERE id=?",
             account.displayName,
             account.address,
             account.credentialKey,
+            account.oauthProviderId,
             account.id.toString(),
         )
         saveServers(account)

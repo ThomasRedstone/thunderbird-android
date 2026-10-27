@@ -167,6 +167,7 @@ tb-quality-detekt = { id = "net.thunderbird.gradle.plugin.quality.detekt" }
 tb-quality-spotless = { id = "net.thunderbird.gradle.plugin.quality.spotless" }
 
 [libraries]
+androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version = "2.7.1" }
 android-billing = { module = "com.android.billingclient:billing", version.ref = "androidBilling" }
 android-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "androidBilling" }
 android-desugar = { module = "com.android.tools:desugar_jdk_libs", version.ref = "androidDesugar" }

@@ -26,6 +26,13 @@ for jar in "$APP"/lib/app/*skiko*.jar; do
     fi
 done
 [[ "$found" = 1 ]] || { echo 'ARM64 Skiko library missing' >&2; exit 1; }
+# AndroidX ships a multi-platform JAR. Validate the ARM64 member that the
+# driver's native loader selects; preserve the original JAR and licence.
+for jar in "$APP"/lib/app/*sqlite-bundled-jvm*.jar; do
+    [[ -f "$jar" ]] || continue
+    unzip -p "$jar" natives/linux_arm64/libsqliteJni.so > "$TEMP/sqlite.so"
+    check_arm64 "$TEMP/sqlite.so"
+done
 sha256sum "$PACKAGE"
 stat --printf='Package bytes: %s\n' "$PACKAGE"
 echo 'ARM64 launcher, JVM, AWT and Skiko verified'

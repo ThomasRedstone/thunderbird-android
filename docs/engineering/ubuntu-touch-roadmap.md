@@ -15,8 +15,8 @@ and a reproducible supported release.
 | Platform | 0.1.4 installed on FP4; user confirms correctly sized window and on-screen typing | Remaining input, rotation and lifecycle checks |
 | Mail | Bundled demo folders and messages only | All live-account flows, persistence, sync and sending |
 | Engineering | Eight tests, static checks, ARM64 package and Clickable review pass | Integration/provider/device suites and CI |
-| Source delivery | Changes exist locally on `feat/ubuntu-touch-demo` | Review, commits and push to the project remote |
-| Phone delivery | One-off Phone Manager install | Versioned fleet entry, upgrade and recovery workflow |
+| Source delivery | Offline preview committed and pushed as `b715212616` on `feat/ubuntu-touch-demo` | Fresh package from committed source; ongoing live-mail changes |
+| Phone delivery | Phone Manager install; fleet commit `1c380a5` pins installed 0.1.4/hash | Clean-source package alignment, upgrade and recovery workflow |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -44,7 +44,9 @@ The repository already has useful foundations:
 - Newer features contain shared Compose code, but legacy application wiring and some feature implementations still
   depend on Android. A JVM target on a module does not establish that a complete application can run on Linux.
 - The [database architecture](../architecture/database.md) describes Android/JVM desktop driver support and shared
-  repository boundaries. The port should assess and reuse that work before introducing persistence alternatives.
+  repository boundaries as a proposed direction. There is no `core:database` implementation in this checkout.
+  The port's app-local SQLite adapter and upstream integration gap are recorded in the
+  [milestone 2 evidence](ubuntu-touch-m2-evidence.md).
 
 Compose Desktop supports Linux ARM64; see the [platform compatibility documentation](https://kotlinlang.org/docs/multiplatform/compose-compatibility-and-versioning.html).
 Ubuntu Touch integration still requires device validation, especially Xwayland, input and confinement.
@@ -144,7 +146,7 @@ Deliver this milestone as bounded work packages:
 Acceptance: the complete flow works against a controlled test server on the device, then an explicitly configured real
 test account. Verify rejected credentials, invalid certificates, interrupted sync and send failure recovery. Do not
 request or log production credentials to substitute for controlled tests. Measure package size, startup time and memory.
-This is the next implementation milestone; it has not started.
+This milestone is in progress, beginning with package 2.1. Live network mail remains unimplemented.
 
 ## Milestone 3 Daily use in the foreground
 

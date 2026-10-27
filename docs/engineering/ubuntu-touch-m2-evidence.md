@@ -2241,3 +2241,24 @@ same full app command recorded above. Log `/tmp/thunderbird-sort-preferences-ful
 `app-ubuntu-touch/build/evidence/mail-sort-preferences/`. Scoped documentation formatting also checked. Shared/Android
 source is unchanged; Android instrumentation and native preference acceptance were not run. Packaging follows from
 this clean committed source; the current source remains 0.1.20 and no earlier artifact is overwritten.
+
+
+### Verified 0.1.20 ARM64 package
+
+Candidate22 built successfully from clean `aea2d6affa2f013abd27f89b1c02967607800fa6`; embedded
+`SOURCE-CHANGES.patch` is empty. Artifact:
+`app-ubuntu-touch/build/ut-candidate-22/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.20_arm64.click`.
+Size: 147595130 bytes. SHA-256: `804329d5d5bc984ef35d237e09333ecf3d4f48a788b9767ed63b499f20af08a5`.
+Clickable review passes and package verification confirms ARM64 launcher, JVM, AWT and Skiko.
+Log: `/tmp/thunderbird-020-click.log`. The same pinned builder
+`sha256:3a08b52420bd76280d8323db951a306e428fb17ac5e4cd60f53903e049a68563` and verified candidate5 ARM runtime
+were reused; this is not a cold reproducibility result.
+
+Matching current test classes are frozen in `build/evidence/oauth-native-020/candidate-020-probes.jar` (62 classes,
+SHA-256 `9aa1d5b696f5db52191e6c9c292f26322e49742c9785370786785c3824c16a12`) and
+`host-server-020.jar` (2 classes, SHA-256 `8e34156d75cdbc0a8f78a070e904c468a400633d4fb0148ba3f939402c268a02`).
+Use these only with installed 0.1.20 production classes. Earlier frozen drivers and packages remain preserved.
+The package is not transferred or installed; latest verified phone version remains 0.1.18. The partial 0.1.19 transfer
+is retained and has not been overwritten. Choosing the next phone candidate must explicitly distinguish versions,
+back up the production database, verify the complete artifact hash and then use Phone Manager. Native 0.1.20 UI,
+preference persistence and provider authentication remain unverified.

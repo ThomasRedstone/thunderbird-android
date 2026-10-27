@@ -206,7 +206,7 @@ starred-first modes apply to folder and account/unified search results without n
 and rendered UI checks pass, including stable identity ties and resetting a scrolled list after changing order.
 Selection survives navigation and restarts through an atomic private preference file, with explicit save-failure
 feedback and retry. Per-folder preferences, locale-specific collation, native
-phone acceptance and large-mailbox performance remain open; no 0.1.20 Click is built or installed yet.
+phone acceptance and large-mailbox performance remain open; 0.1.20 ARM64 Click is built and reviewed, with phone installation/acceptance pending.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

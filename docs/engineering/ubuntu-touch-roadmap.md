@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.18 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 324 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 338 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth setup and mail-session integration is verified on host | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.18 install verified; fleet `9333240` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -232,6 +232,12 @@ exchange, protected storage, account commit, cached access and refresh. Rotated 
 access token is denied. Legacy unknown scopes are not guessed. Real-provider scope policies/canonicalization, identity
 verification, registration and phone/provider acceptance remain open; the production registry is still empty. The
 0.1.24 ARM64 Click is built and reviewed, with installation pending.
+
+A provider-pinned verified-email profile adapter and protected identity binding are implemented in 0.1.25 development
+source across browser authorization, account commit, restart, refresh and both mail-token providers. Mismatched profile,
+subject changes, credential-pair reuse and ordinary authenticated-address edits fail closed. Legacy identity stays
+unknown. Real Google/Microsoft claim policies and any required OIDC validation remain open; no provider is enabled.
+Native protected-format migration, address/alias normalization and physical/provider journeys remain required.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

@@ -21,11 +21,25 @@ internal class OAuthAccountAuthorization(
     private val browser: OAuthBrowser,
     private val tokens: OAuthTokenClient,
     private val receiver: ((URI) -> OAuthConfiguration) -> OAuthLoopbackReceiver = { OAuthLoopbackReceiver.open(it) },
+    private val identity: OAuthIdentityVerifier = OAuthIdentityVerifier { _, _ -> throw OAuthIdentityException() },
 ) {
     fun prepare(candidate: UtMailAccount, expected: UtMailAccount? = null): OAuthAccountAuthorizationAttempt {
         val configuration = providers.configurationFor(candidate)
         require(expected == null || (expected.id == candidate.id && expected.credentialKey != candidate.credentialKey))
-        return OAuthAccountAuthorizationAttempt(accounts, browser, tokens, receiver, configuration, candidate, expected)
+        return OAuthAccountAuthorizationAttempt(
+            accounts,
+            browser,
+            tokens,
+            receiver,
+            configuration,
+            candidate,
+            expected,
+        ) { grant ->
+            grant.requireScopes(providers.requiredScopesFor(candidate))
+            providers.identityRequirementFor(candidate)?.let { requirement ->
+                identity.verify(requirement.policy, grant).apply { check(requirement, grant) }
+            }
+        }
     }
 }
 
@@ -42,6 +56,7 @@ internal class OAuthAccountAuthorizationAttempt(
     private val configuration: OAuthConfiguration,
     private val candidate: UtMailAccount,
     private val expected: UtMailAccount?,
+    private val verifyIdentity: suspend (OAuthTokens) -> OAuthVerifiedIdentity? = { null },
 ) : AutoCloseable {
     private val phase = AtomicReference(Phase.READY)
     private val worker = AtomicReference<Job?>()
@@ -69,6 +84,7 @@ internal class OAuthAccountAuthorizationAttempt(
                     val authorized = callback.await() as? OAuthCallback.Authorized
                         ?: throw OAuthAuthorizationDeniedException()
                     val replacement = tokens.exchange(checkNotNull(allocated), authorized)
+                    val verified = verifyIdentity(replacement)
                     context.ensureActive()
                     if (!phase.compareAndSet(Phase.RUNNING, Phase.COMMITTING)) {
                         throw CancellationException("Authorization cancelled")
@@ -76,10 +92,10 @@ internal class OAuthAccountAuthorizationAttempt(
                     // A protected write may block. Finish its journaled commit rather than report a false cancellation.
                     withContext(NonCancellable) {
                         val cleaned = if (expected == null) {
-                            accounts.createWithOAuth(candidate, replacement)
+                            accounts.createWithOAuth(candidate, replacement, verified)
                             accounts.cleanupUnusedCredentials()
                         } else {
-                            accounts.replaceWithOAuth(expected, candidate, replacement)
+                            accounts.replaceWithOAuth(expected, candidate, replacement, verified)
                         }
                         OAuthAccountAuthorizationResult(candidate.id, cleanupPending = !cleaned)
                     }

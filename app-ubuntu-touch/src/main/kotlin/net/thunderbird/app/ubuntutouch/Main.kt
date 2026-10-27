@@ -114,10 +114,11 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single { OAuthTokenStore(get<ManagedOAuthCredentialStore>()) }
             single { JdkOAuthTokenHttp() } onClose { it?.close() }
             single { OAuthTokenClient(get<JdkOAuthTokenHttp>()) }
+            single<OAuthIdentityVerifier> { HttpsOAuthIdentityVerifier(get<JdkOAuthTokenHttp>()) }
             single { OAuthTokenCoordinator(get(), get()) }
             single { OAuthMailAuthentication(get(), get()) }
             single<OAuthBrowser> { if (isUbuntuTouch) LomiriOAuthBrowser() else DesktopOAuthBrowser() }
-            single { OAuthAccountAuthorization(get(), get(), get(), get()) }
+            single { OAuthAccountAuthorization(get(), get(), get(), get(), identity = get()) }
             factory { AccountSetupViewModel(get(), authorization = get(), providers = get()) }
             single { ForegroundMailSessionFactory(get(), get(), JvmTrustedSocketFactory(), get(), oauth = get()) }
             single<LiveMailRepository> { PersistentLiveMailRepository(get(), get()) }

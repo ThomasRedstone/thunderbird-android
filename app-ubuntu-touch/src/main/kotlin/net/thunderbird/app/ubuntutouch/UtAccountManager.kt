@@ -50,7 +50,12 @@ internal class UtAccountManager(
         require(updated.id == accountId) { "Account identity cannot change" }
         require(updated.credentialKey == current.credentialKey) { "Use credential replacement to change credentials" }
         require(updated.oauthProviderId == current.oauthProviderId) { "Use credential replacement to change provider" }
-        if (updated.isOAuth) oauthProviders.configurationFor(updated)
+        if (updated.isOAuth) {
+            oauthProviders.configurationFor(updated)
+            require(oauthProviders.identityRequirementFor(updated) == null || updated.address == current.address) {
+                "Use reauthorization to change verified identity"
+            }
+        }
         storage.update(updated)
         if (!sameAuthorization(current, updated)) retireAccountSessions(accountId)
         reload()
@@ -169,14 +174,15 @@ internal class UtAccountManager(
     }
 
     @Synchronized
-    fun createWithOAuth(account: UtMailAccount, tokens: OAuthTokens) {
+    fun createWithOAuth(account: UtMailAccount, tokens: OAuthTokens, verified: OAuthVerifiedIdentity? = null) {
         require(account.isOAuth) { "OAuth account metadata required" }
         check(findById(account.id) == null) { "Account already exists" }
         require(findAll().none { it.credentialKey == account.credentialKey })
         val configuration = oauthProviders.configurationFor(account)
         tokens.requireScopes(oauthProviders.requiredScopesFor(account))
+        val bound = oauthProviders.bindIdentity(account, tokens, verified)
         storage.scheduleCredentialCleanup(account.credentialKey)
-        OAuthTokenStore(credentials).write(OAuthGrant(account.id, account.credentialKey), configuration, tokens)
+        OAuthTokenStore(credentials).write(OAuthGrant(account.id, account.credentialKey), configuration, bound)
         createSync(account)
     }
 
@@ -184,6 +190,7 @@ internal class UtAccountManager(
         expected: UtMailAccount,
         replacement: UtMailAccount,
         tokens: OAuthTokens,
+        verified: OAuthVerifiedIdentity? = null,
     ): Boolean = withSessionRetirement {
         require(
             replacement.isOAuth && replacement.id == expected.id && replacement.credentialKey != expected.credentialKey,
@@ -192,8 +199,10 @@ internal class UtAccountManager(
         require(findAll().none { it.credentialKey == replacement.credentialKey })
         val configuration = oauthProviders.configurationFor(replacement)
         tokens.requireScopes(oauthProviders.requiredScopesFor(replacement))
+        val previous = previousVerifiedIdentity(expected, replacement, configuration, oauthProviders, credentials)
+        val bound = oauthProviders.bindIdentity(replacement, tokens, verified, previous)
         storage.scheduleCredentialCleanup(replacement.credentialKey)
-        OAuthTokenStore(credentials).write(OAuthGrant(replacement.id, replacement.credentialKey), configuration, tokens)
+        OAuthTokenStore(credentials).write(OAuthGrant(replacement.id, replacement.credentialKey), configuration, bound)
         storage.scheduleCredentialCleanup(expected.credentialKey)
         storage.update(replacement)
         retireAccountSessions(replacement.id)

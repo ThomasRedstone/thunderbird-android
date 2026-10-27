@@ -61,7 +61,7 @@ internal class OAuthTokenClient(
             refresh,
             previous.grantScopes,
             false,
-        )
+        ).withIdentity(previous.identity)
     }
 
     private suspend fun request(

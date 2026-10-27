@@ -61,6 +61,66 @@ class OAuthAccountAuthorizationTest {
     fun close() = database.close()
 
     @Test
+    fun `browser exchange verifies pinned profile before committing an identity bound grant`() = runBlocking {
+        val strict = identityProviders()
+        accounts = UtAccountManager(AccountSettingsStorage(database), raw, strict)
+        val candidate = candidate()
+        val verifier = HttpsOAuthIdentityVerifier(
+            OAuthIdentityHttp { _, access ->
+                assertThat(access).isEqualTo("protected-access")
+                identityReply()
+            },
+        )
+        val testSubject = identityService(strict, verifier).prepare(candidate)
+        testSubject.authorize()
+        val stored = OAuthTokenStore(ManagedOAuthCredentialStore(accounts))
+            .read(OAuthGrant(candidate.id, candidate.credentialKey), configuration)!!
+        stored.requireIdentity(strict.identityRequirementFor(candidate))
+        assertThat(stored.identity!!.subject).isEqualTo("profile-subject")
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        accounts = UtAccountManager(AccountSettingsStorage(database), raw, strict)
+        val reopened = OAuthTokenStore(ManagedOAuthCredentialStore(accounts))
+            .read(OAuthGrant(candidate.id, candidate.credentialKey), configuration)!!
+        reopened.requireIdentity(strict.identityRequirementFor(candidate))
+    }
+
+    @Test
+    fun `profile for another email cannot create the configured account`() = runBlocking {
+        val strict = identityProviders()
+        accounts = UtAccountManager(AccountSettingsStorage(database), raw, strict)
+        val verifier = HttpsOAuthIdentityVerifier(
+            OAuthIdentityHttp { _, _ ->
+                identityReply("other@example.invalid")
+            },
+        )
+        val testSubject = identityService(strict, verifier).prepare(candidate())
+        assertThat(runCatching { testSubject.authorize() }.exceptionOrNull() is OAuthIdentityException).isTrue()
+        assertThat(accounts.findAll().isEmpty()).isTrue()
+        assertThat(raw.values.isEmpty()).isTrue()
+    }
+
+    @Test
+    fun `cancelling blocked profile verification prevents the protected commit`() = runBlocking {
+        val strict = identityProviders()
+        accounts = UtAccountManager(AccountSettingsStorage(database), raw, strict)
+        val entered = CompletableDeferred<Unit>()
+        val verifier = HttpsOAuthIdentityVerifier(
+            OAuthIdentityHttp { _, _ ->
+                entered.complete(Unit)
+                awaitCancellation()
+            },
+        )
+        val testSubject = identityService(strict, verifier).prepare(candidate())
+        val pending = async { runCatching { testSubject.authorize() } }
+        withTimeout(5000) { entered.await() }
+        assertThat(testSubject.cancel()).isTrue()
+        assertThat(withTimeout(5000) { pending.await() }.isFailure).isTrue()
+        assertThat(accounts.findAll().isEmpty()).isTrue()
+        assertThat(raw.values.isEmpty()).isTrue()
+    }
+
+    @Test
     fun `browser PKCE callback exchanges exact allocated redirect and commits protected account`() = runBlocking {
         val candidate = candidate()
         var dispatched: URI? = null
@@ -285,6 +345,37 @@ class OAuthAccountAuthorizationTest {
             .isEqualTo(OAuthAccountAuthorizationResult(candidate.id, false))
         assertThat(accounts.findById(candidate.id)).isEqualTo(candidate)
     }
+
+    private fun identityProviders() = OAuthProviderRegistry(
+        listOf(
+            OAuthProviderSpec(
+                "controlled",
+                configuration,
+                OAuthMailServer("imap.example.invalid", 993, ConnectionSecurity.SSL_TLS_REQUIRED),
+                OAuthMailServer("smtp.example.invalid", 587, ConnectionSecurity.STARTTLS_REQUIRED),
+                requiredScopes = setOf("mail"),
+                identityPolicy = OAuthIdentityPolicy("https://login.example.invalid/profile"),
+            ),
+        ),
+    )
+
+    private fun identityService(
+        registry: OAuthProviderRegistry,
+        verifier: OAuthIdentityVerifier,
+    ) = OAuthAccountAuthorization(
+        accounts,
+        registry,
+        OAuthBrowser { respond(it) },
+        OAuthTokenClient(OAuthTokenHttp { _, _ -> reply() }) { 0 },
+        { OAuthLoopbackReceiver.open(it, 2000, 50) },
+        identity = verifier,
+    )
+
+    private fun identityReply(email: String = "fixture@example.invalid") = OAuthHttpReply(
+        200,
+        "application/json",
+        """{"sub":"profile-subject","email":"$email","email_verified":true}""".toByteArray(),
+    )
 
     private fun service(
         browser: OAuthBrowser,

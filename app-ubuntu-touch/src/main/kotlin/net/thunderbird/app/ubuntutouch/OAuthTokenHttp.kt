@@ -30,7 +30,7 @@ internal class OAuthHttpReply(val status: Int, val contentType: String, val body
 internal class JdkOAuthTokenHttp(
     context: SSLContext = SSLContext.getDefault(),
     private val timeoutMillis: Long = DEFAULT_TOKEN_TIMEOUT,
-) : OAuthTokenHttp, AutoCloseable {
+) : OAuthTokenHttp, OAuthIdentityHttp, AutoCloseable {
     private val client = HttpClient.newBuilder()
         .sslContext(context)
         .followRedirects(HttpClient.Redirect.NEVER)
@@ -52,6 +52,18 @@ internal class JdkOAuthTokenHttp(
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("Accept", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(form, Charsets.UTF_8))
+            .build()
+        return withTimeout(timeoutMillis) { receive(request) }
+    }
+
+    override suspend fun get(endpoint: URI, accessToken: String): OAuthHttpReply {
+        requireTokenEndpoint(endpoint)
+        require(accessToken.length in 1..MAX_IDENTITY_ACCESS_TOKEN && accessToken.all { it in '!'..'~' })
+        val request = HttpRequest.newBuilder(endpoint)
+            .timeout(Duration.ofMillis(timeoutMillis))
+            .header("Authorization", "Bearer $accessToken")
+            .header("Accept", "application/json")
+            .GET()
             .build()
         return withTimeout(timeoutMillis) { receive(request) }
     }
@@ -123,3 +135,5 @@ private fun InputStream.closeAfterCancellation() {
 
 internal const val MAX_TOKEN_RESPONSE = 65_536
 private const val DEFAULT_TOKEN_TIMEOUT = 30_000L
+
+private const val MAX_IDENTITY_ACCESS_TOKEN = 16384

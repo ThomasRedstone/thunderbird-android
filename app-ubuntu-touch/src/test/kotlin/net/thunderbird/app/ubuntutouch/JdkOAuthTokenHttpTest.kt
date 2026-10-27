@@ -32,6 +32,52 @@ import org.junit.Test
 
 class JdkOAuthTokenHttpTest {
     @Test
+    fun `profile GET sends bearer only in header and refuses redirect forwarding`() = runBlocking {
+        val redirects = AtomicInteger()
+        Fixture { exchange ->
+            if (exchange.requestURI.path == "/target") redirects.incrementAndGet()
+            assertThat(exchange.requestMethod).isEqualTo("GET")
+            assertThat(exchange.requestURI.rawQuery).isEqualTo(null)
+            assertThat(exchange.requestHeaders.getFirst("Authorization")).isEqualTo("Bearer private-access")
+            exchange.responseHeaders.add("Location", "/target")
+            exchange.sendResponseHeaders(302, -1)
+        }.use { fixture ->
+            JdkOAuthTokenHttp(trustedContext).use { testSubject ->
+                assertThat(testSubject.get(fixture.uri, "private-access").status).isEqualTo(302)
+                assertThat(redirects.get()).isEqualTo(0)
+            }
+        }
+    }
+
+    @Test
+    fun `verified HTTPS profile uses scoped fixture trust while default trust rejects the endpoint`() = runBlocking {
+        Fixture { exchange ->
+            assertThat(exchange.requestHeaders.getFirst("Authorization")).isEqualTo("Bearer access")
+            val bytes = """{"sub":"subject","email":"fixture@example.invalid","email_verified":true}""".toByteArray()
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.write(bytes)
+        }.use { fixture ->
+            val policy = OAuthIdentityPolicy(fixture.uri.toASCIIString())
+            val tokens = OAuthTokens("access", "refresh", 1)
+            JdkOAuthTokenHttp().use { transport ->
+                assertThat(
+                    runCatching {
+                        HttpsOAuthIdentityVerifier(transport).verify(policy, tokens)
+                    }.isFailure,
+                ).isTrue()
+            }
+            JdkOAuthTokenHttp(trustedContext).use { transport ->
+                val testSubject = HttpsOAuthIdentityVerifier(transport)
+                testSubject.verify(
+                    policy,
+                    tokens,
+                ).check(OAuthIdentityRequirement(policy, "fixture@example.invalid"), tokens)
+            }
+        }
+    }
+
+    @Test
     fun `verified TLS POST uses form encoding and never follows redirect`() = runBlocking {
         val redirects = AtomicInteger()
         Fixture { exchange ->

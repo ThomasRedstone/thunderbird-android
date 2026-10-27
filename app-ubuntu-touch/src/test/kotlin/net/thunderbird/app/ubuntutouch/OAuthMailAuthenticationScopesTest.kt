@@ -9,15 +9,16 @@ import net.thunderbird.core.common.oauth.OAuthConfiguration
 import org.junit.Test
 
 class OAuthMailAuthenticationScopesTest {
+    private val configuration = OAuthConfiguration(
+        "synthetic",
+        listOf("mail"),
+        "https://login.example.invalid/auth",
+        "https://login.example.invalid/token",
+        "http://127.0.0.1:49152/callback",
+    )
+
     @Test
     fun `both protocol providers enforce registered minimum scopes before returning cached access`() {
-        val configuration = OAuthConfiguration(
-            "synthetic",
-            listOf("mail"),
-            "https://login.example.invalid/auth",
-            "https://login.example.invalid/token",
-            "http://127.0.0.1:49152/callback",
-        )
         val registry = OAuthProviderRegistry(
             listOf(
                 OAuthProviderSpec(
@@ -26,6 +27,7 @@ class OAuthMailAuthenticationScopesTest {
                     OAuthMailServer("imap.example.invalid", 993, ConnectionSecurity.SSL_TLS_REQUIRED),
                     OAuthMailServer("smtp.example.invalid", 587, ConnectionSecurity.STARTTLS_REQUIRED),
                     requiredScopes = setOf("mail"),
+                    identityPolicy = OAuthIdentityPolicy("https://login.example.invalid/profile"),
                 ),
             ),
         )
@@ -52,7 +54,22 @@ class OAuthMailAuthenticationScopesTest {
                     }.exceptionOrNull() is AuthenticationFailedException,
                 ).isTrue()
             }
-            store.write(grant, configuration, OAuthTokens("accepted", "refresh", 500000, setOf("mail")))
+            val accepted = OAuthTokens("accepted", "refresh", 500000, setOf("mail"))
+            store.write(grant, configuration, accepted)
+            providers.forEach {
+                assertThat(
+                    runCatching {
+                        it.getToken(1000)
+                    }.exceptionOrNull() is AuthenticationFailedException,
+                ).isTrue()
+            }
+            val proof = OAuthVerifiedIdentity.fromProfile(
+                OAuthIdentityPolicy("https://login.example.invalid/profile"),
+                "subject",
+                account.address,
+                accepted,
+            )
+            store.write(grant, configuration, accepted.withIdentity(proof.binding))
             providers.forEach { assertThat(it.getToken(1000)).isEqualTo("accepted") }
         }
     }

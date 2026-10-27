@@ -14,6 +14,7 @@ internal class OAuthTokens(
     val expiresAtMillis: Long,
     scopes: Set<String>? = null,
     grantScopes: Set<String>? = scopes,
+    val identity: OAuthIdentityBinding? = null,
 ) {
     val scopes: Set<String>? = scopes?.let { java.util.Collections.unmodifiableSet(it.toSet()) }
     val grantScopes: Set<String>? = grantScopes?.let { java.util.Collections.unmodifiableSet(it.toSet()) }
@@ -94,6 +95,7 @@ private fun encode(binding: ByteArray, tokens: OAuthTokens): ByteArray = SecretB
     output.writeLong(tokens.expiresAtMillis)
     output.writeOAuthScopes(tokens.scopes)
     output.writeOAuthScopes(tokens.grantScopes)
+    output.writeOAuthIdentity(tokens.identity)
     output.flush()
     buffer.toByteArray()
 }
@@ -112,10 +114,11 @@ private fun decode(encoded: ByteArray, expectedBinding: ByteArray): OAuthTokens 
         requireStored(hasRefresh in 0..1)
         val refresh = if (hasRefresh == 1) input.readUTF() else null
         val expires = input.readLong()
-        val scopes = if (version == TOKEN_FORMAT_VERSION) input.readOAuthScopes() else null
-        val grantScopes = if (version == TOKEN_FORMAT_VERSION) input.readOAuthScopes() else null
+        val scopes = if (version >= SCOPED_TOKEN_FORMAT_VERSION) input.readOAuthScopes() else null
+        val grantScopes = if (version >= SCOPED_TOKEN_FORMAT_VERSION) input.readOAuthScopes() else null
+        val identity = if (version == TOKEN_FORMAT_VERSION) input.readOAuthIdentity() else null
         requireStored(input.available() == 0)
-        return OAuthTokens(access, refresh, expires, scopes, grantScopes)
+        return OAuthTokens(access, refresh, expires, scopes, grantScopes, identity)
     } catch (_: IOException) {
         throw OAuthTokenStorageException()
     } catch (_: IllegalArgumentException) {
@@ -138,7 +141,8 @@ private class SecretBuffer : ByteArrayOutputStream() {
 }
 
 private const val LEGACY_TOKEN_FORMAT_VERSION = 2
-private const val TOKEN_FORMAT_VERSION = 3
+private const val SCOPED_TOKEN_FORMAT_VERSION = 3
+private const val TOKEN_FORMAT_VERSION = 4
 private const val BINDING_BYTES = 32
 private const val MAX_TOKEN_CHARACTERS = 16_384
 private const val MAX_ENCODED_BYTES = 40_000

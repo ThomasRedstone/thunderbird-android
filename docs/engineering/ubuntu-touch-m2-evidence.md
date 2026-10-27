@@ -2487,3 +2487,58 @@ No 0.1.24 transfer or installation was attempted. Latest verified phone version 
 preserved. The old upgrade script still targets 0.1.19; adapt and verify the selected version/source/hash and database
 backup before Phone Manager. Phone b-nnxn and registration decision q-ar74 remain partial gaps. Identity verification
 and real provider policy selection remain open independently of scope metadata support. No real registration is enabled.
+
+
+## Verified-email profile identity binding (0.1.25 development source)
+
+A provider-approved HTTPS profile policy can now require a non-empty stable `sub`, an `email` exactly matching the
+configured account address and an actual JSON boolean `email_verified: true`. This is an OAuth resource-profile
+adapter, not general ID-token verification or a claim of complete OpenID Connect compliance. No JWT claims are decoded
+or trusted. Real Google/Microsoft integration still needs approved endpoint/claim/scope semantics and its own acceptance;
+Microsoft Graph mail/UPN fields are not assumed to satisfy this verified-email contract. Reference contracts reviewed:
+[OpenID standard claims/UserInfo](https://openid.net/specs/openid-connect-core-1_0.html#UserInfo) and
+[Google identity documentation](https://developers.google.com/identity/openid-connect/openid-connect).
+
+The registry owns the endpoint; account fields cannot supply it. Main Koin injects a verifier using the existing JDK
+HTTPS client, with default trust/hostname checks, no redirects, bounded response/deadline/cancellation and a bearer
+header rather than a token URL. Missing verifier wiring fails closed when a profile policy is configured. The parser
+rejects missing, duplicate/escaped duplicate, false, mistyped, malformed or oversized claims, and clears reply bytes.
+The profile adapter currently requires exact address spelling, printable ASCII subjects up to 255 characters and valid
+UTF-8 email up to 320 bytes. Case/alias normalization and other provider identity contracts require explicit follow-up.
+
+Verification runs after PKCE/code exchange and scope checks, before the protected-commit phase. Transient proof binds
+the pinned endpoint, address and exact access/refresh credential pair. Account creation/replacement checks it before
+journaling or writing secrets. A previous subject under the same approved endpoint cannot silently change during
+reauthorization. Ordinary settings edits cannot change a verified address or separate IMAP/SMTP usernames from it;
+renaming remains possible. Cancellation during profile retrieval prevents protected commit, preserving prior state.
+
+Protected token format v4 stores endpoint digest, subject and email beside token/scope data. Both v2 and v3 remain
+readable with unknown identity; no identity is inferred from an account address. Cached mail-token access under an
+identity policy requires the protected binding, and refresh/invalidation preserve it within the owned grant. Both
+protocol-provider bindings enforce this requirement. Subject data is absent from mail SQLite. The maximum token/scope/
+identity fixture is 39997 bytes, within the existing 40000-byte envelope. Older apps cannot read v4; protected-state
+rollback/native migration and actual service acceptance remain open.
+
+Two pre-delivery regressions were retained: Json's ordinary Boolean decoder accepts quoted `"true"`, and proof that
+bound only the access token could be reused with a different refresh token. Both dedicated tests failed before fixes
+(`/tmp/thunderbird-identity-regressions-before.log`, `build/evidence/oauth-identity/proof-types-before.xml`). Strict typed
+claim decoding and length-framed credential-pair hashing fix these cases. Earlier profile-type failure evidence is
+`profile-types-before.xml`. Additional tests cover HTTPS transport/redirects/default-trust rejection, mismatched account
+and token proofs, protected restart/refresh/invalidation, legacy formats, maximum payload, subject pinning, settings
+mutation, full browser/exchange/profile/commit and cancellation while profile retrieval is blocked.
+
+No real provider registration, client ID, dependency, permission, SQL schema or shared Android source was changed.
+The production provider registry remains empty; synthetic providers without an identity policy do not establish real
+provider acceptance. Provider-specific policies, full OIDC requirements where applicable and physical/native/provider
+journeys remain open. Source advances to 0.1.25 after immutable 0.1.24; older native drivers must not be mixed with the
+changed token/provider/manager ABIs.
+
+Verification: full 338 app tests, zero failures/errors/skips; `detekt`, `installDist` and `spotlessCheck` pass.
+Focused log `/tmp/thunderbird-identity-integration.log`; full log `/tmp/thunderbird-identity-full.log`; XML
+`app-ubuntu-touch/build/evidence/oauth-identity/after/`. Command: JDK21/SDK environment, `./gradlew
+:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Scoped docs checks pass. Shared Android sources are unchanged; this JVM app has no Android lint/instrumentation task,
+and prior shared-engine Android assembly evidence remains applicable. Native/physical/provider acceptance remains open.
+A bounded SSH recheck succeeded and reports installed 0.1.18; delivery recovery is being investigated before claiming
+any transfer or installation. No 0.1.25 phone installation has run at this checkpoint.

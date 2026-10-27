@@ -28,6 +28,7 @@ internal data class OAuthProviderSpec(
     val outgoing: OAuthMailServer,
     val displayName: String = id,
     val requiredScopes: Set<String> = emptySet(),
+    val identityPolicy: OAuthIdentityPolicy? = null,
 ) {
     init {
         require(
@@ -72,6 +73,13 @@ internal class OAuthProviderRegistry(specs: List<OAuthProviderSpec> = emptyList(
         )
     }
 
+    fun identityRequirementFor(account: UtMailAccount): OAuthIdentityRequirement? {
+        configurationFor(account)
+        return providers.getValue(checkNotNull(account.oauthProviderId)).identityPolicy?.let {
+            OAuthIdentityRequirement(it, account.address)
+        }
+    }
+
     fun requiredScopesFor(account: UtMailAccount): Set<String> {
         configurationFor(account)
         return providers.getValue(checkNotNull(account.oauthProviderId)).requiredScopes.toSet()
@@ -81,6 +89,11 @@ internal class OAuthProviderRegistry(specs: List<OAuthProviderSpec> = emptyList(
         val provider = providers[account.oauthProviderId] ?: unavailableProvider()
         if (!account.isOAuth || !provider.incoming.matches(account.incoming) ||
             !provider.outgoing.matches(account.outgoing)
+        ) {
+            unavailableProvider()
+        }
+        if (provider.identityPolicy != null &&
+            (account.incoming.username != account.address || account.outgoing.username != account.address)
         ) {
             unavailableProvider()
         }

@@ -20,6 +20,7 @@ internal class OAuthTokenCoordinator(
         grant: OAuthGrant,
         configuration: OAuthConfiguration,
         requiredScopes: Set<String> = emptySet(),
+        identity: OAuthIdentityRequirement? = null,
     ): String = withGrant(grant) { entry ->
         val snapshot = configuration.snapshot()
         val required = requiredScopes.toSet()
@@ -29,6 +30,7 @@ internal class OAuthTokenCoordinator(
         require(now >= 0) { "Invalid OAuth clock" }
         if (current.expiresAtMillis - now > EXPIRY_MARGIN_MILLIS) {
             current.requireScopes(required)
+            current.requireIdentity(identity)
             current.accessToken
         } else {
             val replacement = try {
@@ -41,6 +43,7 @@ internal class OAuthTokenCoordinator(
             persistPending(grant, snapshot, entry)
             if (replacement.expiresAtMillis <= nowMillis()) throw OAuthTokenException(OAuthTokenFailure.UNAVAILABLE)
             replacement.requireScopes(required)
+            replacement.requireIdentity(identity)
             replacement.accessToken
         }
     }
@@ -69,7 +72,14 @@ internal class OAuthTokenCoordinator(
             entry.pending =
                 Pending(
                     snapshot,
-                    OAuthTokens(current.accessToken, current.refreshToken, 0, current.scopes, current.grantScopes),
+                    OAuthTokens(
+                        current.accessToken,
+                        current.refreshToken,
+                        0,
+                        current.scopes,
+                        current.grantScopes,
+                        current.identity,
+                    ),
                 )
             persistPending(grant, snapshot, entry)
         }

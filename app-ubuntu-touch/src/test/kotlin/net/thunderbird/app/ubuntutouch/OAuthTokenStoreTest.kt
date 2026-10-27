@@ -21,6 +21,34 @@ class OAuthTokenStoreTest {
     private val tokens = OAuthTokens("private-access", "private-refresh", 123456789L)
 
     @Test
+    fun `maximum identity and scope metadata fit with maximum tokens and reopen without plaintext state`() {
+        val scopes = (0..63).map { "s" + it.toString().padStart(2, '0') + "x".repeat(45) }.toSet()
+        val base = OAuthTokens("a".repeat(16384), "r".repeat(16384), 1, scopes)
+        val policy = OAuthIdentityPolicy("https://login.example.invalid/profile")
+        val email = "𐐀".repeat(80)
+        val binding = OAuthVerifiedIdentity.fromProfile(policy, "s".repeat(255), email, base).binding
+        val credentials = RecordingCredentials()
+        val testSubject = OAuthTokenStore(credentials)
+        testSubject.write(account, configuration, base.withIdentity(binding))
+        assertThat(credentials.values.getValue(account.credentialKey).size).isEqualTo(39997)
+        val reopened = testSubject.read(account, configuration)!!
+        reopened.requireIdentity(OAuthIdentityRequirement(policy, email))
+        assertThat(reopened.identity!!.subject).isEqualTo("s".repeat(255))
+    }
+
+    @Test
+    fun `legacy v3 scopes remain readable without inventing a verified identity`() {
+        val credentials = RecordingCredentials()
+        val testSubject = OAuthTokenStore(credentials)
+        testSubject.write(account, configuration, OAuthTokens("access", "refresh", 1, setOf("read")))
+        val encoded = credentials.values.getValue(account.credentialKey)
+        credentials.values[account.credentialKey] = encoded.copyOf(encoded.size - 1).also { it[3] = 3 }
+        val reopened = testSubject.read(account, configuration)!!
+        assertThat(reopened.scopes).isEqualTo(setOf("read"))
+        assertThat(reopened.identity).isNull()
+    }
+
+    @Test
     fun `maximum tokens and bounded scope metadata fit the protected payload limit`() {
         val scopes = (0..5).map { "a".repeat(511) + it }.toSet()
         val scoped = OAuthTokens("a".repeat(16384), "r".repeat(16384), 1, scopes)
@@ -37,7 +65,7 @@ class OAuthTokenStoreTest {
         val testSubject = OAuthTokenStore(credentials)
         testSubject.write(account, configuration, tokens)
         val encoded = credentials.values.getValue(account.credentialKey)
-        val prefix = encoded.copyOf(encoded.size - 8)
+        val prefix = encoded.copyOf(encoded.size - 9)
         val invalid = listOf<Pair<Int, List<String>>>(
             -2 to emptyList(),
             65 to emptyList(),
@@ -52,6 +80,7 @@ class OAuthTokenStoreTest {
                 it.writeInt(count)
                 entries.forEach(it::writeUTF)
                 it.writeInt(-1)
+                it.writeBoolean(false)
             }
             credentials.values[account.credentialKey] = bytes.toByteArray()
             assertInvalid { testSubject.read(account, configuration) }
@@ -74,12 +103,12 @@ class OAuthTokenStoreTest {
     }
 
     @Test
-    fun `legacy v2 state remains readable with explicitly unknown scopes instead of inventing permissions`() {
+    fun `legacy v2 state remains readable without inventing permissions`() {
         val credentials = RecordingCredentials()
         val testSubject = OAuthTokenStore(credentials)
         testSubject.write(account, configuration, tokens)
         val v3 = credentials.values.getValue(account.credentialKey)
-        credentials.values[account.credentialKey] = v3.copyOf(v3.size - 8).also { it[3] = 2 }
+        credentials.values[account.credentialKey] = v3.copyOf(v3.size - 9).also { it[3] = 2 }
         val legacy = testSubject.read(account, configuration)!!
         assertThat(legacy.refreshToken).isEqualTo(tokens.refreshToken)
         assertThat(legacy.scopes).isNull()
@@ -87,7 +116,7 @@ class OAuthTokenStoreTest {
         val failure = runCatching { legacy.requireScopes(setOf("read")) }.exceptionOrNull() as OAuthTokenException
         assertThat(failure.reason).isEqualTo(OAuthTokenFailure.INSUFFICIENT_SCOPE)
         testSubject.write(account, configuration, legacy)
-        assertThat(credentials.values.getValue(account.credentialKey)[3]).isEqualTo(3.toByte())
+        assertThat(credentials.values.getValue(account.credentialKey)[3]).isEqualTo(4.toByte())
     }
 
     @Test

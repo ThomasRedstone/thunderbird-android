@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.26 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 342 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 350 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.26 embeds clean `ebeffb1854`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.26 install verified; local fleet `bb9f09d` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -244,6 +244,13 @@ source across browser authorization, account commit, restart, refresh and both m
 subject changes, credential-pair reuse and ordinary authenticated-address edits fail closed. Legacy identity stays
 unknown. Real Google/Microsoft claim policies and any required OIDC validation remain open; no provider is enabled.
 Native protected-format migration, address/alias normalization and physical/provider journeys remain required.
+
+Cached message-source inspection is implemented in0.1.27 source. The reader opens bounded32KiB byte pages directly
+from SQLite, with explicit binary/control escaping, total/range counters, incomplete-cache labels and previous/next
+navigation across all cached bytes. It works offline with locked credentials, preserves account/folder/UID routing
+from unified results and returns to reader before search. Host binary/paging/isolation/model/rendered tests pass;
+ARM64 Click is built/reviewed. Phone deployment/acceptance, exact-byte export and large-MIME/native-memory behaviour
+remain open. Source inspection does not complete HTML/privacy, attachment or export gates.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

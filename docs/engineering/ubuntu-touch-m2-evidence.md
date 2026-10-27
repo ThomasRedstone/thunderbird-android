@@ -2813,3 +2813,40 @@ used a relative path and warned missing artifact; it was corrected and rerun wit
 Unrelated fleet edits/index state were preserved; a temporary Git index scoped the commit, and the whole-fleet
 sync/prune hook was skipped for that invocation. No fleet push/converge or system credential repair was performed.
 Production SignOn integration, physical journeys and real provider gates remain open.
+
+
+### 0.1.27 cached message-source inspection
+
+Source `84f80558a867163bcbc33e9e551fc5d53b0d937e` adds a reader action for cached RFC822 source, including incomplete
+cached previews clearly labelled as such. The repository selects32KiB BLOB substrings by full account/folder/UID;
+no MIME parser, credentials or network are needed. Every cached byte remains reachable through previous/next pages;
+ranges and total bytes are shown. Printable ASCII/LF remain readable; backslashes, non-ASCII and control bytes are
+unambiguously escaped, including bidi input. The view is selectable text, never active HTML or auto-opened links.
+The query bounds the returned JVM allocation, not a claim about SQLite native allocation or large-MIME performance.
+Pages reflect current cache queries rather than an export snapshot; concurrent-writer/revision handling belongs to
+future background/storage integration. Exact-byte export remains open.
+
+Reader-source navigation stays inside the selected account/folder/UID even for duplicate-UID unified results. Other
+mail actions are gated while source is open; Back returns to the original reader before restoring the search context.
+Page failure retains the readable prior page and maps to a fixed redacted notice. Source page reads use existing IO
+ownership/cancellation on model close; no new permissions, schema, provider configuration, dependencies or shared
+Android changes. All three app version locations advance27, preserving immutable26.
+
+Host tests cover non-repeating binary data across page boundaries, database reopen, exact transformed coverage,
+complete/incomplete/empty cache, negative/misaligned/past-end/overflow offsets, account/folder/UID isolation,
+control/bidi escaping, locked-credential unified routing, failure retention, Back order and rendered range/pager/actions.
+Focused logs `/tmp/thunderbird-source-view-focused-3.log`; **full350 app tests, zero failures/errors/skips** plus detekt,
+installDist and spotlessCheck pass (`/tmp/thunderbird-source-view-full.log`, XML `build/evidence/source-view/after/`).
+Command uses JDK21/SDK and `./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt
+:app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck --no-configuration-cache
+-Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`. This is a new capability; no claim of a fail-before
+runtime regression against an absent source-view API. Earlier focused attempts found static-analysis limits, resolved
+by factoring local source navigation/UI responsibilities into app-local helpers. JVM app has no Android lint or
+instrumentation task; prior shared Android assembly checks remain applicable.
+
+Candidate29: `app-ubuntu-touch/build/ut-candidate-29/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.27_arm64.click`.
+Size147740666; SHA-256 `64fbb6090b958a2d17cec7b67cf38f851caaa73cd369a23890763471378f9102`.
+Embedded clean source84f80558a8/empty changes verified. Click review and ARM64 launcher/JVM/AWT/Skiko pass
+(`/tmp/thunderbird-027-click.log`, terminal0). Same pinned builder and verified candidate5 runtime reused, not a new
+cold/CI proof. Phone remains26; no27 upload, installation or native source-reader acceptance yet. Experimental
+SignOn repair is not bundled; production large-credential reads and real provider/physical journeys remain open.

@@ -80,6 +80,133 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `confirmed move preserves unrelated deleted mail and resyncs both cached folders`() {
+        deliver("Unrelated", "Keep this deleted message")
+        val key = prepareMoveSource()
+        withOracleInbox { marker ->
+            marker.messages.single { it.subject == "Unrelated" }.setFlag(jakarta.mail.Flags.Flag.DELETED, true)
+            val store = MailMoveStore(database)
+            val queued = store.enqueue(key, "Move fixture target")
+            val testSubject = MailMoveRunner(store, SessionMailMoveTransport(factory()))
+            assertThat(testSubject.run(queued, MailOperation()).state).isEqualTo(MailMoveState.COMPLETE)
+            withOracleInbox { inbox ->
+                assertThat(inbox.messageCount).isEqualTo(1)
+                assertThat(inbox.messages.single().subject).isEqualTo("Unrelated")
+            }
+            withOracleMoveTarget { target ->
+                assertThat(target.messageCount).isEqualTo(1)
+                assertThat(target.messages.single().subject).isEqualTo("Move fixture")
+            }
+        }
+        factory().open(account.id).use {
+            it.sync("INBOX")
+            it.sync("Move fixture target")
+        }
+        val storage = PersistentBackendStorage(database, account.id.toString())
+        assertThat(storage.getFolder("INBOX").isMessagePresent(key.uid)).isFalse()
+        assertThat(storage.getFolder("Move fixture target").getMessageServerIds().size).isEqualTo(1)
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `lost move copy acknowledgement retains unknown outcome without a second server copy`() {
+        val key = prepareMoveSource()
+        val material = StartTlsMaterial(directory.root.toPath())
+        StartTlsGateway(true, server.imap.port, material.context, dropMoveAcknowledgement = true).use { gateway ->
+            accounts.updateSync(account.id) {
+                it.copy(
+                    incoming = settings(
+                        "imap",
+                        gateway.port,
+                    ).copy(connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED),
+                )
+            }
+            val sessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("move-mime"),
+            )
+            val store = MailMoveStore(database)
+            val queued = store.enqueue(key, "Move fixture target")
+            val testSubject = MailMoveRunner(store, SessionMailMoveTransport(sessions))
+            val outcome = testSubject.run(queued, MailOperation())
+            assertThat(outcome.state).isEqualTo(MailMoveState.UNKNOWN)
+            assertThat(gateway.droppedMoveAcknowledgements.get()).isEqualTo(1)
+            assertThat(runCatching { testSubject.run(outcome, MailOperation()) }.isFailure).isTrue()
+            withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(1) }
+            assertThat(
+                PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX").isMessagePresent(key.uid),
+            ).isTrue()
+        }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `cancellation releases stalled move handoff without waiting for account deregistration`() {
+        val key = prepareMoveSource()
+        val material = StartTlsMaterial(directory.root.toPath())
+        StartTlsGateway(true, server.imap.port, material.context, stallMoveAcknowledgement = true).use { gateway ->
+            accounts.updateSync(account.id) {
+                it.copy(
+                    incoming = settings(
+                        "imap",
+                        gateway.port,
+                    ).copy(connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED),
+                )
+            }
+            val sessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("move-cancel-mime"),
+            )
+            val store = MailMoveStore(database)
+            val queued = store.enqueue(key, "Move fixture target")
+            val operation = MailOperation()
+            val workers = Executors.newFixedThreadPool(2)
+            try {
+                val testSubject = MailMoveRunner(store, SessionMailMoveTransport(sessions))
+                val pending = workers.submit<MailMove> { testSubject.run(queued, operation) }
+                check(gateway.moveTransferStarted.await(5, TimeUnit.SECONDS))
+                val closing = workers.submit { operation.close() }
+                closing.get(2, TimeUnit.SECONDS)
+                assertThat(pending.get(2, TimeUnit.SECONDS).state).isEqualTo(MailMoveState.UNKNOWN)
+                withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(1) }
+            } finally {
+                gateway.close()
+                workers.shutdownNow()
+                check(workers.awaitTermination(5, TimeUnit.SECONDS))
+            }
+        }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    private fun prepareMoveSource(): MailMessageKey {
+        deliver("Move fixture", "Move controlled body λ")
+        withOracleInbox { inbox ->
+            val target = inbox.store.getFolder("Move fixture target")
+            if (!target.exists()) check(target.create(jakarta.mail.Folder.HOLDS_MESSAGES))
+        }
+        factory().open(account.id).use {
+            it.refreshFolders()
+            it.sync("INBOX")
+            it.sync("Move fixture target")
+        }
+        val messages = PersistentLiveMailRepository(database, factory()).messages(account.id, "INBOX")
+        return MailMessageKey(account.id, "INBOX", messages.single { it.subject == "Move fixture" }.id)
+    }
+
+    private fun withOracleMoveTarget(block: (jakarta.mail.Folder) -> Unit) = withOracleInbox { inbox ->
+        inbox.store.getFolder("Move fixture target").use { target ->
+            target.open(jakarta.mail.Folder.READ_WRITE)
+            block(target)
+        }
+    }
+
+    @Test
     fun `real IMAP discovers folders and persists initial incremental flags and deletion state`() {
         deliver("First", "First controlled body")
         val testSubject = factory()

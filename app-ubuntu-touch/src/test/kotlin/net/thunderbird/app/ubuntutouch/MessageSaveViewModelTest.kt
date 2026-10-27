@@ -54,7 +54,11 @@ class MessageSaveViewModelTest {
             testSubject.event(MessageSaveEvent.Select(broker.destination))
             assertThat(testSubject.state.first { !it.busy }.pending?.record).isEqualTo(null)
             assertThat(broker.charges).isEqualTo(0)
-            assertThat(runCatching { accounts.exportHandoff(account) { error("must not run") } }.isFailure).isTrue()
+            assertThat(
+                runCatching {
+                    accounts.withCurrentAccount(account) { error("must not run") }
+                }.isFailure,
+            ).isTrue()
         }
     }
 

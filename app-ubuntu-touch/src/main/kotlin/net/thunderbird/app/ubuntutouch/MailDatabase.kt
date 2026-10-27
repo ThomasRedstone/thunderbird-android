@@ -15,7 +15,8 @@ private const val THREAD_SCHEMA_VERSION = 8L
 private const val SENT_SCHEMA_VERSION = 9L
 private const val OAUTH_SCHEMA_VERSION = 10L
 private const val SIGNATURE_SCHEMA_VERSION = 11L
-private const val CURRENT_SCHEMA_VERSION = 12L
+private const val MOVE_SCHEMA_VERSION = 12L
+private const val CURRENT_SCHEMA_VERSION = 13L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -41,7 +42,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < SENT_SCHEMA_VERSION) createSentSchema()
             if (version < OAUTH_SCHEMA_VERSION) createOAuthAccountSchema()
             if (version < SIGNATURE_SCHEMA_VERSION) createSignatureSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createMoveSchema()
+            if (version < MOVE_SCHEMA_VERSION) createMoveSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createMoveBindingSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
@@ -87,6 +89,13 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createMoveBindingSchema() = transaction {
+        val columns = query("PRAGMA table_info(mail_moves)") { getText(1) }
+        if ("binding" !in columns) execute("ALTER TABLE mail_moves ADD COLUMN binding TEXT NOT NULL DEFAULT ''")
+        // Legacy intents remain unbound; never authorize an old intent against today's connection implicitly.
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createMoveSchema() = transaction {
         execute(
             """CREATE TABLE IF NOT EXISTS mail_moves (
@@ -99,7 +108,7 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             """CREATE UNIQUE INDEX IF NOT EXISTS one_pending_move ON mail_moves(account,source,uid)
                 WHERE state!='COMPLETE'""",
         )
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$MOVE_SCHEMA_VERSION")
     }
 
     private fun createSignatureSchema() = transaction {

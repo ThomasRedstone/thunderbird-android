@@ -19,6 +19,74 @@ class MailMoveStoreTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `schema twelve intents stay unbound after migration and cannot use current connection implicitly`() {
+        val path = directory.root.toPath().resolve("mail.sqlite")
+        lateinit var account: AccountId
+        lateinit var id: String
+        MailDatabase(path).use { database ->
+            account = populate(database)
+            id = MailMoveStore(database).enqueue(MailMessageKey(account, "INBOX", "1"), "Archive").id
+            database.execute("ALTER TABLE mail_moves DROP COLUMN binding")
+            database.execute("PRAGMA user_version=12")
+        }
+        MailDatabase(path).use { database ->
+            val store = MailMoveStore(database)
+            val recovered = store.get(account, id)
+            assertThat(recovered.binding).isEqualTo("")
+            assertThat(runCatching { store.claim(recovered) }.isFailure).isTrue()
+            assertThat(recovered.state).isEqualTo(MailMoveState.QUEUED)
+            assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
+            store.cancelQueued(recovered)
+        }
+    }
+
+    @Test
+    fun `runner distinguishes preflight failure from submitted uncertainty and never retries implicitly`() = fixture {
+            _,
+            account,
+            store,
+        ->
+        val queued = store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+        val preflight = MailMoveRunner(store) { _, _, _ -> error("Sensitive preflight details") }
+        assertThat(preflight.run(queued, MailOperation())).isEqualTo(queued)
+        var attempts = 0
+        val testSubject = MailMoveRunner(store) { _, _, submit ->
+            submit()
+            attempts++
+            error("Sensitive lost reply")
+        }
+        val unknown = testSubject.run(queued, MailOperation())
+        assertThat(unknown.state).isEqualTo(MailMoveState.UNKNOWN)
+        assertThat(runCatching { testSubject.run(unknown, MailOperation()) }.isFailure).isTrue()
+        assertThat(attempts).isEqualTo(1)
+        val retry = MailMoveRunner(store) { _, _, submit ->
+            submit()
+            attempts++
+        }
+        val completed = retry.run(unknown, MailOperation(), acknowledgeDuplicateRisk = true)
+        assertThat(completed.state).isEqualTo(MailMoveState.COMPLETE)
+        assertThat(completed.uncertain).isTrue()
+        assertThat(attempts).isEqualTo(2)
+    }
+
+    @Test
+    fun `connection replacement blocks runner before transport even with matching folder generations`() = fixture {
+            database,
+            account,
+            store,
+        ->
+        val queued = store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+        val settings = AccountSettingsStorage(database)
+        val original = settings.all().single()
+        settings.update(original.copy(incoming = original.incoming.copy(host = "other.example.invalid")))
+        var calls = 0
+        val testSubject = MailMoveRunner(store) { _, _, _ -> calls++ }
+        assertThat(runCatching { testSubject.run(queued, MailOperation()) }.isFailure).isTrue()
+        assertThat(calls).isEqualTo(0)
+        assertThat(store.get(account, queued.id).state).isEqualTo(MailMoveState.QUEUED)
+    }
+
+    @Test
     fun `confirmed move cannot be queued again from unchanged source cache`() = fixture { _, account, testSubject ->
         val key = MailMessageKey(account, "INBOX", "1")
         val queued = testSubject.enqueue(key, "Archive")
@@ -107,7 +175,7 @@ class MailMoveStoreTest {
             database.execute("PRAGMA user_version=11")
         }
         MailDatabase(path).use { database ->
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(12L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(13L)
             assertThat(MailSignatureStore(database).read(account).text).isEqualTo("Fixture")
             assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
             assertThat(MailMoveStore(database).list(account)).isEqualTo(emptyList())

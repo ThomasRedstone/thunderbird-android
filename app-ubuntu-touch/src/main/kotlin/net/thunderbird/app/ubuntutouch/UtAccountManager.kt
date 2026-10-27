@@ -230,9 +230,9 @@ internal class UtAccountManager(
         return operation(credentials)
     }
 
-    /** Serialize the external file handoff with account mutation; callers use IO, never the UI thread. */
+    /** Serialize the external handoff with account mutation; callers use IO, never the UI thread. */
     @Synchronized
-    fun exportHandoff(expected: UtMailAccount, send: () -> Unit) {
+    fun withCurrentAccount(expected: UtMailAccount, send: () -> Unit) {
         check(findById(expected.id) === expected) { "Account changed before file handoff" }
         send()
     }

@@ -82,7 +82,7 @@ internal class MessageSaveViewModel(
                     event.folder,
                     event.uid,
                     authorized = { accounts.findById(account.id) === account },
-                    handoff = { send -> accounts.exportHandoff(account, send) },
+                    handoff = { send -> accounts.withCurrentAccount(account, send) },
                 )
                 MessageSaveState(pending = ExportReconcileResult(ready), destinations = controller.destinations())
             }

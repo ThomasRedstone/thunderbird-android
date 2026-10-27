@@ -3295,3 +3295,46 @@ before submission, durable claim at handoff, result/review UI and explicit retry
 source/destination sync and controlled-server interruption/independent state proof.
 Bulk/copy/delete/folder-management and history retention/performance remain open.
 Source32 is unpackaged; phone remains31/schema11. No policy/OAuth changes.
+
+### Guarded IMAP move runner and cancellation (0.1.32/schema13)
+
+MailMoveRunner explicitly invokes SessionMailMoveTransport. The session opens the
+source read/write and destination read-only, checks both remote UIDVALIDITY values,
+and rechecks cancellation/account retirement. Its exact immutable account handoff
+serializes the durable journal claim and engine submission with account mutations.
+The prior exportHandoff guard is generalized as withCurrentAccount without changing
+export semantics. No implicit background loop or retry was added. Any exception
+after claim leaves UNKNOWN; pre-submission failures retain the queued intent.
+
+Each intent now stores a length-prefixed SHA256 binding of account ID, credential
+generation, address/provider and incoming connection identity. Changing that identity
+after enqueue refuses transport/claim. Schema13 adds the binding to schema12; legacy
+intents stay unbound rather than being silently authorized for current settings.
+Legacy QUEUED intents can be explicitly cancelled/recreated; UNKNOWN review remains
+required. This does not yet prove provenance of older cached bytes when a user
+changes servers BEFORE enqueueing a new move. AccountSettingsStorage.update currently
+preserves cache. Solve that cache/connection transition and its tests before exposing
+Move in the UI; do not silently erase cached mail to make the check pass.
+
+Real controlled TLS IMAP tests independently verify one destination copy and source
+removal/cache resync, preservation of unrelated DELETED mail, and a dropped COPY/MOVE
+acknowledgement leaving UNKNOWN with no unacknowledged second attempt. The fault
+proxy drops the real server reply, not just a fake domain return. A stalled reply
+then exposed a cancellation lock-order bug: deregistration waited for the account
+handoff monitor before closing sockets. Fail-before TimeoutException XML is retained
+at `build/evidence/mail-moves/cancellation-lock-before.xml`. MailSessionResources
+now closes sockets before deregistration/other callbacks. The actual engine test
+verifies cancellation and UNKNOWN completion within two-second assertion bounds.
+
+**404 full app tests pass**, zero failures/errors/skips, plus detekt/installDist/
+spotlessCheck: `/tmp/thunderbird-move-runner-final-full.log`. Same JDK/SDK/Gradle
+flags above, unfiltered app tests. Controlled engine tests assert no logging events.
+Current helper sources expect32/schema13; frozen31 package/driver are unchanged.
+No32 package, phone mutation, new permissions or OAuth configuration occurred.
+
+Move runner is not bound to user UI/DI. Cache provenance on changed connections,
+destination/review controls, authoritative reconciliation of partial/unknown moves,
+bulk/copy/archive/trash/delete and native/physical tests remain required. Confirmed
+remote reply is not a general proof of every move fallback/interruption path; the
+controlled tests cover the fixture's advertised protocol capabilities. History
+retention/performance and concurrent/background owners remain open.

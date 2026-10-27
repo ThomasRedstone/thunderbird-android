@@ -1,5 +1,7 @@
 package net.thunderbird.app.ubuntutouch
 
+import java.nio.ByteBuffer
+import java.security.MessageDigest
 import java.util.UUID
 import net.thunderbird.feature.account.AccountId
 
@@ -16,6 +18,7 @@ internal data class MailMove(
     val state: MailMoveState,
     val attempt: Long,
     val uncertain: Boolean,
+    val binding: String,
 ) {
     override fun toString(): String = "MailMove(redacted)"
 }
@@ -43,8 +46,8 @@ internal class MailMoveStore(private val database: MailDatabase) {
         ) { "Confirmed move cannot be repeated from stale source cache" }
         val id = UUID.randomUUID().toString()
         database.execute(
-            """INSERT INTO mail_moves(id,account,source,uid,target,source_validity,target_validity,state)
-                VALUES(?,?,?,?,?,?,?,'QUEUED')""",
+            """INSERT INTO mail_moves(id,account,source,uid,target,source_validity,target_validity,state,binding)
+                VALUES(?,?,?,?,?,?,?,'QUEUED',?)""",
             id,
             key.account.toString(),
             key.folder,
@@ -52,18 +55,19 @@ internal class MailMoveStore(private val database: MailDatabase) {
             target,
             sourceValidity,
             targetValidity,
+            binding(key.account),
         )
         get(key.account, id)
     }
 
     fun list(account: AccountId): List<MailMove> = database.query(
-        """SELECT id,source,uid,target,source_validity,target_validity,state,attempt,uncertain
+        """SELECT id,source,uid,target,source_validity,target_validity,state,attempt,uncertain,binding
             FROM mail_moves WHERE account=? ORDER BY rowid""",
         account.toString(),
     ) {
         MailMove(
             getText(0), account, getText(1), getText(2), getText(3), getLong(4), getLong(5),
-            MailMoveState.valueOf(getText(6)), getLong(7), getLong(8) != 0L,
+            MailMoveState.valueOf(getText(6)), getLong(7), getLong(8) != 0L, getText(9),
         )
     }
 
@@ -71,7 +75,7 @@ internal class MailMoveStore(private val database: MailDatabase) {
 
     /** Called immediately before the engine can submit a move, after its generation/cancellation checks. */
     fun claim(expected: MailMove, acknowledgeDuplicateRisk: Boolean = false): MailMove = database.transaction {
-        check(get(expected.account, expected.id) == expected)
+        checkCurrent(expected)
         require(
             expected.state == MailMoveState.QUEUED ||
                 (expected.state == MailMoveState.UNKNOWN && acknowledgeDuplicateRisk),
@@ -87,6 +91,27 @@ internal class MailMoveStore(private val database: MailDatabase) {
             expected.id,
         )
         get(expected.account, expected.id)
+    }
+
+    fun checkCurrent(expected: MailMove) {
+        check(get(expected.account, expected.id) == expected)
+        check(binding(expected.account) == expected.binding) { "Account connection changed; move retained for review" }
+    }
+
+    private fun binding(id: AccountId): String {
+        val account = AccountSettingsStorage(database).all().single { it.id == id }
+        val server = account.incoming
+        val digest = MessageDigest.getInstance("SHA-256")
+        listOf(
+            account.id.toString(), account.credentialKey, account.address, account.oauthProviderId.orEmpty(),
+            server.type, server.host, server.port.toString(), server.connectionSecurity.name,
+            server.authenticationType.name, server.username,
+        ).forEach { value ->
+            val bytes = value.toByteArray(Charsets.UTF_8)
+            digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(bytes.size).array())
+            digest.update(bytes)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     fun finish(claim: MailMove, confirmed: Boolean): MailMove = database.transaction {

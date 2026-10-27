@@ -27,6 +27,8 @@ internal class StartTlsGateway(
     private val dropAppendAcknowledgement: Boolean = false,
     private val dropFetchBody: Boolean = false,
     private val stallFetchBody: Boolean = false,
+    private val dropMoveAcknowledgement: Boolean = false,
+    private val stallMoveAcknowledgement: Boolean = false,
 ) : AutoCloseable {
     private val listener = ServerSocket(0, 10, address)
     private val workers = Executors.newCachedThreadPool()
@@ -34,10 +36,13 @@ internal class StartTlsGateway(
     private val failures = ConcurrentLinkedQueue<Exception>()
     val upgrades = AtomicInteger()
     val droppedAppendAcknowledgements = AtomicInteger()
+    val droppedMoveAcknowledgements = AtomicInteger()
     val truncatedFetchBodies = AtomicInteger()
     val bodyTransferStarted = CountDownLatch(1)
+    val moveTransferStarted = CountDownLatch(1)
     val clientConnectionClosed = CountDownLatch(1)
     private val appendResponseDropped = AtomicBoolean()
+    private val moveResponseDropped = AtomicBoolean()
     val port: Int get() = listener.localPort
 
     init {
@@ -89,7 +94,9 @@ internal class StartTlsGateway(
                 }
             }
             try {
-                if (dropAppendAcknowledgement || dropFetchBody || stallFetchBody) {
+                val bodyFault = dropFetchBody || stallFetchBody
+                val moveFault = dropMoveAcknowledgement || stallMoveAcknowledgement
+                if (dropAppendAcknowledgement || moveFault || bodyFault) {
                     relayWithFault(backend, encrypted)
                 } else {
                     backend.inputStream.copyTo(encrypted.outputStream)
@@ -112,13 +119,32 @@ internal class StartTlsGateway(
                 return
             }
             val appendAccepted = Regex("^[^ ]+ OK .*APPEND.*", RegexOption.IGNORE_CASE).matches(response)
-            if (dropAppendAcknowledgement && appendAccepted && appendResponseDropped.compareAndSet(false, true)) {
-                droppedAppendAcknowledgements.incrementAndGet()
+            val moveAccepted = Regex("""^[^ ]+ OK .*\b(COPY|MOVE)\b.*""", RegexOption.IGNORE_CASE).matches(response)
+            val dropAppend =
+                dropAppendAcknowledgement && appendAccepted && appendResponseDropped.compareAndSet(false, true)
+            val moveFault = dropMoveAcknowledgement || stallMoveAcknowledgement
+            val dropMove = moveFault && moveAccepted && moveResponseDropped.compareAndSet(false, true)
+            if (dropAppend || dropMove) {
+                if (dropAppend) droppedAppendAcknowledgements.incrementAndGet()
+                if (dropMove) {
+                    droppedMoveAcknowledgements.incrementAndGet()
+                    moveTransferStarted.countDown()
+                    awaitMoveCancellation()
+                }
                 encrypted.close()
                 return
             }
             reply(encrypted, response)
             if (truncateFetch(backend, encrypted, response)) break
+        }
+    }
+
+    private fun awaitMoveCancellation() {
+        if (!stallMoveAcknowledgement) return
+        try {
+            clientConnectionClosed.await(10, TimeUnit.SECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
         }
     }
 

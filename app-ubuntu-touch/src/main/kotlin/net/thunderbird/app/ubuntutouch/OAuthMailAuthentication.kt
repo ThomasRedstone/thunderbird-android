@@ -43,13 +43,13 @@ internal data class MailSessionAuthentication(
 )
 
 /** Cancellation may race construction. A resource registered after close is immediately closed and rejected. */
-internal class MailSessionResources(sockets: CancellableSocketFactory) : AutoCloseable {
+internal class MailSessionResources(private val sockets: CancellableSocketFactory) : AutoCloseable {
     private val monitor = Any()
     private var closed = false
 
     @Volatile var isRetired = false
         private set
-    private val owners = mutableListOf<AutoCloseable>(sockets)
+    private val owners = mutableListOf<AutoCloseable>()
 
     fun <T : AutoCloseable> own(resource: T): T {
         synchronized(monitor) {
@@ -77,6 +77,7 @@ internal class MailSessionResources(sockets: CancellableSocketFactory) : AutoClo
             isRetired = true
             owners.asReversed().toList().also { owners.clear() }
         }
-        closeMailResources(pending)
+        // Interrupt network IO before callbacks that may acquire the account handoff monitor.
+        closeMailResources(listOf(sockets) + pending)
     }
 }

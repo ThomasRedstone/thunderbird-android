@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.31 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 391 full app tests plus 2 focused native-driver tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 404 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.31 embeds clean `6fe6def12b`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.31 install verified; local fleet `b577816` pins its exact artifact/hash | Physical foreground, launch-wrapper registry warning, broader cancellation and lifecycle verification |
 
@@ -422,3 +422,12 @@ retry. Full398 app tests and quality/distribution checks pass. This is foundatio
 only: no user move action or IMAP move runner yet. Destination UI, controlled-server
 submission/interruption proof, cache reconciliation, archive/trash/copy/delete,
 bulk moves and native/physical acceptance remain required. Phone stays31/schema11.
+
+Development0.1.32/schema13 now includes an explicit IMAP move runner with remote
+UIDVALIDITY checks, account-connection binding, durable claim at handoff and
+conservative unknown-result handling. Real TLS tests cover confirmed moves,
+lost acknowledgements, unrelated deleted-mail preservation and bounded cancellation;
+full404 app tests and quality/distribution checks pass. No Move UI is exposed yet:
+first prove cached-message provenance across account connection changes, then add
+destination/review/reconciliation UI and native/physical acceptance. Broader folder
+operations remain required. Phone remains31/schema11; source32 is unpackaged.

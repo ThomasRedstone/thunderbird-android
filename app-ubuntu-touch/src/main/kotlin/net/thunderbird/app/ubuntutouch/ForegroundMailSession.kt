@@ -77,7 +77,14 @@ internal class ForegroundMailSessionFactory(
                 pushConfigProvider = ForegroundOnlyPlatform,
                 smtpTransport = smtp,
             )
-            return ForegroundMailSession(backend, imap, smtp, resources, operation)
+            return ForegroundMailSession(
+                backend,
+                imap,
+                smtp,
+                resources,
+                operation,
+                AccountHandoff(account.id) { submit -> accounts.withCurrentAccount(account, submit) },
+            )
         } catch (failure: Throwable) {
             try {
                 resources.close()
@@ -97,7 +104,37 @@ internal class ForegroundMailSession(
     private val smtp: SmtpTransport,
     private val resources: MailSessionResources,
     private val operation: MailOperation?,
+    private val handoff: AccountHandoff,
 ) : AutoCloseable {
+    fun move(action: MailMove, beforeSubmit: () -> Unit) {
+        require(action.account == handoff.account)
+        resources.ensureActive()
+        operation?.ensureActive()
+        val source = imap.getFolder(action.source)
+        val target = imap.getFolder(action.target)
+        try {
+            source.open(OpenMode.READ_WRITE)
+            check(source.getUidValidity() == action.sourceValidity) { "Source mailbox changed" }
+            target.open(OpenMode.READ_ONLY)
+            check(target.getUidValidity() == action.targetValidity) { "Destination mailbox changed" }
+            target.close()
+            handoff.authorize {
+                resources.ensureActive()
+                operation?.ensureActive()
+                beforeSubmit()
+                resources.ensureActive()
+                operation?.ensureActive()
+                source.moveMessages(listOf(source.getMessage(action.uid)), target)
+            }
+        } finally {
+            try {
+                source.close()
+            } finally {
+                target.close()
+            }
+        }
+    }
+
     fun checkSettings() {
         resources.ensureActive()
         imap.checkSettings()

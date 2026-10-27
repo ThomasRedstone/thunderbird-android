@@ -199,6 +199,61 @@ class ComposerViewModelTest {
         }
     }
 
+    @Test
+    fun `filing retry is independent from SMTP and close waits for local Sent settings`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("sent.sqlite")).use { database ->
+            val manager = manager(database)
+            val account = manager.findAll().single().id
+            database.execute(
+                "INSERT INTO folders(account,server_id,name,type) VALUES(?,'Sent','Sent','SENT')",
+                account.toString(),
+            )
+            val store = OutgoingMailStore(database)
+            val draft = store.create(account)
+            store.save(account, draft.id, "recipient@example.invalid", "Fixture", "Body")
+            store.queue(manager.findAll().single(), draft.id)
+            var smtp = 0
+            var appends = 0
+            lateinit var testSubject: ComposerViewModel
+            val filer = SentCopyFiler(SentCopyStore(database)) { _, _, claim, _ ->
+                assertThat(testSubject.state.value.selected?.state).isEqualTo(OutgoingState.SENT)
+                if (claim.allowAppend) {
+                    appends++
+                    if (appends == 1) error("Synthetic result loss")
+                    SentCopyResult.Saved("2")
+                } else {
+                    SentCopyResult.Missing
+                }
+            }
+            val sender = OutgoingMailSender(store, { _, _ -> smtp++ }, filer)
+            testSubject = ComposerViewModel(manager, store, sender, backgroundScope, filer)
+            testSubject.event(ComposerEvent.Resume(ComposeRequest(account, draft.id)))
+            testSubject.state.first { !it.busy }
+            testSubject.event(ComposerEvent.Send)
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.sentCopy?.state).isEqualTo(SentCopyState.UNKNOWN)
+            testSubject.event(ComposerEvent.FileSent)
+            testSubject.state.first { !it.busy }
+            assertThat(appends).isEqualTo(1)
+            testSubject.event(ComposerEvent.ConfirmCopy)
+            assertThat(appends).isEqualTo(1)
+            testSubject.event(ComposerEvent.ReviewCopy)
+            testSubject.event(ComposerEvent.CancelCopy)
+            testSubject.event(ComposerEvent.ConfirmCopy)
+            assertThat(appends).isEqualTo(1)
+            testSubject.event(ComposerEvent.ReviewCopy)
+            testSubject.event(ComposerEvent.ConfirmCopy)
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.sentCopy?.state).isEqualTo(SentCopyState.SAVED)
+            assertThat(smtp).isEqualTo(1)
+            assertThat(appends).isEqualTo(2)
+            testSubject.event(ComposerEvent.SentFolder(null))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(testSubject.state.value.sentTarget).isEqualTo(null)
+            assertThat(testSubject.state.value.sentCopy?.folder).isEqualTo("Sent")
+        }
+    }
+
     private fun manager(database: MailDatabase): UtAccountManager {
         val server = ServerSettings(
             "imap",

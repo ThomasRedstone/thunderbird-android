@@ -4,6 +4,7 @@ import com.fsck.k9.backend.api.SyncConfig
 import com.fsck.k9.backend.imap.ImapBackend
 import com.fsck.k9.backend.imap.ImapPushConfigProvider
 import com.fsck.k9.mail.Message
+import com.fsck.k9.mail.internet.MimeMessage
 import com.fsck.k9.mail.power.PowerManager
 import com.fsck.k9.mail.power.WakeLock
 import com.fsck.k9.mail.ssl.TrustedSocketFactory
@@ -14,6 +15,7 @@ import com.fsck.k9.mail.store.imap.ImapStore
 import com.fsck.k9.mail.store.imap.ImapStoreConfig
 import com.fsck.k9.mail.store.imap.OpenMode
 import com.fsck.k9.mail.transport.smtp.SmtpTransport
+import java.io.OutputStream
 import java.nio.file.Path
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -111,6 +113,31 @@ internal class ForegroundMailSession(
         runBlocking { backend.downloadCompleteMessage(folder, uid) }
     }
 
+    fun saveSentCopy(
+        folder: String,
+        id: String,
+        raw: ByteArray,
+        allowAppend: Boolean,
+        messageId: String,
+    ): SentCopyResult {
+        val message = FrozenSentMessage(raw, messageId)
+        operation?.ensureActive()
+        val existing = backend.findByMessageId(folder, checkNotNull(message.messageId))
+        return when {
+            existing != null -> SentCopyResult.Saved(existing)
+
+            !allowAppend -> SentCopyResult.Missing
+
+            else -> {
+                operation?.ensureActive()
+                message.uid = id
+                message.setFlag(Flag.SEEN, true)
+                // A null UID can still mean a successful, acknowledged APPEND without UIDPLUS.
+                SentCopyResult.Saved(backend.uploadMessage(folder, message))
+            }
+        }
+    }
+
     fun send(message: Message) {
         require(
             listOf(Message.RecipientType.TO, Message.RecipientType.CC, Message.RecipientType.BCC).any {
@@ -137,6 +164,19 @@ internal class ForegroundMailSession(
             defaultVisibleLimit = PREVIEW_VISIBLE_LIMIT,
             syncFlags = setOf(Flag.SEEN, Flag.FLAGGED, Flag.ANSWERED, Flag.FORWARDED),
         )
+    }
+}
+
+/** APPEND counts then writes the body. Preserve frozen MIME for both passes, including the owner's private Bcc. */
+private class FrozenSentMessage(raw: ByteArray, id: String) : MimeMessage() {
+    private val frozen = raw.copyOf()
+    init {
+        messageId = id
+    }
+
+    // This raw writer is private to Sent filing: it must never be used for SMTP's Bcc-stripped delivery.
+    override fun writeTo(out: OutputStream) {
+        out.write(frozen)
     }
 }
 

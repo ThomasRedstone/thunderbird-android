@@ -172,6 +172,8 @@ class OutgoingMailStoreTest {
                 database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
             }
             database.execute("DROP TABLE pending_flags")
+            database.execute("DROP TABLE sent_copies")
+            database.execute("DROP TABLE sent_settings")
             database.execute("PRAGMA user_version=3")
             account.id
         }
@@ -179,7 +181,7 @@ class OutgoingMailStoreTest {
             assertThat(OutgoingMailStore(database).list(accountId)).isEqualTo(emptyList())
             assertThat(SignonIdentityIndex(database).find("fixture")).isEqualTo(42L)
             assertThat(AccountSettingsStorage(database).all().single().id).isEqualTo(accountId)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(8L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(9L)
         }
     }
 
@@ -235,6 +237,8 @@ class OutgoingMailStoreTest {
                 database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
             }
             database.execute("DROP TABLE pending_flags")
+            database.execute("DROP TABLE sent_copies")
+            database.execute("DROP TABLE sent_settings")
             database.execute("PRAGMA user_version=4")
             account.id to draft.id
         }
@@ -289,6 +293,8 @@ class OutgoingMailStoreTest {
                 database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
             }
             database.execute("DROP TABLE pending_flags")
+            database.execute("DROP TABLE sent_copies")
+            database.execute("DROP TABLE sent_settings")
             database.execute("PRAGMA user_version=5")
             Triple(account.id, draft.id, mime)
         }
@@ -363,6 +369,8 @@ class OutgoingMailStoreTest {
                 database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
             }
             database.execute("DROP TABLE pending_flags")
+            database.execute("DROP TABLE sent_copies")
+            database.execute("DROP TABLE sent_settings")
             database.execute("PRAGMA user_version=6")
             account.id to draft.id
         }
@@ -397,6 +405,8 @@ class OutgoingMailStoreTest {
             )
             database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
             database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            database.execute("DROP TABLE sent_copies")
+            database.execute("DROP TABLE sent_settings")
             database.execute("PRAGMA user_version=7")
             account.id to draft.id
         }
@@ -407,6 +417,37 @@ class OutgoingMailStoreTest {
             assertThat(testSubject.get(account, id).references).isEqualTo("")
             assertThat(testSubject.claim(account, id) != null).isTrue()
             assertThat(PendingFlagStore(database).list(account).single().uidValidity).isEqualTo(42L)
+        }
+    }
+
+    @Test
+    fun `schema eight upgrade keeps threading frozen MIME and creates independent Sent state`() {
+        val path = directory.root.toPath().resolve("version-eight.sqlite")
+        val reference = MailDatabase(path).use { database ->
+            val account = account(database)
+            val store = OutgoingMailStore(database)
+            val draft = store.create(
+                account.id,
+                ResponseSeed(
+                    to = "recipient@example.invalid",
+                    body = "Body",
+                    inReplyTo = "<parent@example.invalid>",
+                    references = "<parent@example.invalid>",
+                ),
+            )
+            store.queue(account, draft.id)
+            val raw = database.query("SELECT mime FROM outgoing WHERE id=?", draft.id) { getBlob(0) }.single()
+            database.execute("DROP TABLE sent_copies")
+            database.execute("DROP TABLE sent_settings")
+            database.execute("PRAGMA user_version=8")
+            Triple(account.id, draft.id, raw)
+        }
+        MailDatabase(path).use { database ->
+            val (account, id, raw) = reference
+            val testSubject = OutgoingMailStore(database)
+            assertThat(testSubject.get(account, id).inReplyTo).isEqualTo("<parent@example.invalid>")
+            assertThat(checkNotNull(testSubject.claim(account, id)).contentEquals(raw)).isTrue()
+            assertThat(SentCopyStore(database).status(account, id)).isEqualTo(null)
         }
     }
 

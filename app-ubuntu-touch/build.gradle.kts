@@ -11,7 +11,7 @@ plugins {
     alias(libs.plugins.compose)
 }
 
-version = "0.1.14"
+version = "0.1.15"
 
 application {
     mainClass.set("net.thunderbird.app.ubuntutouch.MainKt")
@@ -132,6 +132,7 @@ tasks.register<JavaExec>("phoneProtocolServer") {
     providers.gradleProperty("utProtocolSecurity").orNull?.let { args(it) }
     providers.gradleProperty("utProtocolFlags").orNull?.let { args(it) }
     providers.gradleProperty("utProtocolReply").orNull?.let { args(it) }
+    providers.gradleProperty("utProtocolSent").orNull?.let { args(it) }
 }
 
 // Opt-in actual window close regression: requires an isolated synthetic XDG_DATA_HOME and Xvfb.

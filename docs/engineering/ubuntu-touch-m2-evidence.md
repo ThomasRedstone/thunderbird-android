@@ -993,3 +993,40 @@ Exact full command: `./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch
 -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`, JDK21/Android SDK; the window probe uses the existing
 isolated synthetic Xvfb command. No shared Android source or dependencies changed; the JVM app has no Android lint/device
 task, and Android assembly/device suites were not rerun. Final documentation formatting is checked separately.
+
+
+## Daily-use Sent copies: independent SMTP and IMAP recovery
+
+Bounded work item: automatically save accepted messages in a configured (or uniquely identified special-use) Sent
+folder; preserve owner-side Bcc/threading; show copy status independently of SMTP delivery. Search for provider-filed
+copies before APPEND. A lost copy result must never cause SMTP retransmission or an unreviewed repeated APPEND. Persist
+claim/outcome, recover interrupted claims, allow search-only reconciliation and explicit duplicate-risk acknowledgement.
+Exclusions remain open: background filing, automatic recovery loops, retargeting an already uncertain copy after folder
+rename/removal, public-provider/physical-UI acceptance and true blocked-write/APPEND-response-loss transport fixtures.
+
+Schema 9 adds account-scoped sent_settings and sent_copies, with outgoing/account cascading ownership. Explicit null
+settings keep local copies only; absent settings use a single cached SENT-role folder, never a guessed English name.
+The drafts/outbox list offers a folded Sent-folder setting. Each copy keeps its target snapshot even if future settings
+change. Only durable SMTP-SENT records can be claimed. WORKING claims recover UNKNOWN after restart; repeated claims
+are refused. Unknown attempts search only unless the user explicitly acknowledges copy-duplication risk. Acknowledged
+APPEND without UIDPLUS is successful even with no returned UID. Earlier uncertainty remains visible after later success.
+
+OutgoingMailSender persists SMTP acceptance first and updates the composer before filing. Copy failure cannot rewrite
+that delivery state, trigger a send retry or roll back acceptance. Separate search/retry-copy controls cannot invoke
+SMTP. Local settings and queue writes are awaited on graceful close; without that join, the model regression fails
+with the old Sent setting still visible. Its before XML is retained in `build/evidence/sent-copies/local-close-before.xml`.
+
+The real integration test exposed the engine's one-shot parsed body contract: APPEND counts then writes a message,
+consuming/deleting BinaryTempFileBody during size calculation. A private FrozenSentMessage adapter now writes the
+immutable queued MIME repeatedly for count and APPEND, preserving the owner's Bcc. It is private to IMAP Sent filing;
+SMTP keeps its existing Bcc-stripped path. The failing real-APPEND trace is retained in append-body-before.xml.
+
+120 app tests pass with detekt/installDist/spotlessCheck before the final window-probe run. Tests cover successful
+filing/no UIDPLUS, duplicate claim/repeated send suppression, unknown search-only/explicit retry/history, restart,
+account/local-only scoping, schema8→9 preserving frozen MIME/threading, SMTP-accepted progress, close waiting and Bolt
+controls. Real TLS IMAP/SMTP tests independently inspect recipient and Sent mailboxes for one delivery/copy, private
+Bcc/threading, read flag before body fetch, provider-existing-copy deduplication and reconciliation after injected
+local result loss following a real successful APPEND. This last case is not a claim of actual TCP acknowledgement loss.
+
+0.1.15 is the candidate version. Packaging/native validation follows; the installed phone remains 0.1.14 until the
+verified deployment below. Matching schema9 probes must not be run against older installed production JARs.

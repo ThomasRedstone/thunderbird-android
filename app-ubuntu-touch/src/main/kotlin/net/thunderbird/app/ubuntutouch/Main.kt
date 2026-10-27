@@ -114,8 +114,11 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             factory { LiveMailViewModel(get(), get()) }
             single { OutgoingMailStore(get()) }
             single<OutgoingTransport> { SessionOutgoingTransport(get()) }
-            single { OutgoingMailSender(get(), get()) }
-            factory { ComposerViewModel(get(), get(), get()) }
+            single { SentCopyStore(get()) }
+            single<SentCopyTransport> { SessionSentCopyTransport(get()) }
+            single { SentCopyFiler(get(), get()) }
+            single { OutgoingMailSender(get(), get(), get()) }
+            factory { ComposerViewModel(get(), get(), get(), filing = get()) }
             single<Logger> { DefaultLogger(sink = ConsoleLogSink()) }
             single { MaliitKeyboard(get()) }
         },

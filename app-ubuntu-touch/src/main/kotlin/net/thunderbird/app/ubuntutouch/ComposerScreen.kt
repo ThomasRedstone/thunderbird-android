@@ -43,7 +43,18 @@ internal fun ComposerScreen(state: ComposerState, onEvent: (ComposerEvent) -> Un
                 onEvent(ComposerEvent.Back)
             }, enabled = !state.busy)
         }
-        MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel sending") {
+        MailOperationStatus(
+            state.busy,
+            state.canCancel,
+            state.cancelling,
+            if (state.selected?.state ==
+                OutgoingState.SENT
+            ) {
+                "Cancel saving copy"
+            } else {
+                "Cancel sending"
+            },
+        ) {
             onEvent(ComposerEvent.Cancel)
         }
         state.notice?.let { TextBodyLarge(it) }
@@ -62,6 +73,8 @@ internal fun ComposerScreen(state: ComposerState, onEvent: (ComposerEvent) -> Un
                         enabled = !state.busy,
                     )
                 }
+                ButtonText("Sent folder settings", { onEvent(ComposerEvent.SentSettings) }, enabled = !state.busy)
+                if (state.showSentSettings) SentFolderPicker(state, onEvent)
             }
 
             else -> {
@@ -122,11 +135,67 @@ private fun OutgoingDetails(state: ComposerState, onEvent: (ComposerEvent) -> Un
 
         OutgoingState.UNCERTAIN -> UncertainDelivery(state, onEvent)
 
-        OutgoingState.SENT -> TextBodyLarge("Accepted by SMTP. Sent-folder filing is not available yet.")
+        OutgoingState.SENT -> SentCopyDetails(state, onEvent)
 
         OutgoingState.SENDING -> TextBodyLarge("An attempt is in progress. It will not be sent again automatically.")
 
         OutgoingState.DRAFT -> Unit
+    }
+}
+
+@Composable
+private fun SentFolderPicker(state: ComposerState, onEvent: (ComposerEvent) -> Unit) {
+    TextBodyLarge("New server copies: ${state.sentTarget ?: "No Sent folder selected"}")
+    state.sentFolders.forEach { folder ->
+        ButtonText(
+            "Use ${folder.name} for Sent copies",
+            { onEvent(ComposerEvent.SentFolder(folder.id)) },
+            enabled = !state.busy,
+        )
+    }
+    ButtonText("Keep local copies only", { onEvent(ComposerEvent.SentFolder(null)) }, enabled = !state.busy)
+    if (state.sentFolders.isEmpty()) TextBodyLarge("Refresh folders in Mailboxes to select a server Sent folder.")
+}
+
+@Composable
+private fun SentCopyDetails(state: ComposerState, onEvent: (ComposerEvent) -> Unit) {
+    TextBodyLarge("Accepted by SMTP. Saving a copy never sends the message again.")
+    val copy = state.sentCopy
+    when (copy?.state) {
+        SentCopyState.SAVED -> {
+            TextBodyLarge("Server copy saved in ${copy.folder}.")
+            if (copy.hasUncertainAttempt) {
+                TextBodyLarge(
+                    "An earlier copy attempt was unconfirmed. Check Sent for duplicates.",
+                )
+            }
+        }
+
+        SentCopyState.WORKING -> TextBodyLarge(
+            if (state.busy) "Saving server copy…" else "Copy operation is unfinished. Reopen the app before retrying.",
+        )
+
+        SentCopyState.UNKNOWN -> {
+            TextBodyLarge("Copy in ${copy.folder} is unconfirmed. Check before saving another copy.")
+            ButtonText("Check Sent folder", { onEvent(ComposerEvent.FileSent) }, enabled = !state.busy)
+            if (state.confirmCopy) {
+                TextBodyLarge("Another copy may create a duplicate in Sent.")
+                ButtonText("Save copy despite duplicate risk", {
+                    onEvent(ComposerEvent.ConfirmCopy)
+                }, enabled = !state.busy)
+                ButtonText("Keep unconfirmed copy", { onEvent(ComposerEvent.CancelCopy) }, enabled = !state.busy)
+            } else {
+                ButtonText("Review saving another copy", { onEvent(ComposerEvent.ReviewCopy) }, enabled = !state.busy)
+            }
+        }
+
+        else -> {
+            if (state.sentTarget != null) {
+                ButtonText("Save server copy", { onEvent(ComposerEvent.FileSent) }, enabled = !state.busy)
+            } else {
+                TextBodyLarge("Select a Sent folder from the drafts/outbox list to save a server copy.")
+            }
+        }
     }
 }
 

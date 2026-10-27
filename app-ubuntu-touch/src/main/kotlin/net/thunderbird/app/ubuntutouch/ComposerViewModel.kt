@@ -11,22 +11,27 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+@Suppress("TooManyFunctions") // Composer events, serialized IO and lifecycle orchestration.
 internal class ComposerViewModel(
     private val manager: UtAccountManager,
     private val store: OutgoingMailStore,
     private val sender: OutgoingMailSender,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    private val filing: SentCopyFiler? = null,
 ) : AutoCloseable {
     private val mutableState = MutableStateFlow(ComposerState(manager.findAll()))
     val state = mutableState.asStateFlow()
     private val writes = Mutex()
     private var autosave: Job? = null
     private var activeOperation: MailOperation? = null
+    private var localWork: Job? = null
+    private var localWorkFailed = false
 
     fun event(event: ComposerEvent) {
         val current = state.value
@@ -34,7 +39,7 @@ internal class ComposerViewModel(
             cancel(current)
             return
         }
-        if (current.busy) return
+        if (current.busy || handleFiling(event, current)) return
         when (event) {
             is ComposerEvent.Change -> change(event.field, event.value)
 
@@ -56,21 +61,57 @@ internal class ComposerViewModel(
 
             ComposerEvent.Send -> send(retry = false, acknowledge = false)
 
-            ComposerEvent.Retry -> {
-                if (current.selected?.state == OutgoingState.UNCERTAIN ||
-                    current.selected?.hasUncertainAttempt == true
-                ) {
-                    mutableState.value = current.copy(confirmRetry = true)
-                } else {
-                    send(retry = true, acknowledge = false)
-                }
-            }
+            ComposerEvent.Retry -> reviewRetry(current)
 
             ComposerEvent.ConfirmRetry -> if (current.confirmRetry) send(retry = true, acknowledge = true)
 
             ComposerEvent.CancelRetry -> mutableState.value = current.copy(confirmRetry = false)
 
             else -> navigate(event, current)
+        }
+    }
+
+    private fun reviewRetry(current: ComposerState) {
+        if (current.selected?.state == OutgoingState.UNCERTAIN || current.selected?.hasUncertainAttempt == true) {
+            mutableState.value = current.copy(confirmRetry = true)
+        } else {
+            send(retry = true, acknowledge = false)
+        }
+    }
+
+    private fun handleFiling(event: ComposerEvent, current: ComposerState): Boolean {
+        when (event) {
+            ComposerEvent.SentSettings ->
+                mutableState.value =
+                    current.copy(showSentSettings = !current.showSentSettings)
+
+            is ComposerEvent.SentFolder -> if (!current.dirty) {
+                operate {
+                    checkNotNull(filing).configure(checkNotNull(it.account), event.folder)
+                    reload(it, it.selected?.id)
+                }
+            }
+
+            ComposerEvent.FileSent -> fileSent(acknowledge = false)
+
+            ComposerEvent.ReviewCopy -> mutableState.value = current.copy(confirmCopy = true)
+
+            ComposerEvent.CancelCopy -> mutableState.value = current.copy(confirmCopy = false)
+
+            ComposerEvent.ConfirmCopy -> if (current.confirmCopy) fileSent(acknowledge = true)
+
+            else -> return false
+        }
+        return true
+    }
+
+    private fun fileSent(acknowledge: Boolean) {
+        val operation = MailOperation()
+        operate(operation) {
+            val selected = checkNotNull(it.selected)
+            check(selected.state == OutgoingState.SENT)
+            checkNotNull(filing).file(checkNotNull(it.account), selected.id, operation, acknowledge)
+            reload(it, selected.id)
         }
     }
 
@@ -94,7 +135,7 @@ internal class ComposerViewModel(
             is ComposerEvent.Account -> if (!current.dirty) {
                 operate {
                     check(manager.findById(event.id) != null)
-                    ComposerState(manager.findAll(), account = event.id, items = store.list(event.id))
+                    reload(ComposerState(manager.findAll(), account = event.id), null)
                 }
             }
 
@@ -151,7 +192,18 @@ internal class ComposerViewModel(
             val account = checkNotNull(current.account)
             val id = checkNotNull(current.selected).id
             if (retry) store.retry(account, id, acknowledge)
-            sender.send(account, id, operation, acknowledgeDuplicateRisk = acknowledge)
+            sender.send(account, id, operation, acknowledgeDuplicateRisk = acknowledge) {
+                mutableState.update { latest ->
+                    val selected = latest.selected
+                    if (selected?.id ==
+                        id
+                    ) {
+                        latest.copy(selected = selected.copy(state = OutgoingState.SENT))
+                    } else {
+                        latest
+                    }
+                }
+            }
             reload(current, id)
         }
     }
@@ -191,6 +243,10 @@ internal class ComposerViewModel(
             busy = false,
             notice = null,
             confirmRetry = false,
+            confirmCopy = false,
+            sentFolders = filing?.folders(account).orEmpty(),
+            sentTarget = filing?.target(account),
+            sentCopy = selected?.let { filing?.status(account, it.id) },
         )
     }
 
@@ -200,7 +256,8 @@ internal class ComposerViewModel(
         activeOperation = operation
         mutableState.value =
             snapshot.copy(busy = true, canCancel = operation != null, cancelling = false, notice = null)
-        scope.launch {
+        localWorkFailed = false
+        val work = scope.launch {
             try {
                 val result = withContext(Dispatchers.IO) { writes.withLock { block(snapshot) } }
                 mutableState.value = result.copy(
@@ -216,6 +273,7 @@ internal class ComposerViewModel(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
+                if (operation == null) localWorkFailed = true
                 mutableState.value = snapshot.copy(
                     busy = false,
                     canCancel = false,
@@ -226,12 +284,22 @@ internal class ComposerViewModel(
                 if (activeOperation === operation) activeOperation = null
             }
         }
+        if (operation == null) localWork = work
     }
 
     suspend fun flushForClose(): Boolean {
+        while (true) {
+            val pending = localWork
+            pending?.join()
+            if (pending === localWork) break
+        }
         autosave?.cancelAndJoin()
         val snapshot = state.value
-        if (!snapshot.dirty || snapshot.selected?.state != OutgoingState.DRAFT) return true
+        if (!snapshot.dirty || snapshot.selected?.state != OutgoingState.DRAFT) {
+            val saved = !localWorkFailed
+            localWorkFailed = false
+            return saved
+        }
         return try {
             val saved = withContext(Dispatchers.IO) {
                 writes.withLock {
@@ -242,6 +310,7 @@ internal class ComposerViewModel(
             val latest = state.value
             val unchanged = latest.selected?.id == snapshot.selected?.id && latest.fields == snapshot.fields
             if (unchanged) {
+                localWorkFailed = false
                 mutableState.value =
                     latest.copy(selected = saved.selected, items = saved.items, dirty = false)
             }

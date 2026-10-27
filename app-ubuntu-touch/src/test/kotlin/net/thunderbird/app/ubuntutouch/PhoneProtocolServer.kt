@@ -17,10 +17,10 @@ import jakarta.mail.internet.MimeMessage as JakartaMessage
 object PhoneProtocolServer {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size in 2..5)
+        require(args.size in 2..6)
         val startTls = args.size >= 3
         val features = args.drop(3).toSet()
-        require(features.all { it in setOf("flags", "reply") })
+        require(features.all { it in setOf("flags", "reply", "sent") })
         if (startTls) require(args[2] == "starttls")
         val host = args[0]
         val output = Path.of(args[1]).toAbsolutePath()
@@ -89,35 +89,67 @@ object PhoneProtocolServer {
             server.userManager.getUser("fixture").deliver(
                 JakartaMessage(JakartaSession.getInstance(Properties()), raw.byteInputStream()),
             )
+            if ("sent" in features) prepareSent(server)
             Files.newBufferedWriter(output.resolve("endpoints.properties")).use {
                 it.write("host=$host\nimap=${imapPort}\nsmtp=${smtpPort}\n")
             }
             println("READY: controlled TLS IMAP/SMTP on $host")
             val deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10)
             while (!Files.exists(output.resolve("stop")) && System.nanoTime() < deadline) Thread.sleep(100)
-            val subject = if ("reply" in features) "Re: Device controlled inbox" else "Device queued outgoing"
-            val outgoing = server.receivedMessages.filter { it.subject == subject }
-            check(outgoing.size == 1) { "Expected exactly one SMTP-received message" }
-            check(outgoing.single().allRecipients.single().toString() == "recipient@example.invalid")
-            check(outgoing.single().content.toString().trim() == "Phone body λ\r\n.A leading dot")
-            check(outgoing.single().messageID.isNotBlank())
-            println(
-                "Independent server observation: intended recipient, Unicode/dot-stuffed body and single delivery PASS",
-            )
+            val messageId = checkDelivery(server, features)
             if (startTls) check(gateways.all { it.upgrades.get() >= 2 })
             if ("flags" in features) checkFlags(server)
-            if ("reply" in features) checkReply(outgoing.single())
+            if ("sent" in features) checkSent(server, messageId, "reply" in features)
         } finally {
             gateways.forEach { it.close() }
         }
     }
 
-    private fun checkReply(message: JakartaMessage) {
+    private fun checkDelivery(server: GreenMail, features: Set<String>): String =
+        JakartaSession.getInstance(Properties()).getStore("imap").use { store ->
+            store.connect("127.0.0.1", server.imap.port, "recipient", PASSWORD)
+            store.getFolder("INBOX").use { folder ->
+                folder.open(jakarta.mail.Folder.READ_ONLY)
+                val subject = if ("reply" in features) "Re: Device controlled inbox" else "Device queued outgoing"
+                val outgoing = folder.messages.filter { it.subject == subject }
+                check(outgoing.size == 1) { "Expected exactly one SMTP delivery in the recipient mailbox" }
+                val message = outgoing.single()
+                check(message.allRecipients.single().toString() == "recipient@example.invalid")
+                check(message.content.toString().trim() == "Phone body λ\r\n.A leading dot")
+                if ("reply" in features) checkReply(message)
+                println("Independent recipient mailbox: intended recipient, body and single SMTP delivery PASS")
+                message.getHeader("Message-ID").single()
+            }
+        }
+
+    private fun prepareSent(server: GreenMail) {
+        JakartaSession.getInstance(Properties()).getStore("imap").use { store ->
+            store.connect("127.0.0.1", server.imap.port, "fixture", PASSWORD)
+            check(store.getFolder("Sent").create(jakarta.mail.Folder.HOLDS_MESSAGES))
+        }
+    }
+
+    private fun checkSent(server: GreenMail, messageId: String, reply: Boolean) {
+        JakartaSession.getInstance(Properties()).getStore("imap").use { store ->
+            store.connect("127.0.0.1", server.imap.port, "fixture", PASSWORD)
+            store.getFolder("Sent").use { folder ->
+                folder.open(jakarta.mail.Folder.READ_ONLY)
+                val message = folder.messages.single()
+                check(message.isSet(jakarta.mail.Flags.Flag.SEEN))
+                check(message.getHeader("Message-ID").single() == messageId)
+                check(message.content.toString().trim() == "Phone body λ\r\n.A leading dot")
+                if (reply) checkReply(message)
+            }
+        }
+        println("Independent owner Sent mailbox: one matching read copy, body and threading PASS")
+    }
+
+    private fun checkReply(message: jakarta.mail.Message) {
         check(message.getHeader("In-Reply-To").single() == "<native-parent@example.invalid>")
         check(
             message.getHeader("References").single() == "<native-root@example.invalid> <native-parent@example.invalid>",
         )
-        check(message.messageID != "<native-parent@example.invalid>")
+        check(message.getHeader("Message-ID").single() != "<native-parent@example.invalid>")
         println("Independent SMTP oracle: new reply Message-ID, In-Reply-To and References PASS")
     }
 

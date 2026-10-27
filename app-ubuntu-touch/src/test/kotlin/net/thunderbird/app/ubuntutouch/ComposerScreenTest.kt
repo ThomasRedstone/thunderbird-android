@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.input.TextFieldValue
 import assertk.assertThat
@@ -104,4 +105,32 @@ class ComposerScreenTest : ComposeUiTestHarness() {
         "<fixture@example.invalid>",
         state,
     )
+
+    @Test
+    fun `unconfirmed Sent copy offers search and explicit copy retry without a send action`() = runComposeTest {
+        val state = mutableStateOf(
+            ComposerState(
+                emptyList(),
+                account = AccountIdFactory.create(),
+                selected = draft(OutgoingState.SENT),
+                sentCopy = SentCopy("Sent", SentCopyState.UNKNOWN, null),
+            ),
+        )
+        var event: ComposerEvent? = null
+        setContent {
+            ThunderbirdBoltTheme {
+                ComposerScreen(state.value, {
+                    event = it
+                    if (it == ComposerEvent.ReviewCopy) state.value = state.value.copy(confirmCopy = true)
+                }, null)
+            }
+        }
+        onNodeWithText("Check Sent folder").performScrollTo().performClick()
+        assertThat(event).isEqualTo(ComposerEvent.FileSent)
+        onNodeWithText("Review saving another copy").performScrollTo().performClick()
+        onNodeWithText("Save copy despite duplicate risk").performScrollTo().performClick()
+        assertThat(event).isEqualTo(ComposerEvent.ConfirmCopy)
+        onNodeWithText("Send now").assertDoesNotExist()
+        onNodeWithText("Retry sending").assertDoesNotExist()
+    }
 }

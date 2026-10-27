@@ -36,7 +36,7 @@ object ConfinedCancellationProbe {
         val directory = Files.createTempDirectory(parent, "cancel-runtime-")
         try {
             MailDatabase(directory.resolve("mail.sqlite")).use { database ->
-                check(database.query("PRAGMA user_version") { getLong(0) }.single() == 8L)
+                check(database.query("PRAGMA user_version") { getLong(0) }.single() == 9L)
                 checkCancellation(database, directory, args[1], args[2].toInt())
             }
         } finally {
@@ -49,7 +49,7 @@ object ConfinedCancellationProbe {
                 check(directory.toFile().deleteRecursively())
             }
         }
-        println("Enforcing profile, schema 8, protected account and model-driven pre-STARTTLS cancellation: PASS")
+        println("Enforcing profile, schema 9, protected account and model-driven pre-STARTTLS cancellation: PASS")
     }
 
     private suspend fun checkCancellation(database: MailDatabase, directory: Path, host: String, port: Int) {

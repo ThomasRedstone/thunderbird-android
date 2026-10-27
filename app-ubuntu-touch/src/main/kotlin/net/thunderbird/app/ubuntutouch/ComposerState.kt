@@ -25,6 +25,11 @@ internal data class ComposerState(
     val cancelling: Boolean = false,
     val notice: String? = null,
     val confirmRetry: Boolean = false,
+    val sentFolders: List<MailFolder> = emptyList(),
+    val sentTarget: String? = null,
+    val sentCopy: SentCopy? = null,
+    val confirmCopy: Boolean = false,
+    val showSentSettings: Boolean = false,
 ) {
     override fun toString(): String = "ComposerState(redacted)"
 }
@@ -40,6 +45,12 @@ internal sealed interface ComposerEvent {
     data class Keyboard(val field: ComposeField, val edit: MaliitTextEdit) : ComposerEvent {
         override fun toString(): String = "ComposerEvent.Keyboard(redacted)"
     }
+    data class SentFolder(val folder: String?) : ComposerEvent
+    data object SentSettings : ComposerEvent
+    data object FileSent : ComposerEvent
+    data object ReviewCopy : ComposerEvent
+    data object ConfirmCopy : ComposerEvent
+    data object CancelCopy : ComposerEvent
     data object Save : ComposerEvent
     data object Queue : ComposerEvent
     data object Send : ComposerEvent

@@ -20,7 +20,7 @@ import net.thunderbird.feature.account.AccountIdFactory
 object ConfinedProtocolProbe {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size in setOf(2, 5, 6, 7, 8, 9))
+        require(args.size in setOf(2, 5, 6, 7, 8, 9, 10))
         val label = Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000')
         check(label == "${args[0]} (enforce)")
         if (args.size == 2) verifyRestart(Path.of(args[1])) else prepare(args)
@@ -38,7 +38,8 @@ object ConfinedProtocolProbe {
             ConnectionSecurity.SSL_TLS_REQUIRED
         }
         if (args.size >= 8) require(args[7] == "flags")
-        if (args.size == 9) require(args[8] == "reply")
+        if (args.size >= 9) require(args[8] == "reply")
+        if (args.size == 10) require(args[9] == "sent")
         Files.createDirectories(parent())
         val directory = Files.createTempDirectory(parent(), "protocol-runtime-")
         val account = UtMailAccount(
@@ -51,10 +52,11 @@ object ConfinedProtocolProbe {
         )
         var prepared = false
         try {
-            checkNetwork(directory, account, Path.of(args[4]), args.size >= 8, args.size == 9)
+            checkNetwork(directory, account, Path.of(args[4]), args.size >= 8, args.size >= 9, args.size == 10)
             if (retain) Files.writeString(directory.resolve("protocol.fixture"), "controlled-device-protocol-v1")
             if (args.size >= 8) Files.writeString(directory.resolve("flags.fixture"), "read-starred")
-            if (args.size == 9) Files.writeString(directory.resolve("reply.fixture"), "threaded-reply")
+            if (args.size >= 9) Files.writeString(directory.resolve("reply.fixture"), "threaded-reply")
+            if (args.size == 10) Files.writeString(directory.resolve("sent.fixture"), "server-copy")
             prepared = true
         } finally {
             if (!retain || !prepared) cleanup(directory, account.id)
@@ -95,6 +97,9 @@ object ConfinedProtocolProbe {
                 check(repository.content(id, "INBOX", message.id).body.trim() == "Controlled incoming body")
                 val outgoing = OutgoingMailStore(database).list(id).single()
                 check(outgoing.state == OutgoingState.SENT)
+                if (Files.exists(directory.resolve("sent.fixture"))) {
+                    check(SentCopyStore(database).status(id, outgoing.id)?.state == SentCopyState.SAVED)
+                }
                 if (Files.exists(directory.resolve("reply.fixture"))) {
                     check(outgoing.inReplyTo == "<native-parent@example.invalid>")
                     check(outgoing.references == "<native-root@example.invalid> <native-parent@example.invalid>")
@@ -123,6 +128,7 @@ object ConfinedProtocolProbe {
         certificate: Path,
         flags: Boolean,
         reply: Boolean,
+        sent: Boolean,
     ) {
         var logs = 0
         val logger = DefaultLogger(object : LogSink {
@@ -157,7 +163,7 @@ object ConfinedProtocolProbe {
             val message = repository.messages(account.id, "INBOX").single()
             check(message.subject == "Device controlled inbox")
             check(repository.content(account.id, "INBOX", message.id).body.trim() == "Controlled incoming body")
-            sendFixture(database, sessions, account, reply)
+            sendFixture(database, sessions, account, reply, sent)
         }
         MailDatabase(path).use { database ->
             val manager = manager(database)
@@ -176,6 +182,7 @@ object ConfinedProtocolProbe {
         sessions: ForegroundMailSessionFactory,
         account: UtMailAccount,
         reply: Boolean,
+        sent: Boolean,
     ) {
         val outgoing = OutgoingMailStore(database)
         val draft = if (reply) {
@@ -198,10 +205,22 @@ object ConfinedProtocolProbe {
             "Phone body λ\r\n.A leading dot",
         )
         outgoing.queue(account, draft.id)
-        val sender = OutgoingMailSender(outgoing, SessionOutgoingTransport(sessions))
+        val filer = if (sent) {
+            SentCopyFiler(SentCopyStore(database), SessionSentCopyTransport(sessions)).apply {
+                configure(account.id, "Sent")
+            }
+        } else {
+            null
+        }
+        val sender = OutgoingMailSender(outgoing, SessionOutgoingTransport(sessions), filer)
         check(sender.send(account.id, draft.id) == OutgoingState.SENT)
         check(sender.send(account.id, draft.id) == OutgoingState.SENT)
         if (reply) println("Native reply seeding, quoted body, preserved threading and SMTP acceptance: PASS")
+        if (sent) {
+            check(filer?.status(account.id, draft.id)?.state == SentCopyState.SAVED)
+            filer.file(account.id, draft.id)
+            println("Native automatic Sent copy and repeated-send/copy suppression: PASS")
+        }
     }
 
     private fun fixtureTrust(certificate: Path): KeyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {

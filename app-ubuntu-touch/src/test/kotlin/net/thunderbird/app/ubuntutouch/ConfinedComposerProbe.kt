@@ -67,19 +67,9 @@ object ConfinedComposerProbe {
             UUID.randomUUID().toString(),
         )
         val path = directory.resolve("mail.sqlite")
-        MailDatabase(path).use { database ->
-            AccountSettingsStorage(database).insert(account)
-            SignonIdentityIndex(database).put("local-index-fixture", 42)
-            database.execute("DROP TABLE outgoing")
-            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
-                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
-                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
-            }
-            database.execute("DROP TABLE pending_flags")
-            database.execute("PRAGMA user_version=3")
-        }
+        prepareLegacyFixture(path, account)
         val id = MailDatabase(path).use { database ->
-            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 8L)
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 9L)
             check(AccountSettingsStorage(database).all().single().id == account.id)
             check(SignonIdentityIndex(database).find("local-index-fixture") == 42L)
             val store = OutgoingMailStore(database)
@@ -103,13 +93,34 @@ object ConfinedComposerProbe {
         check(logs == 0)
     }
 
+    private fun prepareLegacyFixture(path: Path, account: UtMailAccount) {
+        MailDatabase(path).use { database ->
+            AccountSettingsStorage(database).insert(account)
+            SignonIdentityIndex(database).put("local-index-fixture", 42)
+            database.execute("DROP TABLE outgoing")
+            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
+                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            }
+            database.execute("DROP TABLE pending_flags")
+            database.execute("DROP TABLE sent_copies")
+            database.execute("DROP TABLE sent_settings")
+            database.execute("PRAGMA user_version=3")
+        }
+    }
+
     private suspend fun checkLifecycle(path: Path, account: UtMailAccount) {
         MailDatabase(path).use { database ->
             val store = OutgoingMailStore(database)
             val manager =
                 UtAccountManager(AccountSettingsStorage(database), SignonCredentialStore(SignonIdentityIndex(database)))
             val model = withContext(Dispatchers.Main) {
-                ComposerViewModel(manager, store, OutgoingMailSender(store) { _, _ -> error("Must not send") })
+                ComposerViewModel(
+                    manager,
+                    store,
+                    OutgoingMailSender(store) { _, _ -> error("Must not send") },
+                    filing = SentCopyFiler(SentCopyStore(database)) { _, _, _, _ -> error("Must not file") },
+                )
             }
             try {
                 withContext(Dispatchers.Main) {
@@ -157,6 +168,8 @@ object ConfinedComposerProbe {
             model.state.first { !it.busy }
             check(model.state.value.selected?.id == draft.id)
             model.event(ComposerEvent.Keyboard(ComposeField.BODY, MaliitTextEdit.Commit("Reply λ\n")))
+            check(model.flushForClose())
+            model.event(ComposerEvent.SentFolder(null))
             check(model.flushForClose())
         }
         check(store.get(account.id, draft.id).inReplyTo == "<parent@example.invalid>")

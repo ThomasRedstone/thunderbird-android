@@ -438,6 +438,117 @@ class ForegroundMailSessionTest {
         assertThat(store.list(account.id).size).isEqualTo(before)
     }
 
+    @Test
+    fun `acknowledged SMTP automatically files one private Sent copy retaining Bcc and threading`() {
+        prepareSentFolder()
+        server.setUser("blind@example.invalid", "blind", PASSWORD)
+        val store = OutgoingMailStore(database)
+        val draft = store.create(
+            account.id,
+            ResponseSeed(
+                to = RECIPIENT,
+                subject = "Sent privacy",
+                body = "Body λ",
+                inReplyTo = "<parent@example.invalid>",
+                references = "<parent@example.invalid>",
+            ),
+        )
+        store.save(account.id, draft.id, RECIPIENT, draft.subject, draft.body, bcc = "blind@example.invalid")
+        store.queue(account, draft.id)
+        val filer = SentCopyFiler(SentCopyStore(database), assertedCopyTransport())
+        val testSubject = OutgoingMailSender(store, SessionOutgoingTransport(factory()), filer)
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.SENT)
+        assertThat(filer.status(account.id, draft.id)?.state).isEqualTo(SentCopyState.SAVED)
+        testSubject.send(account.id, draft.id)
+        filer.file(account.id, draft.id)
+        withOracleSent { folder ->
+            val saved = folder.messages.single()
+            assertThat(saved.isSet(jakarta.mail.Flags.Flag.SEEN)).isTrue()
+            assertThat(saved.getHeader("Message-ID").single()).isEqualTo(draft.messageId)
+            assertThat(saved.getHeader("Bcc").single()).isEqualTo("blind@example.invalid")
+            assertThat(saved.getHeader("In-Reply-To").single()).isEqualTo("<parent@example.invalid>")
+            assertThat(saved.content.toString().trim()).isEqualTo("Body λ")
+        }
+        withOracleInbox("recipient") { folder ->
+            assertThat(folder.messages.single().getHeader("Bcc")).isEqualTo(null)
+        }
+    }
+
+    @Test
+    fun `lost copy result reconciles actual server copy without another APPEND or SMTP delivery`() {
+        prepareSentFolder()
+        val store = OutgoingMailStore(database)
+        val draft = store.create(account.id)
+        store.save(account.id, draft.id, RECIPIENT, "Lost copy result", "Body")
+        store.queue(account, draft.id)
+        val real = SessionSentCopyTransport(factory())
+        var loseResult = true
+        val filer = SentCopyFiler(SentCopyStore(database)) { id, outgoing, claim, operation ->
+            val result = real.save(id, outgoing, claim, operation)
+            if (loseResult) {
+                loseResult = false
+                error("Synthetic result loss after actual APPEND")
+            }
+            result
+        }
+        val testSubject = OutgoingMailSender(store, SessionOutgoingTransport(factory()), filer)
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.SENT)
+        assertThat(filer.status(account.id, draft.id)?.state).isEqualTo(SentCopyState.UNKNOWN)
+        withOracleSent { assertThat(it.messageCount).isEqualTo(1) }
+        filer.file(account.id, draft.id)
+        assertThat(filer.status(account.id, draft.id)?.state).isEqualTo(SentCopyState.SAVED)
+        assertThat(filer.status(account.id, draft.id)?.hasUncertainAttempt).isEqualTo(true)
+        testSubject.send(account.id, draft.id)
+        withOracleSent { assertThat(it.messageCount).isEqualTo(1) }
+        withOracleInbox("recipient") { assertThat(it.messageCount).isEqualTo(1) }
+    }
+
+    @Test
+    fun `existing provider Sent copy is found instead of appending another copy`() {
+        prepareSentFolder()
+        val store = OutgoingMailStore(database)
+        val draft = store.create(account.id)
+        store.save(account.id, draft.id, RECIPIENT, "Provider auto filing", "Body")
+        store.queue(account, draft.id)
+        val realSmtp = SessionOutgoingTransport(factory())
+        val realCopy = SessionSentCopyTransport(factory())
+        val filer = SentCopyFiler(SentCopyStore(database), realCopy)
+        val testSubject = OutgoingMailSender(store, { id, mime ->
+            realSmtp.send(id, mime)
+            realCopy.save(id, draft.id, SentCopyClaim("Sent", mime, true, draft.messageId), null)
+        }, filer)
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.SENT)
+        withOracleSent { assertThat(it.messageCount).isEqualTo(1) }
+        assertThat(filer.status(account.id, draft.id)?.state).isEqualTo(SentCopyState.SAVED)
+    }
+
+    private fun assertedCopyTransport(): SentCopyTransport {
+        val real = SessionSentCopyTransport(factory())
+        return SentCopyTransport { account, id, claim, operation ->
+            try {
+                real.save(account, id, claim, operation)
+            } catch (failure: Exception) {
+                throw AssertionError("Controlled Sent copy failed", failure)
+            }
+        }
+    }
+
+    private fun prepareSentFolder() {
+        withOracleInbox { inbox ->
+            val sent = inbox.store.getFolder("Sent")
+            if (!sent.exists()) check(sent.create(jakarta.mail.Folder.HOLDS_MESSAGES))
+        }
+        PersistentLiveMailRepository(database, factory()).refresh(account.id, null)
+        SentCopyStore(database).configure(account.id, "Sent")
+    }
+
+    private fun withOracleSent(block: (jakarta.mail.Folder) -> Unit) = withOracleInbox { inbox ->
+        inbox.store.getFolder("Sent").use { sent ->
+            sent.open(jakarta.mail.Folder.READ_WRITE)
+            block(sent)
+        }
+    }
+
     private fun deliver(subject: String, body: String) {
         val message =
             JakartaMessage(JakartaSession.getInstance(Properties()), raw(subject, body, EMAIL).byteInputStream())

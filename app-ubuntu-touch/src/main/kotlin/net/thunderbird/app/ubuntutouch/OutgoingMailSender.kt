@@ -19,12 +19,19 @@ internal class SessionOutgoingTransport(private val sessions: ForegroundMailSess
 }
 
 /** No background loop or implicit retries. SMTP acceptance and Sent-folder filing are separate gates. */
-internal class OutgoingMailSender(private val store: OutgoingMailStore, private val transport: OutgoingTransport) {
+internal class OutgoingMailSender(
+    private val store: OutgoingMailStore,
+    private val transport: OutgoingTransport,
+    private val sentCopies: SentCopyFiler?,
+) {
+    constructor(store: OutgoingMailStore, transport: OutgoingTransport) : this(store, transport, null)
+
     fun send(
         account: AccountId,
         id: String,
         operation: MailOperation? = null,
         acknowledgeDuplicateRisk: Boolean = false,
+        onAccepted: () -> Unit = {},
     ): OutgoingState {
         if (operation?.cancellationRequested == true) store.cancelQueued(account, id)
         val raw = if (operation?.cancellationRequested ==
@@ -49,6 +56,15 @@ internal class OutgoingMailSender(private val store: OutgoingMailStore, private 
             // Unclassified failure may occur after DATA acceptance. Never assume it is safe to resend.
             OutgoingState.UNCERTAIN
         }
-        return store.finish(account, id, outcome)
+        val saved = store.finish(account, id, outcome)
+        if (saved == OutgoingState.SENT) {
+            try {
+                onAccepted()
+                sentCopies?.file(account, id, operation)
+            } catch (_: Exception) {
+                // SMTP is already acknowledged and durable. A copy failure cannot change delivery or resend.
+            }
+        }
+        return saved
     }
 }

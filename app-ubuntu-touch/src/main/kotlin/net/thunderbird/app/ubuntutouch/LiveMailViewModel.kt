@@ -23,6 +23,9 @@ internal data class LiveMailState(
     val messages: List<MailSummary> = emptyList(),
     val content: MailContent? = null,
     val query: String = "",
+    val searchAllFolders: Boolean = false,
+    val searchHits: List<CachedMailHit> = emptyList(),
+    val returnFolder: MailFolder? = null,
     val composeRequest: ComposeRequest? = null,
     val pendingActions: Int = 0,
     val confirmDiscard: Boolean = false,
@@ -40,6 +43,8 @@ internal sealed interface LiveMailEvent {
     data class Search(val query: String) : LiveMailEvent {
         override fun toString(): String = "Search(redacted)"
     }
+    data class SearchScope(val allFolders: Boolean) : LiveMailEvent
+    data class OpenSearchResult(val hit: CachedMailHit) : LiveMailEvent
     data class OpenMessage(val uid: String) : LiveMailEvent
     data class Respond(val mode: ResponseMode) : LiveMailEvent
     data class ChangeFlag(val flag: Flag, val enabled: Boolean) : LiveMailEvent
@@ -78,11 +83,21 @@ internal class LiveMailViewModel(
 
             is LiveMailEvent.OpenFolder -> {
                 require(event.folder in current.folders)
-                load(current.copy(folder = event.folder, messages = emptyList(), content = null, query = ""))
+                load(
+                    current.copy(
+                        folder = event.folder,
+                        messages = emptyList(),
+                        content = null,
+                        query = "",
+                        searchAllFolders = false,
+                        searchHits = emptyList(),
+                        returnFolder = null,
+                    ),
+                )
             }
 
             is LiveMailEvent.OpenMessage -> {
-                require(current.messages.any { it.id == event.uid })
+                require(!current.searchAllFolders && current.messages.any { it.id == event.uid })
                 load(current, uid = event.uid)
             }
 
@@ -90,13 +105,31 @@ internal class LiveMailViewModel(
 
             LiveMailEvent.Download -> load(current, uid = current.content?.summary?.id, download = true)
 
-            LiveMailEvent.Back -> mutableState.value = when {
-                current.content != null -> current.copy(content = null, notice = null)
-                current.folder != null -> current.copy(folder = null, messages = emptyList(), notice = null, query = "")
-                else -> LiveMailState(manager.findAll())
-            }
+            LiveMailEvent.Back -> back(current)
 
             else -> Unit
+        }
+    }
+
+    private fun back(current: LiveMailState) {
+        mutableState.value = when {
+            current.content != null -> current.copy(
+                content = null,
+                folder = current.returnFolder ?: current.folder,
+                returnFolder = null,
+                notice = null,
+            )
+
+            current.folder != null -> current.copy(
+                folder = null,
+                messages = emptyList(),
+                notice = null,
+                query = "",
+                searchAllFolders = false,
+                searchHits = emptyList(),
+            )
+
+            else -> LiveMailState(manager.findAll())
         }
     }
 
@@ -111,6 +144,14 @@ internal class LiveMailViewModel(
     private fun handleActions(event: LiveMailEvent, current: LiveMailState): Boolean {
         when (event) {
             is LiveMailEvent.Search -> search(current, event.query)
+
+            is LiveMailEvent.SearchScope -> if (current.folder != null && current.content == null) {
+                load(
+                    current.copy(searchAllFolders = event.allFolders, messages = emptyList(), searchHits = emptyList()),
+                )
+            }
+
+            is LiveMailEvent.OpenSearchResult -> openSearchResult(current, event.hit)
 
             is LiveMailEvent.Respond -> current.content?.let { load(current, uid = it.summary.id, action = event) }
 
@@ -134,8 +175,14 @@ internal class LiveMailViewModel(
         if (query.length > MAX_SEARCH_LENGTH) {
             mutableState.value = current.copy(notice = "Search must be at most $MAX_SEARCH_LENGTH characters.")
         } else {
-            load(current.copy(query = query, messages = emptyList()))
+            load(current.copy(query = query, messages = emptyList(), searchHits = emptyList()))
         }
+    }
+
+    private fun openSearchResult(current: LiveMailState, hit: CachedMailHit) {
+        require(current.searchAllFolders && current.content == null)
+        require(hit in current.searchHits && hit.account == current.account)
+        load(current.copy(folder = hit.folder, returnFolder = current.folder), uid = hit.message.id)
     }
 
     private fun load(
@@ -146,7 +193,8 @@ internal class LiveMailViewModel(
         action: LiveMailEvent? = null,
     ) {
         if (initial.account == null) return
-        val operation = if (network || download || initial.query.isNotBlank()) MailOperation() else null
+        val searching = initial.query.isNotBlank() || initial.searchAllFolders
+        val operation = if (network || download || searching) MailOperation() else null
         activeOperation = operation
         mutableState.value = initial.copy(busy = true, canCancel = operation != null, cancelling = false, notice = null)
         if (action != null) localWriteFailed = false
@@ -244,9 +292,18 @@ internal class LiveMailViewModel(
             folders = folders,
             pendingActions = repository.pendingFlags(account),
             folder = folder,
-            messages = folder?.let {
-                repository.search(account, it.id, initial.query) { operation?.ensureActive() }
-            }.orEmpty(),
+            messages = if (initial.searchAllFolders) {
+                emptyList()
+            } else {
+                folder?.let {
+                    repository.search(account, it.id, initial.query) { operation?.ensureActive() }
+                }.orEmpty()
+            },
+            searchHits = if (initial.searchAllFolders) {
+                repository.searchAccount(account, initial.query) { operation?.ensureActive() }
+            } else {
+                emptyList()
+            },
             content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,
             busy = false,
         )

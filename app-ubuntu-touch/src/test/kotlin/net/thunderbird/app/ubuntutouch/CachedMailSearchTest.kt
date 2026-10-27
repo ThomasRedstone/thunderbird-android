@@ -57,34 +57,7 @@ class CachedMailSearchTest {
         try {
             val path = directory.root.toPath().resolve("search.sqlite")
             MailDatabase(path).use { database ->
-                val local = PersistentBackendStorage(database, account.toString())
-                local.createFolderUpdater().use {
-                    it.createFolders(
-                        listOf(
-                            FolderInfo("INBOX", "Inbox", FolderType.INBOX),
-                            FolderInfo("Other", "Other", FolderType.REGULAR),
-                        ),
-                    )
-                }
-                val raw = "From: Alice <alice@example.invalid>\r\nSubject: Project café\r\n" +
-                    "Content-Type: multipart/mixed; boundary=fixture\r\n\r\n" +
-                    "--fixture\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nBudget λ\r\n" +
-                    "--fixture\r\nContent-Type: text/plain\r\n" +
-                    "Content-Disposition: attachment; filename=private.txt\r\n" +
-                    "\r\nAttachmentneedle\r\n--fixture--\r\n"
-                val message = MimeMessage.parseMimeMessage(raw.byteInputStream(), true).apply { uid = "1" }
-                local.getFolder("INBOX").saveMessage(message, MessageDownloadState.FULL)
-                val other = PersistentBackendStorage(database, AccountIdFactory.create().toString())
-                other.createFolderUpdater().use {
-                    it.createFolders(listOf(FolderInfo("INBOX", "Inbox", FolderType.INBOX)))
-                }
-                other.getFolder("INBOX").saveMessage(
-                    MimeMessage.parseMimeMessage(
-                        "Subject: Foreignneedle\r\n\r\nForeignneedle".byteInputStream(),
-                        true,
-                    ).apply { uid = "1" },
-                    MessageDownloadState.FULL,
-                )
+                seedSearchCache(database)
             }
             MailDatabase(path).use { database ->
                 val logger = DefaultLogger(object : LogSink {
@@ -106,10 +79,52 @@ class CachedMailSearchTest {
                 assertThat(testSubject.search(account, "INBOX", "Attachmentneedle", {})).isEqualTo(emptyList())
                 assertThat(testSubject.search(account, "INBOX", "Foreignneedle", {})).isEqualTo(emptyList())
                 assertThat(testSubject.search(account, "Other", "budget", {})).isEqualTo(emptyList())
+                val hits = testSubject.searchAccount(account, "", {})
+                assertThat(hits.map { it.message.id }).isEqualTo(listOf("1", "1"))
+                assertThat(hits.map { it.folder.id }).isEqualTo(listOf("INBOX", "Other"))
+                assertThat(testSubject.searchAccount(account, "Otherneedle", {}).single().folder.id).isEqualTo("Other")
+                assertThat(testSubject.searchAccount(account, "Foreignneedle", {})).isEqualTo(emptyList())
+                assertThat(hits.first().toString()).isEqualTo("CachedMailHit(redacted)")
             }
         } finally {
             BinaryTempFileBody.setTempDirectory(previous)
         }
+    }
+
+    private suspend fun seedSearchCache(database: MailDatabase) {
+        val local = PersistentBackendStorage(database, account.toString())
+        local.createFolderUpdater().use {
+            it.createFolders(
+                listOf(
+                    FolderInfo("INBOX", "Inbox", FolderType.INBOX),
+                    FolderInfo("Other", "Other", FolderType.REGULAR),
+                ),
+            )
+        }
+        val raw = "From: Alice <alice@example.invalid>\r\nSubject: Project café\r\n" +
+            "Content-Type: multipart/mixed; boundary=fixture\r\n\r\n" +
+            "--fixture\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nBudget λ\r\n" +
+            "--fixture\r\nContent-Type: text/plain\r\n" +
+            "Content-Disposition: attachment; filename=private.txt\r\n" +
+            "\r\nAttachmentneedle\r\n--fixture--\r\n"
+        val message = MimeMessage.parseMimeMessage(raw.byteInputStream(), true).apply { uid = "1" }
+        local.getFolder("INBOX").saveMessage(message, MessageDownloadState.FULL)
+        local.getFolder("Other").saveMessage(
+            MimeMessage.parseMimeMessage("Subject: Other subject\r\n\r\nOtherneedle".byteInputStream(), true)
+                .apply { uid = "1" },
+            MessageDownloadState.FULL,
+        )
+        val other = PersistentBackendStorage(database, AccountIdFactory.create().toString())
+        other.createFolderUpdater().use {
+            it.createFolders(listOf(FolderInfo("INBOX", "Inbox", FolderType.INBOX)))
+        }
+        other.getFolder("INBOX").saveMessage(
+            MimeMessage.parseMimeMessage(
+                "Subject: Foreignneedle\r\n\r\nForeignneedle".byteInputStream(),
+                true,
+            ).apply { uid = "1" },
+            MessageDownloadState.FULL,
+        )
     }
 
     private inner class SearchFixture(private val cached: List<MailContent>) : LiveMailRepository {

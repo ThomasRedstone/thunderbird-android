@@ -170,7 +170,11 @@ private fun MailMessageList(
 ) {
     var editing by rememberMaliitEditor("${state.account}/${state.folder?.id}", state.query, keyboard) {}
     Column(modifier) {
-        TextTitleLarge(checkNotNull(state.folder).name)
+        TextTitleLarge(if (state.searchAllFolders) "All cached folders" else checkNotNull(state.folder).name)
+        Row {
+            ButtonText("This folder", { onEvent(LiveMailEvent.SearchScope(false)) }, enabled = !state.busy)
+            ButtonText("All folders in account", { onEvent(LiveMailEvent.SearchScope(true)) }, enabled = !state.busy)
+        }
         TextFieldOutlined(
             value = editing,
             onValueChange = { editing = it.copy(text = it.text.take(MAX_SEARCH_LENGTH)) },
@@ -189,14 +193,27 @@ private fun MailMessageList(
                 onEvent(LiveMailEvent.Search(""))
             }, enabled = !state.busy)
         }
-        if (state.query.isNotBlank()) TextBodyLarge("${state.messages.size} cached matches · This folder only")
+        val count = if (state.searchAllFolders) state.searchHits.size else state.messages.size
+        if (state.query.isNotBlank()) {
+            TextBodyLarge(
+                "$count cached matches · ${if (state.searchAllFolders) "This account" else "This folder only"}",
+            )
+        }
         TextBodyLarge("Offline search · Uncached text, HTML and attachments are not searched")
-        if (state.messages.isEmpty() && !state.busy) {
+        if (count == 0 && !state.busy) {
             TextBodyLarge(
                 if (state.query.isBlank()) "No cached messages. Sync to receive mail." else "No cached matches",
             )
         }
         LazyColumn(Modifier.weight(1f)) {
+            items(state.searchHits, key = { listOf(it.account.toString(), it.folder.id, it.message.id) }) { hit ->
+                ButtonText(
+                    "${hit.folder.name}\n${messageLabel(hit.message)}",
+                    { onEvent(LiveMailEvent.OpenSearchResult(hit)) },
+                    Modifier.fillMaxWidth().heightIn(min = 64.dp),
+                    enabled = !state.busy,
+                )
+            }
             items(state.messages, key = { it.id }) { message ->
                 ButtonText(
                     messageLabel(message),

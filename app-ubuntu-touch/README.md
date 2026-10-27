@@ -138,3 +138,8 @@ literally, case-insensitively, across these fields. Search/Clear preserve the qu
 folder resets it. HTML and attachment bodies are not searched. Account-wide/server search and large-mailbox indexing
 remain required. Installed FP4 source is `b24e4b3054`; confined search and fresh-process recovery with servers stopped pass.
 Fleet scoped commit `c0f73ef` pins the matching artifact. Physical/provider journeys remain open.
+
+The next source increment adds an All folders in account search scope. Results show their folder and preserve
+account/folder/UID identity when reading or changing flags, including duplicate UIDs in separate folders. Back restores
+the original search. Host storage/model/UI checks pass; this scope is not yet installed on FP4. Unified/server search
+and performance work remain required.

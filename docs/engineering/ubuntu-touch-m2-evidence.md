@@ -1185,3 +1185,27 @@ Host output: `app-ubuntu-touch/build/evidence/search/native-run-1/`. The package
 128-test host authenticated-cancellation gate are recorded above. Test-only later commits do not change installed
 production source. Physical Maliit/search UI, provider journeys, window/rotation/suspend, performance/large-mailbox
 search and native authenticated interruption remain open; no physical acceptance is inferred from these model probes.
+
+## Account-wide cached search
+
+Bounded work item: expand the cached folder search to all cached folders in the selected account, retaining mailbox
+identity through results, reading, flags/replies and Back. Acceptance: identical UIDs in separate folders remain distinct;
+results identify their folder; opening a result targets its exact account/folder/UID; local actions target that folder;
+Back restores the query/scope/origin folder; returning to folder-only scope restores that folder. Search stays offline,
+account-isolated, cancellable between folders/messages and redacts query/result toString output.
+
+`CachedMailHit` carries account, MailFolder and MailSummary. `searchAccount` enumerates only the requested account's
+cached folders and uses the existing literal decoded-text search in each. The mailbox model validates a clicked result
+against the current result set and account; it never interprets a bare UID as a cross-folder location. The reader uses
+the result folder for existing download/flag/response paths. Returning from the reader restores the origin folder and
+search list. Scope controls and lazy-list keys retain folder/UID identity; result labels show the folder name.
+
+Tests add reopened SQLite fixtures with duplicate UIDs in two folders and an unrelated account, verify contextual
+results and account exclusion, and exercise model result opening, rejection of forged foreign-account hits, correct
+flag target and Back/scope reset. Compose tests render both duplicate-UID rows and verify the clicked folder result.
+Unified-account/server search, filtering, HTML indexing, large-mailbox indexing/pagination and cancellation latency
+remain required work. This source change is not yet the installed phone candidate; 0.1.16 remains deployed.
+
+All 130 app tests pass with zero failures/errors/skips, alongside app detekt, installDist and spotlessCheck
+(`/tmp/thunderbird-account-search-full.log`). XML is retained under `build/evidence/account-search/`.
+No new dependencies/permissions or shared Android changes; Android assembly/device suites were not rerun.

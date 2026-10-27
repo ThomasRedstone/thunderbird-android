@@ -40,3 +40,21 @@ internal fun LiveMailRepository.search(
     query: String,
     checkActive: () -> Unit,
 ): List<MailSummary> = searchCachedMail(this, account, folder, query, checkActive)
+
+internal data class CachedMailHit(val account: AccountId, val folder: MailFolder, val message: MailSummary) {
+    override fun toString(): String = "CachedMailHit(redacted)"
+}
+
+/** Keep folder/UID identity together; a UID is meaningful only inside its owning mailbox. */
+internal fun LiveMailRepository.searchAccount(
+    account: AccountId,
+    query: String,
+    checkActive: () -> Unit,
+): List<CachedMailHit> {
+    checkActive()
+    require(query.length <= MAX_SEARCH_LENGTH)
+    return folders(account).flatMap { folder ->
+        checkActive()
+        search(account, folder.id, query, checkActive).map { CachedMailHit(account, folder, it) }
+    }.also { checkActive() }
+}

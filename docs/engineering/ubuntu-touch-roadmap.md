@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.16 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 128 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 130 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Cached search committed/pushed as `b24e4b3054`; installed 0.1.16 embeds that clean source | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `c0f73ef` pins installed 0.1.16/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
@@ -193,6 +193,10 @@ Cached folder search is deployed in 0.1.16: Unicode/case-insensitive literal ter
 and cached viewable plain text; offline storage/model/UI tests pass. It excludes attachment bodies and HTML placeholders.
 Confined native search and fresh-process recovery after server shutdown pass. Account/unified scopes, server search,
 filters, HTML indexing and large-mailbox indexing/pagination/cancellation performance remain required; this slice does not complete the search gate.
+
+Account-wide cached search is now implemented in source and host-tested, with contextual account/folder/UID results,
+reader/action routing and Back restoring the original search. It is not yet deployed. Unified-account/server scopes,
+filters, HTML indexing and large-mailbox performance remain required, alongside phone acceptance of this new scope.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

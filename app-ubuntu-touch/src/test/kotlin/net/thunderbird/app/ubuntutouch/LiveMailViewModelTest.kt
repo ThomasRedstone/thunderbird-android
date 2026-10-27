@@ -152,6 +152,50 @@ class LiveMailViewModelTest {
         }
     }
 
+    @Test
+    fun `account search keeps duplicate UIDs scoped and opens actions in the result folder`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("account-search.sqlite")).use { database ->
+            val manager = manager(database)
+            val repository = FakeLiveMailRepository().apply { includeArchive = true }
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            val account = manager.findAll().single().id
+            testSubject.event(LiveMailEvent.OpenAccount(account))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenFolder(repository.folder))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.Search("cached"))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.SearchScope(true))
+            testSubject.state.first { !it.busy }
+            val hits = testSubject.state.value.searchHits
+            assertThat(hits.map { it.message.id }).isEqualTo(listOf("1", "1"))
+            assertThat(hits.map { it.folder.id }).isEqualTo(listOf("INBOX", "Archive"))
+            val foreignHit = hits.last().copy(account = AccountIdFactory.create())
+            assertThat(
+                runCatching {
+                    testSubject.event(LiveMailEvent.OpenSearchResult(foreignHit))
+                }.isFailure,
+            ).isTrue()
+            testSubject.event(LiveMailEvent.OpenSearchResult(hits.last()))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.folder?.id).isEqualTo("Archive")
+            assertThat(testSubject.state.value.content?.body).isEqualTo("Archive cached body")
+            testSubject.event(LiveMailEvent.ChangeFlag(Flag.SEEN, true))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(repository.lastFlagFolder).isEqualTo("Archive")
+            testSubject.event(LiveMailEvent.Back)
+            assertThat(testSubject.state.value.folder).isEqualTo(repository.folder)
+            assertThat(testSubject.state.value.searchAllFolders).isTrue()
+            assertThat(testSubject.state.value.query).isEqualTo("cached")
+            assertThat(testSubject.state.value.searchHits.size).isEqualTo(2)
+            testSubject.event(LiveMailEvent.SearchScope(false))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.searchHits).isEqualTo(emptyList())
+            assertThat(testSubject.state.value.messages.size).isEqualTo(1)
+            assertThat(repository.refreshes).isEqualTo(0)
+        }
+    }
+
     private fun manager(database: MailDatabase): UtAccountManager {
         val settings = ServerSettings(
             "imap",
@@ -194,19 +238,28 @@ private class FakeLiveMailRepository : LiveMailRepository {
         pending = 0
     }
     override fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) {
+        lastFlagFolder = folder
         if (failFlag) error("Synthetic local write failure")
         summary = if (flag == Flag.SEEN) summary.copy(unread = !value) else summary.copy(starred = value)
         pending++
     }
+    var includeArchive = false
+    var lastFlagFolder: String? = null
     var refreshes = 0
     private var downloaded = false
-    override fun folders(account: AccountId) = listOf(folder)
-    override fun messages(account: AccountId, folder: String) = listOf(summary)
+    override fun folders(account: AccountId) =
+        if (includeArchive) listOf(folder, MailFolder("Archive", "Archive")) else listOf(folder)
+    override fun messages(account: AccountId, folder: String) =
+        listOf(if (folder == "Archive") summary.copy(subject = "Archived") else summary)
     override fun content(
         account: AccountId,
         folder: String,
         uid: String,
-    ) = MailContent(summary, "Cached body", downloaded)
+    ) = MailContent(
+        messages(account, folder).single(),
+        if (folder == "Archive") "Archive cached body" else "Cached body",
+        downloaded,
+    )
     override fun refresh(account: AccountId, folder: String?) {
         refreshes++
         error("sensitive-server-response")

@@ -15,6 +15,29 @@ import org.junit.Test
 
 class LiveMailScreenTest : ComposeUiTestHarness() {
     @Test
+    fun `account search renders duplicate UIDs as separate folder results`() = runComposeTest {
+        val account = AccountIdFactory.create()
+        val message = MailSummary("1", "Found", "Sender", false)
+        val first = CachedMailHit(account, MailFolder("INBOX", "Inbox"), message)
+        val second = CachedMailHit(account, MailFolder("Archive", "Archive"), message)
+        var event: LiveMailEvent? = null
+        val state = LiveMailState(
+            emptyList(),
+            account = account,
+            folder = first.folder,
+            searchAllFolders = true,
+            searchHits = listOf(first, second),
+            query = "Found",
+        )
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state) { event = it } } }
+        onNodeWithText("Inbox\nFound\nSender").assertIsDisplayed()
+        onNodeWithText("Archive\nFound\nSender").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.OpenSearchResult(second))
+        onNodeWithText("This folder").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.SearchScope(false))
+    }
+
+    @Test
     fun `cached search input submits query and clear restores the folder`() = runComposeTest {
         var event: LiveMailEvent? = null
         val state = LiveMailState(

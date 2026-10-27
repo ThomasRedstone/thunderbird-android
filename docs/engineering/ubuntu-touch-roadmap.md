@@ -510,3 +510,6 @@ preferences change. Full 437 tests and quality/distribution checks pass, includi
 archive/trash moves and unrelated deleted-message preservation. Phone 33 remains unchanged
 at this source checkpoint. Native/physical role selection, permanent deletion, bulk moves,
 copy and broader folder management remain required.
+
+The clean 0.1.34 ARM64 package (candidate36) is built and reviewed. It is not installed
+or native/physical role-accepted yet; the phone remains on frozen33.

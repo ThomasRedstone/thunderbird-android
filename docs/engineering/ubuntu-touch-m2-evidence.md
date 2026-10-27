@@ -3702,3 +3702,12 @@ application. Source 34 is not native/physical role acceptance. Installed frozen 
 artifacts, test drivers and local fleet pin remain unchanged. No permissions/OAuth settings
 changed. Copy, bulk organisation, permanent deletion, folder creation/rename/subscription,
 physical action acceptance and interruption/performance coverage remain roadmap work.
+
+The clean 0.1.34 ARM64 Click is built/reviewed: immutable candidate36, clean source
+`1f248250f6de4da9f8515f76aa01e435d3802177`, empty SOURCE-CHANGES patch. Artifact:
+`app-ubuntu-touch/build/ut-candidate-36/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.34_arm64.click`.
+Size148123760 bytes; SHA256 `291ba3c7077efeea4b0febc812f55e7a6ff32517b1317fb96ca50abed960aa9b`.
+Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks pass; build7626 exited0,
+`/tmp/thunderbird-034-click.log`. Same pinned builder/verified candidate5 runtime reuse;
+not cold-build/CI reproducibility proof. The artifact is not installed yet. Preserve it
+unchanged; subsequent production changes require a new version.

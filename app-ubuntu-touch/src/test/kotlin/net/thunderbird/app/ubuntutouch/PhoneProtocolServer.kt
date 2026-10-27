@@ -20,8 +20,9 @@ object PhoneProtocolServer {
         require(args.size in 2..6)
         val startTls = args.size >= 3
         val features = args.drop(3).toSet()
-        require(features.all { it in setOf("flags", "reply", "sent", "move") })
+        require(features.all { it in setOf("flags", "reply", "sent", "move", "move-unknown") })
         if (startTls) require(args[2] == "starttls")
+        require("move-unknown" !in features || (startTls && "move" in features))
         val host = args[0]
         val output = Path.of(args[1]).toAbsolutePath()
         Files.createDirectories(output)
@@ -71,7 +72,14 @@ object PhoneProtocolServer {
         val context = SSLContext.getInstance("TLS").apply { init(managers.keyManagers, null, null) }
         val gateways = if (startTls) {
             listOf(
-                StartTlsGateway(true, server.imap.port, context, InetAddress.getByName(host), true),
+                StartTlsGateway(
+                    true,
+                    server.imap.port,
+                    context,
+                    InetAddress.getByName(host),
+                    true,
+                    dropMoveAcknowledgement = "move-unknown" in features,
+                ),
                 StartTlsGateway(false, server.smtp.port, context, InetAddress.getByName(host), true),
             )
         } else {
@@ -110,7 +118,10 @@ object PhoneProtocolServer {
         gateways: List<StartTlsGateway>,
     ) {
         val messageId = if ("move" in features) {
-            checkMove(server)
+            checkMove(
+                server,
+                sourcePresent = "move-unknown" in features && !gateways.first().droppedMoveWasAtomic.get(),
+            )
             ""
         } else {
             checkDelivery(server, features)
@@ -122,6 +133,7 @@ object PhoneProtocolServer {
                 check(gateways.all { it.upgrades.get() >= 2 })
             }
         }
+        if ("move-unknown" in features) check(gateways.first().droppedMoveAcknowledgements.get() == 1)
         if ("flags" in features) checkFlags(server)
         if ("sent" in features) checkSent(server, messageId, "reply" in features)
     }
@@ -150,12 +162,12 @@ object PhoneProtocolServer {
         }
     }
 
-    private fun checkMove(server: GreenMail) {
+    private fun checkMove(server: GreenMail, sourcePresent: Boolean) {
         JakartaSession.getInstance(Properties()).getStore("imap").use { store ->
             store.connect("127.0.0.1", server.imap.port, "fixture", PASSWORD)
             store.getFolder("INBOX").use {
                 it.open(jakarta.mail.Folder.READ_ONLY)
-                check(it.messageCount == 0)
+                check(it.messageCount == if (sourcePresent) 1 else 0)
             }
             store.getFolder("Archive").use {
                 it.open(jakarta.mail.Folder.READ_ONLY)
@@ -164,7 +176,7 @@ object PhoneProtocolServer {
                 check(message.content.toString().trim() == "Controlled incoming body")
             }
         }
-        println("Independent IMAP oracle: source absent and exactly one intact destination copy PASS")
+        println("Independent IMAP oracle: expected source count and exactly one intact destination copy PASS")
     }
 
     private fun checkSent(server: GreenMail, messageId: String, reply: Boolean) {

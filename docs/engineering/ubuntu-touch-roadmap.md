@@ -478,3 +478,8 @@ Native32 controlled STARTTLS Move submission/reconciliation now passes with a sy
 protected account and independent host IMAP assertions: source absent, exactly one intact
 destination copy, and verified retained-payload cleanup. Repeated completed submission is
 rejected. Physical UI, real providers and native lost-acknowledgement coverage remain open.
+
+Native32 acknowledgement-loss testing also passes: the service retains UNKNOWN and its
+snapshot, refuses unconfirmed retry, and reconciliation leaves exactly one destination copy
+according to an independent host oracle. Physical Move UI, real providers, remaining network
+interruption boundaries and large-mailbox/performance gates remain open.

@@ -3548,3 +3548,30 @@ fixture certificate and driver to the private probes directory; run the exact32 
 `net.thunderbird.app.ubuntutouch.ConfinedMoveProtocolProbe candidate-032-move-protocol-probe.jar
 HOST_TEST_IP IMAP_PORT SMTP_PORT CERTIFICATE_PATH`. Create the fixture's stop file after
 phone success and require the independent oracle/server exit0.
+
+### Native lost Move acknowledgement on 0.1.32 (2026-10-27)
+
+A second controlled STARTTLS fixture drops exactly one accepted COPY/MOVE acknowledgement.
+The installed32 application service returns UNKNOWN, retains its snapshot, reconciles both
+folders without replay and rejects resubmission without duplicate-risk acknowledgement.
+Independent Jakarta IMAP verification finds exactly one intact Archive message. Source count
+is verified against the actual accepted operation: atomic MOVE removes the source, while a
+COPY fallback interrupted before deletion can retain it. The fixture records this distinction
+without recording message/credential data. The phone cleans its synthetic protected account
+and private fixture. Both phone and host exit0; the server is stopped.
+
+The first run correctly reached UNKNOWN but exposed an incorrect test expectation that an
+uncertain move must leave the source present. Both checks failed that assumption; the corrected
+probe makes no such inference and the host verifies the accepted command's exact source count.
+No production behavior was changed to satisfy the test.
+
+Passing logs: `/tmp/thunderbird-032-move-unknown-2.log` and
+`/tmp/thunderbird-032-move-unknown-server-2.log`. Initial failed checks remain in the corresponding
+logs without `-2`. Driver: `build/evidence/native-032/candidate-032-move-unknown-probe-2.jar`,
+SHA256 `bf9d9a496aa906e9634c02079384c6249519093eef7f2dd96e687159e9c02435`.
+Compile/detekt/format pass: `/tmp/thunderbird-032-move-unknown-check-2.log`.
+Reproduce with an absent fixture output path, `-PutProtocolFlags=move -PutProtocolReply=move-unknown`
+and `-PutProtocolSecurity=starttls`, then append `unknown` to the native Move protocol probe args.
+Use that run's ports/certificate; stop the server and require the independent oracle exit0.
+This covers one acknowledgement-loss boundary, not every disconnect point, provider, physical
+UI or power-loss case. Frozen32 and production configuration remain unchanged.

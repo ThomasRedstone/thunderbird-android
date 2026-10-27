@@ -18,7 +18,9 @@ import net.thunderbird.feature.account.AccountIdFactory
 object ConfinedMoveProtocolProbe {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size == 5)
+        require(args.size in 5..6)
+        val unknown = args.size == 6
+        if (unknown) require(args[5] == "unknown")
         val profile = "mail-demo.thomasredstone_mail-demo_0.1.32"
         check(args[0] == profile)
         check(Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000') == "$profile (enforce)")
@@ -43,7 +45,7 @@ object ConfinedMoveProtocolProbe {
             UUID.randomUUID().toString(),
         )
         try {
-            checkMove(directory, account, Path.of(args[4]))
+            checkMove(directory, account, Path.of(args[4]), unknown)
         } finally {
             MailDatabase(directory.resolve("mail.sqlite")).use { database ->
                 val accounts = manager(database)
@@ -52,10 +54,10 @@ object ConfinedMoveProtocolProbe {
             }
         }
         check(directory.toFile().deleteRecursively())
-        println("Enforcing STARTTLS Move, destination reconciliation and verified payload release: PASS")
+        println("Enforcing STARTTLS Move, destination reconciliation and retained-payload policy: PASS")
     }
 
-    private fun checkMove(directory: Path, account: UtMailAccount, certificate: Path) {
+    private fun checkMove(directory: Path, account: UtMailAccount, certificate: Path, unknown: Boolean) {
         var logs = 0
         val logger = DefaultLogger(object : LogSink {
             override val level = LogLevel.VERBOSE
@@ -92,15 +94,16 @@ object ConfinedMoveProtocolProbe {
             val queued = operations.enqueue(key, "Archive")
             check(queued.state == MailMoveState.QUEUED)
             val complete = operations.submit(queued, MailOperation(), acknowledgeDuplicateRisk = false)
-            check(complete.state == MailMoveState.COMPLETE)
+            val expected = if (unknown) MailMoveState.UNKNOWN else MailMoveState.COMPLETE
+            check(complete.state == expected)
             val payloads = MailMovePayloadStore(database)
             check(payloads.info(account.id, complete.id) != null)
             check(operations.reconcile(complete, MailOperation()))
-            check(repository.messages(account.id, "INBOX").isEmpty())
+            if (!unknown) check(repository.messages(account.id, "INBOX").isEmpty())
             val destination = repository.messages(account.id, "Archive").single()
             check(repository.content(account.id, "Archive", destination.id).body.trim() == "Controlled incoming body")
-            check(payloads.info(account.id, complete.id) == null)
-            check(MailMoveStore(database).get(account.id, complete.id).state == MailMoveState.COMPLETE)
+            check((payloads.info(account.id, complete.id) != null) == unknown)
+            check(MailMoveStore(database).get(account.id, complete.id).state == expected)
             check(runCatching { operations.submit(complete, MailOperation(), false) }.isFailure)
         }
         check(logs == 0)

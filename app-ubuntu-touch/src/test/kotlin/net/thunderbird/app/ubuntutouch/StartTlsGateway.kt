@@ -37,6 +37,7 @@ internal class StartTlsGateway(
     val upgrades = AtomicInteger()
     val droppedAppendAcknowledgements = AtomicInteger()
     val droppedMoveAcknowledgements = AtomicInteger()
+    val droppedMoveWasAtomic = AtomicBoolean()
     val truncatedFetchBodies = AtomicInteger()
     val bodyTransferStarted = CountDownLatch(1)
     val moveTransferStarted = CountDownLatch(1)
@@ -127,6 +128,7 @@ internal class StartTlsGateway(
             if (dropAppend || dropMove) {
                 if (dropAppend) droppedAppendAcknowledgements.incrementAndGet()
                 if (dropMove) {
+                    droppedMoveWasAtomic.set(Regex("""\bMOVE\b""", RegexOption.IGNORE_CASE).containsMatchIn(response))
                     droppedMoveAcknowledgements.incrementAndGet()
                     moveTransferStarted.countDown()
                     awaitMoveCancellation()

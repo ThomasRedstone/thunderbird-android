@@ -348,6 +348,54 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `bulk assignments persist offline and reconcile each selected message after restart`() {
+        deliver("Bulk one", "Controlled body")
+        deliver("Bulk two", "Controlled body")
+        var testSubject = PersistentLiveMailRepository(database, factory())
+        testSubject.refresh(account.id, "INBOX")
+        val keys = testSubject.messages(account.id, "INBOX").map { MailMessageKey(account.id, "INBOX", it.id) }
+        testSubject.changeFlags(keys, Flag.SEEN, true)
+        testSubject.changeFlags(keys, Flag.FLAGGED, true)
+        assertThat(testSubject.pendingFlags(account.id)).isEqualTo(4)
+        assertThat(testSubject.messages(account.id, "INBOX").all { !it.unread && it.starred }).isTrue()
+        withOracleInbox { remote ->
+            assertThat(remote.messages.none { it.isSet(jakarta.mail.Flags.Flag.FLAGGED) }).isTrue()
+        }
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        testSubject = PersistentLiveMailRepository(database, factory())
+        assertThat(testSubject.pendingFlags(account.id)).isEqualTo(4)
+        testSubject.refresh(account.id, "INBOX")
+        assertThat(testSubject.pendingFlags(account.id)).isEqualTo(0)
+        withOracleInbox { remote ->
+            assertThat(remote.messages.size).isEqualTo(2)
+            assertThat(
+                remote.messages.all {
+                    it.isSet(jakarta.mail.Flags.Flag.SEEN) && it.isSet(jakarta.mail.Flags.Flag.FLAGGED)
+                },
+            ).isTrue()
+        }
+    }
+
+    @Test
+    fun `invalid final bulk target rolls back all replacements and retains earlier queued decisions`() {
+        deliver("Atomic batch", "Controlled body")
+        val testSubject = PersistentLiveMailRepository(database, factory())
+        testSubject.refresh(account.id, "INBOX")
+        val uid = testSubject.messages(account.id, "INBOX").single().id
+        val key = MailMessageKey(account.id, "INBOX", uid)
+        testSubject.changeFlag(account.id, "INBOX", uid, Flag.FLAGGED, false)
+        val before = PendingFlagStore(database).list(account.id)
+        assertThat(
+            runCatching {
+                testSubject.changeFlags(listOf(key, key.copy(uid = "absent")), Flag.FLAGGED, true)
+            }.isFailure,
+        ).isTrue()
+        assertThat(PendingFlagStore(database).list(account.id)).isEqualTo(before)
+        assertThat(testSubject.messages(account.id, "INBOX").single().starred).isFalse()
+    }
+
+    @Test
     fun `acknowledging an older flag assignment cannot remove a newer local decision`() {
         deliver("Coalescing", "Controlled body")
         val repository = PersistentLiveMailRepository(database, factory())

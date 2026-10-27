@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Rule
@@ -147,6 +148,50 @@ class MailSortViewModelTest {
         }
     }
 
+    @Test
+    fun `unified selection queues full identities counts all accounts and clears only after success`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("bulk.sqlite")).use { database ->
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val first = account(manager)
+            val second = account(manager)
+            val repository = CachedRepository(first)
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(first))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ALL_ACCOUNTS))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.Selection(MailSelectionAction.Start))
+            testSubject.event(LiveMailEvent.Selection(MailSelectionAction.All))
+            assertThat(testSubject.state.value.selection.keys.size).isEqualTo(4)
+            repository.failBatch = true
+            testSubject.event(LiveMailEvent.Selection(MailSelectionAction.ApplyFlag(Flag.SEEN, true)))
+            assertThat(idle(testSubject).selection.keys.size).isEqualTo(4)
+            assertThat(testSubject.flushForClose()).isEqualTo(false)
+            assertThat(repository.batchKeys).isEqualTo(emptyList())
+            repository.failBatch = false
+            testSubject.event(LiveMailEvent.Selection(MailSelectionAction.ApplyFlag(Flag.SEEN, true)))
+            val saved = idle(testSubject)
+            assertThat(saved.selection).isEqualTo(MailSelection())
+            assertThat(saved.pendingActions).isEqualTo(4)
+            testSubject.event(LiveMailEvent.DiscardPending)
+            testSubject.event(LiveMailEvent.ConfirmDiscard)
+            idle(testSubject)
+            assertThat(repository.discardCalls).isEqualTo(0)
+            assertThat(repository.batchKeys.toSet()).isEqualTo(
+                setOf(
+                    MailMessageKey(first, "INBOX", "old"),
+                    MailMessageKey(first, "INBOX", "new"),
+                    MailMessageKey(second, "INBOX", "old"),
+                    MailMessageKey(second, "INBOX", "new"),
+                ),
+            )
+            assertThat(testSubject.flushForClose()).isEqualTo(true)
+            assertThat(repository.networkCalls).isEqualTo(0)
+        }
+    }
+
     private fun account(manager: UtAccountManager): AccountId {
         val id = AccountIdFactory.create()
         val server = ServerSettings(
@@ -180,6 +225,18 @@ class MailSortViewModelTest {
 
 private class CachedRepository(private val first: AccountId) : LiveMailRepository {
     val inbox = MailFolder("INBOX", "Inbox")
+    var discardCalls = 0
+    override fun discardFlags(account: AccountId) {
+        discardCalls++
+    }
+    var batchKeys = emptyList<MailMessageKey>()
+    var failBatch = false
+    override fun changeFlags(keys: List<MailMessageKey>, flag: Flag, value: Boolean) {
+        check(!failBatch)
+        check(flag == Flag.SEEN && value)
+        batchKeys = keys
+    }
+    override fun pendingFlags(account: AccountId) = batchKeys.count { it.account == account }
     var networkCalls = 0
     var openedAccount: AccountId? = null
     override fun folders(account: AccountId) = listOf(inbox)

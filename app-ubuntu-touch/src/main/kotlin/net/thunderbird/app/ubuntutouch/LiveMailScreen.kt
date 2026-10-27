@@ -112,7 +112,9 @@ private fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
     }
     state.notice?.let { TextBodyLarge(it) }
     if (state.pendingActions > 0) {
-        if (state.confirmDiscard) {
+        if (state.searchScope == CachedSearchScope.ALL_ACCOUNTS) {
+            TextBodyLarge("Open an account to review or discard its local changes.")
+        } else if (state.confirmDiscard) {
             TextBodyLarge("Discard local changes and use the last cached server flags?")
             ButtonText("Discard changes", { onEvent(LiveMailEvent.ConfirmDiscard) }, enabled = !state.busy)
             ButtonText("Keep changes", { onEvent(LiveMailEvent.CancelDiscard) }, enabled = !state.busy)
@@ -181,6 +183,7 @@ private fun MailMessageList(
             },
         )
         SearchAndSortControls(state, onEvent)
+        MailSelectionControls(state, onEvent)
         TextFieldOutlined(
             value = editing,
             onValueChange = { editing = it.copy(text = it.text.take(MAX_SEARCH_LENGTH)) },
@@ -219,27 +222,33 @@ private fun MailMessageList(
                 SearchResultButton(state, hit, onEvent)
             }
             items(state.messages, key = { it.id }) { message ->
-                ButtonText(
-                    messageLabel(message),
-                    { onEvent(LiveMailEvent.OpenMessage(message.id)) },
-                    Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                    enabled = !state.busy,
-                )
+                MailFolderMessageButton(state, message, onEvent)
             }
         }
     }
 }
 
-private fun messageLabel(message: MailSummary): String =
+internal fun messageLabel(message: MailSummary): String =
     "${if (message.starred) "Starred · " else ""}${if (message.unread) "Unread · " else ""}" +
         "${message.subject}\n${message.sender}"
 
 @Composable
 private fun SearchResultButton(state: LiveMailState, hit: CachedMailHit, onEvent: (LiveMailEvent) -> Unit) {
     ButtonText(
-        "${if (state.searchScope == CachedSearchScope.ALL_ACCOUNTS) accountLabel(state, hit) else ""}" +
+        selectionLabel(state, MailMessageKey(hit.account, hit.folder.id, hit.message.id)) +
+            "${if (state.searchScope == CachedSearchScope.ALL_ACCOUNTS) accountLabel(state, hit) else ""}" +
             "${hit.folder.name}\n${messageLabel(hit.message)}",
-        { onEvent(LiveMailEvent.OpenSearchResult(hit)) },
+        {
+            onEvent(
+                if (state.selection.active) {
+                    LiveMailEvent.Selection(
+                        MailSelectionAction.Toggle(MailMessageKey(hit.account, hit.folder.id, hit.message.id)),
+                    )
+                } else {
+                    LiveMailEvent.OpenSearchResult(hit)
+                },
+            )
+        },
         Modifier.fillMaxWidth().heightIn(min = 64.dp),
         enabled = !state.busy,
     )

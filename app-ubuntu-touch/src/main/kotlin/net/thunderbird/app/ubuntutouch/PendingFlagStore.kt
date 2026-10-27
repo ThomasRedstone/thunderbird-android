@@ -15,7 +15,16 @@ internal data class PendingFlag(
 /** Idempotent flag assignments survive offline use; each replacement has a new acknowledgement identity. */
 @Suppress("MagicNumber") // Fixed SQL projection indices.
 internal class PendingFlagStore(private val database: MailDatabase) {
-    fun enqueue(account: AccountId, folder: String, uid: String, flag: Flag, enabled: Boolean) = database.transaction {
+    fun enqueue(account: AccountId, folder: String, uid: String, flag: Flag, enabled: Boolean) =
+        enqueueAll(listOf(MailMessageKey(account, folder, uid)), flag, enabled)
+
+    fun enqueueAll(keys: List<MailMessageKey>, flag: Flag, enabled: Boolean) = database.transaction {
+        require(keys.isNotEmpty() && keys.size <= MAX_MAIL_SELECTION && keys.distinct().size == keys.size)
+        keys.forEach { enqueueOne(it, flag, enabled) }
+    }
+
+    private fun enqueueOne(key: MailMessageKey, flag: Flag, enabled: Boolean) {
+        val (account, folder, uid) = key
         require(flag in setOf(Flag.SEEN, Flag.FLAGGED))
         val cached = PersistentBackendStorage(database, account.toString()).getFolder(folder)
         check(cached.isMessagePresent(uid)) { "Message absent from cache" }

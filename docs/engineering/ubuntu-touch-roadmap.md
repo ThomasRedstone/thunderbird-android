@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.18 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 298 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 307 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth setup and mail-session integration is verified on host | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.18 install verified; fleet `9333240` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -213,6 +213,12 @@ messages, including HTML-only bodies. Incomplete messages request full download;
 account isolation and rendered reader checks pass. Content Hub Open/Save, outgoing attachments, orphan cleanup and
 native/physical acceptance remain open. The 0.1.21 ARM64 Click is built and reviewed, with installation pending.
 Listing metadata does not complete attachment handling.
+
+Cached multi-select and bulk read/unread/star/unstar are implemented in 0.1.22 development source across folder,
+account and unified cached results. Full account/folder/UID identities, a visible 1000-selection bound, atomic offline
+queue updates and retry/close handling are covered by model/SQLite/rendered checks; controlled TLS IMAP reconciliation
+passes after database reopen. Unified counts cover all accounts and discard review is per account. Other bulk actions,
+server-wide selection, background replay and phone/physical/provider acceptance remain open.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

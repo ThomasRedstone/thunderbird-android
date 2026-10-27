@@ -22,12 +22,16 @@ internal data class MailContent(
 )
 
 /** Local reads never request credentials or initiate network activity. Blocking methods require an IO caller. */
+@Suppress("TooManyFunctions") // Foreground mail and atomic local message actions share one cache contract.
 internal interface LiveMailRepository {
     fun respond(account: AccountId, folder: String, uid: String, mode: ResponseMode): String {
         error("Responses are unavailable")
     }
     fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) {
         error("Message actions are unavailable")
+    }
+    fun changeFlags(keys: List<MailMessageKey>, flag: Flag, value: Boolean) {
+        error("Bulk message actions are unavailable")
     }
     fun discardFlags(account: AccountId) {
         error("Message actions are unavailable")
@@ -59,6 +63,9 @@ internal class PersistentLiveMailRepository(
 
     override fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) =
         actions.enqueue(account, folder, uid, flag, value)
+
+    override fun changeFlags(keys: List<MailMessageKey>, flag: Flag, value: Boolean) =
+        actions.enqueueAll(keys, flag, value)
 
     override fun discardFlags(account: AccountId) = actions.discard(account)
 

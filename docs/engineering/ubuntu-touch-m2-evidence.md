@@ -2315,3 +2315,38 @@ The bounded phone SSH reachability check again timed out. No transfer, Phone Man
 verification was attempted. Latest verified installed version remains 0.1.18. The existing upgrade script is specific
 to 0.1.19 and must be updated and reviewed for an explicitly chosen newer version/hash before use. Phone b-nnxn and
 provider decision q-ar74 remain partial gaps; neither blocks independent later roadmap requirements.
+
+
+## Multi-select and offline bulk flags (0.1.22 development source)
+
+Cached folder lists and account/unified search support explicit selection mode, row toggling, bounded select-listed,
+and bulk read/unread/star/unstar assignments. Keys contain account, folder and UID; same-UID results remain distinct.
+The selection limit is 1000 with a visible limit notice and labelled select-listed action. Selection clears when
+changing search, scope, sort or navigation; disappeared rows are pruned on cache refresh. Busy controls disable and
+empty selections cannot apply actions. This is a bounded cached selection, not a claim to select uncached server mail.
+
+`PendingFlagStore.enqueueAll` validates unique non-empty bounded targets and applies every queue replacement in one
+SQLite transaction. Failure rolls back the whole batch, preserving earlier assignments and their acknowledgement IDs.
+Existing UID-validity fencing, durable local overlays and per-folder replay still apply. Batch writes run on IO and
+use existing local-write close joining. Failed writes retain selection for retry; success clears selection only after
+cache reload. Unified pending counts include every configured account; discard review remains explicitly per account.
+
+Tests include complete identities across accounts/folders, stale-row pruning, the selection bound, busy/empty UI,
+model queue failure/retry and unified pending counts, atomic rollback of an invalid final target, plus actual controlled
+TLS IMAP reconciliation of selected read/star changes after closing/reopening SQLite. No new dependencies, permissions,
+mail schema or shared Android code. Source advances to 0.1.22 after the immutable 0.1.21 build. Archive/trash/delete,
+move/copy, server-wide selection, automatic background replay and phone/provider/physical acceptance remain required.
+
+A unified-discard regression was caught before delivery: the new all-account pending count initially exposed an
+origin-account-only discard control. Both rendered and model regressions failed before the fix (`/tmp/thunderbird-bulk-discard-before.log`,
+`build/evidence/mail-bulk-flags/discard-screen-before.xml` and `discard-model-before.xml`). Unified scope now directs
+the user to open an account for review/discard, and the model rejects a stale unified confirmation. Per-account discard
+semantics are unchanged. This is not a new cross-account discard operation.
+
+Final verification: full 307 app tests, zero failures/errors/skips; `detekt`, `installDist` and `spotlessCheck` pass.
+Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Log `/tmp/thunderbird-bulk-full-final.log`; XML `app-ubuntu-touch/build/evidence/mail-bulk-flags/after/`.
+Scoped docs checks pass. This JVM app has no Android lint or instrumentation task; shared Android sources were
+unchanged, so prior shared-engine Android assembly evidence remains applicable. Native 0.1.22 checks have not run.

@@ -35,12 +35,14 @@ internal data class LiveMailState(
     val cancelling: Boolean = false,
     val notice: String? = null,
     val sort: MailSort = MailSort.NEWEST,
+    val selection: MailSelection = MailSelection(),
 ) {
     val searchAllFolders: Boolean get() = searchScope != CachedSearchScope.FOLDER
     override fun toString(): String = "LiveMailState(redacted)"
 }
 
 internal sealed interface LiveMailEvent {
+    data class Selection(val action: MailSelectionAction) : LiveMailEvent
     data class Sort(val sort: MailSort) : LiveMailEvent
     data class OpenAccount(val id: AccountId) : LiveMailEvent
     data class OpenFolder(val folder: MailFolder) : LiveMailEvent
@@ -75,14 +77,19 @@ internal class LiveMailViewModel(
     private var localWriteFailed = false
 
     fun event(event: LiveMailEvent) {
-        val current = state.value
+        val current = state.value.forMailEvent(event)
         if (event == LiveMailEvent.Cancel) {
             cancel(current)
             return
         }
-        if (current.busy || handleActions(event, current)) return
+        if (current.busy ||
+            handleMailSelection(event, current, { mutableState.value = it }, { load(current, action = event) }) ||
+            handleActions(event, current)
+        ) {
+            return
+        }
         when (event) {
-            is LiveMailEvent.Sort -> if (current.folder != null && current.content == null) {
+            is LiveMailEvent.Sort -> if (current.isMessageList()) {
                 selectedSort = event.sort
                 load(current.copy(sort = event.sort), action = event)
             }
@@ -178,7 +185,7 @@ internal class LiveMailViewModel(
 
             LiveMailEvent.CancelDiscard -> mutableState.value = current.copy(confirmDiscard = false)
 
-            LiveMailEvent.ConfirmDiscard -> if (current.confirmDiscard) {
+            LiveMailEvent.ConfirmDiscard -> if (current.canDiscardAccountChanges()) {
                 load(current.copy(confirmDiscard = false), uid = current.content?.summary?.id, action = event)
             }
 
@@ -288,6 +295,9 @@ internal class LiveMailViewModel(
                 action.enabled,
             )
         }
+        if (action is LiveMailEvent.Selection && action.action is MailSelectionAction.ApplyFlag) {
+            repository.changeFlags(initial.selection.keys.toList(), action.action.flag, action.action.enabled)
+        }
         if (action is LiveMailEvent.Sort) sortPreferences?.save(action.sort)
         if (action == LiveMailEvent.ConfirmDiscard) repository.discardFlags(account)
         if (network) repository.refresh(account, initial.folder?.id, checkNotNull(operation))
@@ -308,7 +318,8 @@ internal class LiveMailViewModel(
         } else {
             initial
         }
-        return readCache(prepared, uid, operation)
+        val loaded = readCache(prepared, uid, operation)
+        return if (action is LiveMailEvent.Selection) loaded.copy(selection = MailSelection()) else loaded
     }
 
     private fun readCache(initial: LiveMailState, uid: String?, operation: MailOperation? = null): LiveMailState {
@@ -318,7 +329,11 @@ internal class LiveMailViewModel(
         return initial.copy(
             accounts = manager.findAll(),
             folders = folders,
-            pendingActions = repository.pendingFlags(account),
+            pendingActions = if (initial.searchScope == CachedSearchScope.ALL_ACCOUNTS) {
+                manager.findAll().sumOf { repository.pendingFlags(it.id) }
+            } else {
+                repository.pendingFlags(account)
+            },
             folder = folder,
             messages = if (initial.searchAllFolders) {
                 emptyList()
@@ -341,7 +356,7 @@ internal class LiveMailViewModel(
             },
             content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,
             busy = false,
-        ).sortedForDisplay()
+        ).sortedForDisplay().retainListedSelection()
     }
 
     suspend fun flushForClose(): Boolean {

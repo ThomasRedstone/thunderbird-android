@@ -31,6 +31,7 @@ internal data class ComposerState(
 
 internal sealed interface ComposerEvent {
     data class Account(val id: AccountId) : ComposerEvent
+    data class Resume(val request: ComposeRequest) : ComposerEvent
     data object New : ComposerEvent
     data class Open(val id: String) : ComposerEvent
     data class Change(val field: ComposeField, val value: TextFieldValue) : ComposerEvent {

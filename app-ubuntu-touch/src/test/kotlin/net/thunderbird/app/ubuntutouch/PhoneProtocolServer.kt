@@ -17,10 +17,10 @@ import jakarta.mail.internet.MimeMessage as JakartaMessage
 object PhoneProtocolServer {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size in 2..4)
+        require(args.size in 2..5)
         val startTls = args.size >= 3
-        val flags = args.size == 4
-        if (flags) require(args[3] == "flags")
+        val features = args.drop(3).toSet()
+        require(features.all { it in setOf("flags", "reply") })
         if (startTls) require(args[2] == "starttls")
         val host = args[0]
         val output = Path.of(args[1]).toAbsolutePath()
@@ -50,7 +50,7 @@ object PhoneProtocolServer {
         )
         try {
             server.start()
-            serve(server, store, host, output, startTls, flags)
+            serve(server, store, host, output, startTls, features)
         } finally {
             server.stop()
             check(material.toFile().deleteRecursively())
@@ -63,7 +63,7 @@ object PhoneProtocolServer {
         host: String,
         output: Path,
         startTls: Boolean,
-        flags: Boolean,
+        features: Set<String>,
     ) {
         val managers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
             init(store, PASSWORD.toCharArray())
@@ -82,7 +82,9 @@ object PhoneProtocolServer {
             val smtpPort = gateways.getOrNull(1)?.port ?: server.smtps.port
             server.setUser("fixture@example.invalid", "fixture", PASSWORD)
             server.setUser("recipient@example.invalid", "recipient", PASSWORD)
-            val raw = "From: sender@example.invalid\r\nTo: fixture@example.invalid\r\n" +
+            val raw = "From: sender@example.invalid\r\nReply-To: recipient@example.invalid\r\n" +
+                "To: fixture@example.invalid\r\nMessage-ID: <native-parent@example.invalid>\r\n" +
+                "References: <native-root@example.invalid>\r\n" +
                 "Subject: Device controlled inbox\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nControlled incoming body\r\n"
             server.userManager.getUser("fixture").deliver(
                 JakartaMessage(JakartaSession.getInstance(Properties()), raw.byteInputStream()),
@@ -93,7 +95,8 @@ object PhoneProtocolServer {
             println("READY: controlled TLS IMAP/SMTP on $host")
             val deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10)
             while (!Files.exists(output.resolve("stop")) && System.nanoTime() < deadline) Thread.sleep(100)
-            val outgoing = server.receivedMessages.filter { it.subject == "Device queued outgoing" }
+            val subject = if ("reply" in features) "Re: Device controlled inbox" else "Device queued outgoing"
+            val outgoing = server.receivedMessages.filter { it.subject == subject }
             check(outgoing.size == 1) { "Expected exactly one SMTP-received message" }
             check(outgoing.single().allRecipients.single().toString() == "recipient@example.invalid")
             check(outgoing.single().content.toString().trim() == "Phone body λ\r\n.A leading dot")
@@ -102,10 +105,20 @@ object PhoneProtocolServer {
                 "Independent server observation: intended recipient, Unicode/dot-stuffed body and single delivery PASS",
             )
             if (startTls) check(gateways.all { it.upgrades.get() >= 2 })
-            if (flags) checkFlags(server)
+            if ("flags" in features) checkFlags(server)
+            if ("reply" in features) checkReply(outgoing.single())
         } finally {
             gateways.forEach { it.close() }
         }
+    }
+
+    private fun checkReply(message: JakartaMessage) {
+        check(message.getHeader("In-Reply-To").single() == "<native-parent@example.invalid>")
+        check(
+            message.getHeader("References").single() == "<native-root@example.invalid> <native-parent@example.invalid>",
+        )
+        check(message.messageID != "<native-parent@example.invalid>")
+        println("Independent SMTP oracle: new reply Message-ID, In-Reply-To and References PASS")
     }
 
     private fun checkFlags(server: GreenMail) {

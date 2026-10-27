@@ -85,4 +85,29 @@ class LiveMailScreenTest : ComposeUiTestHarness() {
         onNodeWithText("Mark read").assertIsNotEnabled()
         onNodeWithText("Star message").assertIsNotEnabled()
     }
+
+    @Test
+    fun `reply actions dispatch distinct modes and require complete plain text`() = runComposeTest {
+        val state = mutableStateOf(
+            LiveMailState(
+                emptyList(),
+                account = AccountIdFactory.create(),
+                folder = MailFolder("INBOX", "Inbox"),
+                content = MailContent(MailSummary("1", "Fixture", "Sender", false), "Body", true),
+            ),
+        )
+        var event: LiveMailEvent? = null
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state.value) { event = it } } }
+        onNodeWithText("Reply").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.Respond(ResponseMode.REPLY))
+        onNodeWithText("Reply all").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.Respond(ResponseMode.REPLY_ALL))
+        onNodeWithText("Forward text").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.Respond(ResponseMode.FORWARD))
+        state.value = state.value.copy(content = checkNotNull(state.value.content).copy(complete = false))
+        onNodeWithText("Reply").assertIsNotEnabled()
+        state.value =
+            state.value.copy(content = checkNotNull(state.value.content).copy(complete = true, plainText = false))
+        onNodeWithText("Forward text").assertIsNotEnabled()
+    }
 }

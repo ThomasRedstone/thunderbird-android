@@ -399,6 +399,45 @@ class ForegroundMailSessionTest {
         assertThat(testSubject.list(account.id).isEmpty()).isTrue()
     }
 
+    @Test
+    fun `reply draft survives reopen and SMTP retains threading and quoted body`() {
+        val raw = "From: sender@example.invalid\r\nReply-To: recipient@example.invalid\r\nTo: $EMAIL\r\n" +
+            "Subject: Response fixture\r\nMessage-ID: <response-parent@example.invalid>\r\n" +
+            "References: <response-root@example.invalid>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nBody λ\r\n"
+        server.userManager.getUser("fixture").deliver(
+            JakartaMessage(JakartaSession.getInstance(Properties()), raw.byteInputStream()),
+        )
+        var repository = PersistentLiveMailRepository(database, factory())
+        repository.refresh(account.id, "INBOX")
+        val uid = repository.messages(account.id, "INBOX").single().id
+        val draft = repository.respond(account.id, "INBOX", uid, ResponseMode.REPLY)
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        val store = OutgoingMailStore(database)
+        assertThat(store.get(account.id, draft).inReplyTo).isEqualTo("<response-parent@example.invalid>")
+        store.queue(account, draft)
+        val testSubject = OutgoingMailSender(store, SessionOutgoingTransport(factory()))
+        assertThat(testSubject.send(account.id, draft)).isEqualTo(OutgoingState.SENT)
+        withOracleInbox("recipient") { folder ->
+            val received = folder.messages.single()
+            assertThat(received.subject).isEqualTo("Re: Response fixture")
+            assertThat(received.getHeader("In-Reply-To").single()).isEqualTo("<response-parent@example.invalid>")
+            assertThat(received.getHeader("References").single())
+                .isEqualTo("<response-root@example.invalid> <response-parent@example.invalid>")
+            assertThat(received.content.toString().contains("> Body λ")).isTrue()
+        }
+        repository = PersistentLiveMailRepository(database, factory())
+        val cached = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        cached.setMessageFlag(uid, Flag.X_DOWNLOADED_FULL, false)
+        val before = store.list(account.id).size
+        assertThat(
+            runCatching {
+                repository.respond(account.id, "INBOX", uid, ResponseMode.FORWARD)
+            }.isFailure,
+        ).isTrue()
+        assertThat(store.list(account.id).size).isEqualTo(before)
+    }
+
     private fun deliver(subject: String, body: String) {
         val message =
             JakartaMessage(JakartaSession.getInstance(Properties()), raw(subject, body, EMAIL).byteInputStream())

@@ -1,7 +1,9 @@
 package net.thunderbird.app.ubuntutouch
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -33,6 +35,7 @@ internal fun LiveMailScreen(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
                     ButtonText("Download full message", { onEvent(LiveMailEvent.Download) }, enabled = !state.busy)
                 }
                 MessageFlagButtons(content.summary, state.busy, onEvent)
+                ResponseButtons(content, state.busy, onEvent)
                 MailReader(content, Modifier.weight(1f))
             }
 
@@ -102,6 +105,25 @@ private fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
             ButtonText("Review local changes", { onEvent(LiveMailEvent.DiscardPending) }, enabled = !state.busy)
         }
     }
+}
+
+@Composable
+private fun ResponseButtons(content: MailContent, busy: Boolean, onEvent: (LiveMailEvent) -> Unit) {
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        listOf(
+            ResponseMode.REPLY to "Reply",
+            ResponseMode.REPLY_ALL to "Reply all",
+            ResponseMode.FORWARD to "Forward text",
+        )
+            .forEach { (mode, label) ->
+                ButtonText(
+                    label,
+                    { onEvent(LiveMailEvent.Respond(mode)) },
+                    enabled = !busy && content.complete && content.plainText,
+                )
+            }
+    }
+    if (!content.plainText) TextBodyLarge("Reply and forward require a cached plain-text body in this preview.")
 }
 
 @Composable

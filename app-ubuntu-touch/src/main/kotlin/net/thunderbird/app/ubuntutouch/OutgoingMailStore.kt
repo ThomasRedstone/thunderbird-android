@@ -20,6 +20,8 @@ internal data class OutgoingMail(
     val hasUncertainAttempt: Boolean = false,
     val cc: String = "",
     val bcc: String = "",
+    val inReplyTo: String = "",
+    val references: String = "",
 ) {
     override fun toString(): String = "OutgoingMail(id=$id, state=$state)"
 }
@@ -27,20 +29,21 @@ internal data class OutgoingMail(
 /** One application owner. All access is account-scoped and blocking; callers must use IO. */
 @Suppress("TooManyFunctions", "MagicNumber") // SQL projections/state transitions form one persistence contract.
 internal class OutgoingMailStore(private val database: MailDatabase) {
-    fun create(account: AccountId): OutgoingMail {
+    fun create(account: AccountId, seed: ResponseSeed = ResponseSeed()): OutgoingMail {
+        validate(listOf(seed.to, seed.cc, seed.subject, seed.inReplyTo, seed.references), seed.body)
         val id = UUID.randomUUID().toString()
         database.execute(
-            """INSERT INTO outgoing(id,account,recipients,subject,body,message_id,state)
-                VALUES(?,?,'','','',?,'DRAFT')""",
-            id,
-            account.toString(),
-            "<$id@mail.invalid>",
+            """INSERT INTO outgoing(id,account,recipients,subject,body,message_id,state,cc,in_reply_to,thread_references)
+                VALUES(?,?,?,?,?,?,'DRAFT',?,?,?)""",
+            id, account.toString(), seed.to, seed.subject, seed.body, "<$id@mail.invalid>", seed.cc,
+            seed.inReplyTo, seed.references,
         )
         return get(account, id)
     }
 
     fun list(account: AccountId): List<OutgoingMail> = database.query(
-        "SELECT id,recipients,subject,body,message_id,state,uncertain_attempt,cc,bcc FROM outgoing " +
+        "SELECT id,recipients,subject,body,message_id,state,uncertain_attempt,cc,bcc,in_reply_to,thread_references " +
+            "FROM outgoing " +
             "WHERE account=? ORDER BY rowid DESC",
         account.toString(),
     ) {
@@ -54,6 +57,8 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
             getLong(6) != 0L,
             getText(7),
             getText(8),
+            getText(9),
+            getText(10),
         )
     }
 
@@ -71,9 +76,7 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
         database.transaction {
             check(get(account, id).state == OutgoingState.DRAFT) { "Only drafts can be edited" }
             val headers = listOf(recipients, cc, bcc, subject)
-            require(headers.all { it.length <= MAX_HEADER_LENGTH })
-            require(body.length <= MAX_BODY_LENGTH)
-            require(headers.all { header -> header.none { it in "\r\n" } }) { "Invalid header input" }
+            validate(headers, body)
             database.execute(
                 "UPDATE outgoing SET recipients=?,subject=?,body=?,cc=?,bcc=? WHERE account=? AND id=?",
                 recipients,
@@ -105,6 +108,8 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
             recipients.forEach { (header, addresses) ->
                 if (addresses.isNotEmpty()) setHeader(header, addresses.joinToString(", ") { it.toEncodedString() })
             }
+            if (draft.inReplyTo.isNotEmpty()) setHeader("In-Reply-To", draft.inReplyTo)
+            if (draft.references.isNotEmpty()) setHeader("References", draft.references)
             subject = draft.subject
             messageId = draft.messageId
             setSentDate(Date(), false)
@@ -183,6 +188,12 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
     fun delete(account: AccountId, id: String) = database.transaction {
         check(get(account, id).state != OutgoingState.SENDING)
         database.execute("DELETE FROM outgoing WHERE account=? AND id=?", account.toString(), id)
+    }
+
+    private fun validate(headers: List<String>, body: String) {
+        require(headers.all { it.length <= MAX_HEADER_LENGTH })
+        require(body.length <= MAX_BODY_LENGTH)
+        require(headers.all { header -> header.none { it in "\r\n" } }) { "Invalid header input" }
     }
 
     private companion object {

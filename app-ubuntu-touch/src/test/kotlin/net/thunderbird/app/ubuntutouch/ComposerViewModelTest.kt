@@ -170,6 +170,35 @@ class ComposerViewModelTest {
         }
     }
 
+    @Test
+    fun `resumed response keeps threading during edits and cannot replace dirty input`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("response.sqlite")).use { database ->
+            val manager = manager(database)
+            val account = manager.findAll().single().id
+            val store = OutgoingMailStore(database)
+            val draft = store.create(
+                account,
+                ResponseSeed(
+                    to = "recipient@example.invalid",
+                    subject = "Re: Fixture",
+                    body = "> Original",
+                    inReplyTo = "<parent@example.invalid>",
+                    references = "<parent@example.invalid>",
+                ),
+            )
+            val testSubject = ComposerViewModel(manager, store, OutgoingMailSender(store) { _, _ -> }, backgroundScope)
+            testSubject.event(ComposerEvent.Resume(ComposeRequest(account, draft.id, "Saved response")))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.selected?.id).isEqualTo(draft.id)
+            assertThat(testSubject.state.value.notice).isEqualTo("Saved response")
+            testSubject.event(ComposerEvent.Change(ComposeField.BODY, TextFieldValue("Reply\n> Original")))
+            testSubject.event(ComposerEvent.Resume(ComposeRequest(account, "must-not-open")))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(store.get(account, draft.id).body).isEqualTo("Reply\n> Original")
+            assertThat(store.get(account, draft.id).inReplyTo).isEqualTo("<parent@example.invalid>")
+        }
+    }
+
     private fun manager(database: MailDatabase): UtAccountManager {
         val server = ServerSettings(
             "imap",

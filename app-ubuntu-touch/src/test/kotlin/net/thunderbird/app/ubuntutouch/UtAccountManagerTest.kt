@@ -150,6 +150,10 @@ class UtAccountManagerTest {
             database.execute("DROP TABLE outgoing")
             database.execute("DROP TABLE accounts")
             database.execute("DROP TABLE credential_cleanup")
+            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
+                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            }
             database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=1")
         }
@@ -159,7 +163,7 @@ class UtAccountManagerTest {
             val backend = PersistentBackendStorage(database, "existing-account")
             assertThat(backend.getFolderServerIds()).isEqualTo(listOf("INBOX"))
             assertThat(backend.getExtraNumber("checkpoint")).isEqualTo(42L)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(7L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(8L)
         }
     }
 

@@ -1,7 +1,5 @@
 package net.thunderbird.app.ubuntutouch
 
-import com.fsck.k9.mail.internet.MessageExtractor
-import com.fsck.k9.mail.internet.MimeUtility
 import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.account.AccountId
 
@@ -13,10 +11,18 @@ internal data class MailSummary(
     val unread: Boolean,
     val starred: Boolean = false,
 )
-internal data class MailContent(val summary: MailSummary, val body: String, val complete: Boolean)
+internal data class MailContent(
+    val summary: MailSummary,
+    val body: String,
+    val complete: Boolean,
+    val plainText: Boolean = true,
+)
 
 /** Local reads never request credentials or initiate network activity. Blocking methods require an IO caller. */
 internal interface LiveMailRepository {
+    fun respond(account: AccountId, folder: String, uid: String, mode: ResponseMode): String {
+        error("Responses are unavailable")
+    }
     fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) {
         error("Message actions are unavailable")
     }
@@ -45,6 +51,9 @@ internal class PersistentLiveMailRepository(
 ) : LiveMailRepository {
     private val actions = PendingFlagStore(database)
 
+    override fun respond(account: AccountId, folder: String, uid: String, mode: ResponseMode): String =
+        ResponseDraftFactory(database).create(account, folder, uid, mode)
+
     override fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) =
         actions.enqueue(account, folder, uid, flag, value)
 
@@ -67,12 +76,12 @@ internal class PersistentLiveMailRepository(
     override fun content(account: AccountId, folder: String, uid: String): MailContent {
         val cached = storage(account).getFolder(folder)
         val message = checkNotNull(cached.readMessage(uid)) { "Message absent from cache" }
-        val part = MimeUtility.findFirstPartByMimeType(message, "text/plain")
+        val text = plainTextBody(message)
         return MailContent(
             summary(account, folder, cached, uid),
-            part?.let { MessageExtractor.getTextFromPart(it) }
-                ?: "No cached plain-text body. HTML viewing is not available yet.",
+            text ?: "No cached plain-text body. HTML viewing is not available yet.",
             Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid),
+            text != null,
         )
     }
 

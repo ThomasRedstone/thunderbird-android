@@ -37,6 +37,7 @@ internal fun MailApplicationScreen(
     lifecycle: MailWindowLifecycle,
 ) {
     var destination by remember { mutableStateOf(MailDestination.DEMO) }
+    var composeRequest by remember { mutableStateOf<ComposeRequest?>(null) }
     when (destination) {
         MailDestination.DEMO -> {
             Column(Modifier.fillMaxSize()) {
@@ -70,6 +71,10 @@ internal fun MailApplicationScreen(
             val composer = loadOwnedMailModel(createComposer)
             if (composer != null) {
                 RegisterMailClose(composer, lifecycle, composer::flushForClose, composer::flushOnBackground)
+                LaunchedEffect(composer, composeRequest) {
+                    composeRequest?.let { composer.event(ComposerEvent.Resume(it)) }
+                    composeRequest = null
+                }
                 val state by composer.state.collectAsState()
                 ComposerDestination(state, composer::event, keyboard) { destination = it }
             }
@@ -80,20 +85,31 @@ internal fun MailApplicationScreen(
             if (mailbox != null) {
                 RegisterMailClose(mailbox, lifecycle, mailbox::flushForClose, {})
                 val state by mailbox.state.collectAsState()
-                Column(
-                    Modifier.fillMaxSize().mailBack(!state.busy) {
-                        if (state.account == null) {
-                            destination = MailDestination.DEMO
-                        } else {
-                            mailbox.event(LiveMailEvent.Back)
-                        }
-                    },
-                ) {
-                    NavigationButtons(state.busy, { destination = it }, keyboard)
-                    LiveMailScreen(state, mailbox::event)
+                MailboxDestination(state, mailbox::event, keyboard, { destination = it }) {
+                    composeRequest = it
+                    destination = MailDestination.COMPOSE
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MailboxDestination(
+    state: LiveMailState,
+    onEvent: (LiveMailEvent) -> Unit,
+    keyboard: MaliitKeyboard?,
+    navigate: (MailDestination) -> Unit,
+    compose: (ComposeRequest) -> Unit,
+) {
+    LaunchedEffect(state.composeRequest) { state.composeRequest?.let(compose) }
+    Column(
+        Modifier.fillMaxSize().mailBack(!state.busy) {
+            if (state.account == null) navigate(MailDestination.DEMO) else onEvent(LiveMailEvent.Back)
+        },
+    ) {
+        NavigationButtons(state.busy, navigate, keyboard)
+        LiveMailScreen(state, onEvent)
     }
 }
 

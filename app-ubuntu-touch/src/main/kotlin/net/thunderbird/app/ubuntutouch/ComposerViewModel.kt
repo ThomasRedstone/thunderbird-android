@@ -83,6 +83,14 @@ internal class ComposerViewModel(
 
     private fun navigate(event: ComposerEvent, current: ComposerState) {
         when (event) {
+            is ComposerEvent.Resume -> if (!current.dirty) {
+                operate {
+                    check(manager.findById(event.request.account) != null)
+                    reload(ComposerState(manager.findAll(), account = event.request.account), event.request.id)
+                        .copy(notice = event.request.notice)
+                }
+            }
+
             is ComposerEvent.Account -> if (!current.dirty) {
                 operate {
                     check(manager.findById(event.id) != null)

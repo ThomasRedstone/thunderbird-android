@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.account.AccountId
 
+internal data class ComposeRequest(val account: AccountId, val id: String, val notice: String? = null)
+
 internal data class LiveMailState(
     val accounts: List<UtMailAccount>,
     val account: AccountId? = null,
@@ -20,6 +22,7 @@ internal data class LiveMailState(
     val folder: MailFolder? = null,
     val messages: List<MailSummary> = emptyList(),
     val content: MailContent? = null,
+    val composeRequest: ComposeRequest? = null,
     val pendingActions: Int = 0,
     val confirmDiscard: Boolean = false,
     val busy: Boolean = false,
@@ -34,6 +37,7 @@ internal sealed interface LiveMailEvent {
     data class OpenAccount(val id: AccountId) : LiveMailEvent
     data class OpenFolder(val folder: MailFolder) : LiveMailEvent
     data class OpenMessage(val uid: String) : LiveMailEvent
+    data class Respond(val mode: ResponseMode) : LiveMailEvent
     data class ChangeFlag(val flag: Flag, val enabled: Boolean) : LiveMailEvent
     data object DiscardPending : LiveMailEvent
     data object ConfirmDiscard : LiveMailEvent
@@ -102,6 +106,8 @@ internal class LiveMailViewModel(
 
     private fun handleActions(event: LiveMailEvent, current: LiveMailState): Boolean {
         when (event) {
+            is LiveMailEvent.Respond -> current.content?.let { load(current, uid = it.summary.id, action = event) }
+
             is LiveMailEvent.ChangeFlag -> current.content?.let { load(current, uid = it.summary.id, action = event) }
 
             LiveMailEvent.DiscardPending -> mutableState.value = current.copy(confirmDiscard = true)
@@ -193,7 +199,20 @@ internal class LiveMailViewModel(
             repository.download(account, checkNotNull(initial.folder).id, uid, checkNotNull(operation))
         }
         operation?.ensureActive()
-        return readCache(initial, uid)
+        val prepared = if (action is LiveMailEvent.Respond && uid != null) {
+            val id = repository.respond(account, checkNotNull(initial.folder).id, uid, action.mode)
+            val notice = if (action.mode ==
+                ResponseMode.FORWARD
+            ) {
+                "Forwarded text only. Attachments are not included."
+            } else {
+                null
+            }
+            initial.copy(composeRequest = ComposeRequest(account, id, notice))
+        } else {
+            initial
+        }
+        return readCache(prepared, uid)
     }
 
     private fun readCache(initial: LiveMailState, uid: String?): LiveMailState {

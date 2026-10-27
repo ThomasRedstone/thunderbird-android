@@ -915,3 +915,37 @@ window close still persists the exact typed subject. Logs: `/tmp/thunderbird-fla
 `/tmp/thunderbird-flags-close-format.log`; XML is retained in the evidence directory. The full command adds
 `:app-ubuntu-touch:desktopDraftCloseProbe` with the isolated synthetic/Xvfb environment to the command above.
 No shared Android changes were introduced; prior shared-mail verification remains unchanged.
+
+
+## Daily-use response drafts: reply, reply-all and text forwarding
+
+Bounded work item: create a saved, account-scoped draft from a complete cached plain-text message; open it directly in
+the existing composer without sending or fetching credentials; preserve threading through edits/reopen/queue/send.
+Respect Reply-To and List-Post, exclude configured own primary addresses and deduplicate recipients. Never copy source
+Bcc. Replies quote decoded text; text forwards include visible source context with no reply threading or recipients.
+Exclusions remain explicit: attachment/HTML forwarding, HTML-only response conversion, rich quote/signature preferences,
+additional identities, provider and physical UI acceptance remain unfinished requirements. The action is labelled
+“Forward text” and the composer warns that attachments are not included; full forwarding is not claimed complete.
+
+The Android ReplyToParser depends on LegacyAccount/android.net.Uri, so the app adds a JVM adapter over the existing
+Message/Address/MIME APIs rather than importing Android runtime code. Reply targets prefer Reply-To, then List-Post
+mailto path (query recipients ignored), then From. Reply-all follows the baseline's addition of From/To/Cc with self
+filtering and case-insensitive deduplication. Source subjects cannot inject CR/LF. Only syntactically bounded Message-ID
+tokens enter threading; References retain the root and recent ancestors, capped at ten IDs of at most 512 characters.
+Schema 8 adds empty-default in_reply_to/thread_references columns while preserving schema7 pending flags and frozen
+outgoing records. A response seed is inserted atomically; normal draft edits preserve its threading fields.
+
+Reader MVI creates a durable local compose request before navigation. Composer Resume opens that saved account/draft
+and does not replace dirty input. Existing lifecycle close waiting also covers response creation. Partial or HTML-only
+sources cannot create a response in this preview; rejection happens before any draft insertion.
+
+While implementing replies, a real MIME selection bug was found: first-text/plain selection could display/quote a text
+attachment instead of the message body, and lose later inline body parts. PlainTextBody now uses the shared engine's
+viewable/attachment classifier and alternative handling, preserving inline text order. Two regressions fail with the
+old first-match selector and pass restored, with retained before XML at
+`app-ubuntu-touch/build/evidence/responses/mime-before.xml`. No actual private message was used; fixtures are synthetic.
+
+110 app tests pass before native-probe expansion, including actual reader→saved composer UI navigation without send,
+all response mode events/busy/partial controls, recipient/list/self/Bcc rules, threading bounds, composer Resume/edit
+persistence, schema7→8 preserving pending flags, and a real TLS SMTP reply after DB reopen. A separate Jakarta IMAP
+oracle verifies delivered In-Reply-To/References and quoted UTF-8 body. Final checks/native packaging follow below.

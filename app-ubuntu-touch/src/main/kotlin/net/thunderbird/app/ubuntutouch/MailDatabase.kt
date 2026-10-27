@@ -10,10 +10,11 @@ private const val SIGNON_SCHEMA_VERSION = 3L
 private const val OUTGOING_SCHEMA_VERSION = 4L
 private const val ATTEMPT_SCHEMA_VERSION = 5L
 private const val RECIPIENT_SCHEMA_VERSION = 6L
-private const val CURRENT_SCHEMA_VERSION = 7L
+private const val FLAG_SCHEMA_VERSION = 7L
+private const val CURRENT_SCHEMA_VERSION = 8L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
-@Suppress("TooGenericExceptionCaught") // Always close/roll back on failure, including cancellation; rethrow unchanged.
+@Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
 internal class MailDatabase(path: Path) : AutoCloseable {
     private val connection: SQLiteConnection
 
@@ -31,7 +32,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < OUTGOING_SCHEMA_VERSION) createOutgoingSchema()
             if (version < ATTEMPT_SCHEMA_VERSION) createAttemptHistorySchema()
             if (version < RECIPIENT_SCHEMA_VERSION) createRecipientSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createPendingFlagsSchema()
+            if (version < FLAG_SCHEMA_VERSION) createPendingFlagsSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createThreadingSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
         } catch (exception: Exception) {
@@ -75,6 +77,12 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createThreadingSchema() = transaction {
+        execute("ALTER TABLE outgoing ADD COLUMN in_reply_to TEXT NOT NULL DEFAULT ''")
+        execute("ALTER TABLE outgoing ADD COLUMN thread_references TEXT NOT NULL DEFAULT ''")
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createPendingFlagsSchema() = transaction {
         execute(
             """CREATE TABLE pending_flags (
@@ -83,7 +91,7 @@ internal class MailDatabase(path: Path) : AutoCloseable {
                 flag TEXT NOT NULL, enabled INTEGER NOT NULL, uid_validity INTEGER NOT NULL,
                 UNIQUE(account,folder,uid,flag))""",
         )
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$FLAG_SCHEMA_VERSION")
     }
 
     private fun createRecipientSchema() = transaction {

@@ -167,6 +167,10 @@ class OutgoingMailStoreTest {
             val account = account(database)
             database.execute("INSERT INTO signon_identity_index(key,identity_id) VALUES('fixture',42)")
             database.execute("DROP TABLE outgoing")
+            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
+                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            }
             database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=3")
             account.id
@@ -175,7 +179,7 @@ class OutgoingMailStoreTest {
             assertThat(OutgoingMailStore(database).list(accountId)).isEqualTo(emptyList())
             assertThat(SignonIdentityIndex(database).find("fixture")).isEqualTo(42L)
             assertThat(AccountSettingsStorage(database).all().single().id).isEqualTo(accountId)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(7L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(8L)
         }
     }
 
@@ -226,6 +230,10 @@ class OutgoingMailStoreTest {
             database.execute("ALTER TABLE outgoing DROP COLUMN cc")
             database.execute("ALTER TABLE outgoing DROP COLUMN bcc")
             database.execute("ALTER TABLE outgoing DROP COLUMN uncertain_attempt")
+            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
+                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            }
             database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=4")
             account.id to draft.id
@@ -276,6 +284,10 @@ class OutgoingMailStoreTest {
             val mime = database.query("SELECT mime FROM outgoing WHERE id=?", draft.id) { getBlob(0) }.single()
             database.execute("ALTER TABLE outgoing DROP COLUMN cc")
             database.execute("ALTER TABLE outgoing DROP COLUMN bcc")
+            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
+                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            }
             database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=5")
             Triple(account.id, draft.id, mime)
@@ -346,6 +358,10 @@ class OutgoingMailStoreTest {
                 bcc = "blind@example.invalid",
             )
             store.queue(account, draft.id)
+            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
+                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            }
             database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=6")
             account.id to draft.id
@@ -358,6 +374,39 @@ class OutgoingMailStoreTest {
             assertThat(testSubject.get(account, id).hasUncertainAttempt).isFalse()
             assertThat(testSubject.claim(account, id) != null).isTrue()
             assertThat(PendingFlagStore(database).list(account).isEmpty()).isTrue()
+        }
+    }
+
+    @Test
+    fun `schema seven upgrade preserves pending flags and frozen outgoing data`() {
+        val path = directory.root.toPath().resolve("version-seven.sqlite")
+        val reference = MailDatabase(path).use { database ->
+            val account = account(database)
+            val store = OutgoingMailStore(database)
+            val draft = queued(store, account)
+            database.execute(
+                "INSERT INTO folders(account,server_id,name,type) VALUES(?,'INBOX','Inbox','INBOX')",
+                account.id.toString(),
+            )
+            val folder = database.query("SELECT id FROM folders") { getLong(0) }.single()
+            database.execute(
+                "INSERT INTO pending_flags(account,folder,uid,flag,enabled,uid_validity) " +
+                    "VALUES(?,?,'1','SEEN',1,42)",
+                account.id.toString(),
+                folder,
+            )
+            database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+            database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            database.execute("PRAGMA user_version=7")
+            account.id to draft.id
+        }
+        MailDatabase(path).use { database ->
+            val (account, id) = reference
+            val testSubject = OutgoingMailStore(database)
+            assertThat(testSubject.get(account, id).inReplyTo).isEqualTo("")
+            assertThat(testSubject.get(account, id).references).isEqualTo("")
+            assertThat(testSubject.claim(account, id) != null).isTrue()
+            assertThat(PendingFlagStore(database).list(account).single().uidValidity).isEqualTo(42L)
         }
     }
 

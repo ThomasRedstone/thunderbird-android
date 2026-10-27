@@ -71,11 +71,15 @@ object ConfinedComposerProbe {
             AccountSettingsStorage(database).insert(account)
             SignonIdentityIndex(database).put("local-index-fixture", 42)
             database.execute("DROP TABLE outgoing")
+            if ("in_reply_to" in database.query("PRAGMA table_info(outgoing)") { getText(1) }) {
+                database.execute("ALTER TABLE outgoing DROP COLUMN in_reply_to")
+                database.execute("ALTER TABLE outgoing DROP COLUMN thread_references")
+            }
             database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=3")
         }
         val id = MailDatabase(path).use { database ->
-            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 7L)
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 8L)
             check(AccountSettingsStorage(database).all().single().id == account.id)
             check(SignonIdentityIndex(database).find("local-index-fixture") == 42L)
             val store = OutgoingMailStore(database)
@@ -131,9 +135,32 @@ object ConfinedComposerProbe {
                 check(store.get(account.id, selected.id).cc == "copy@example.invalid")
                 check(store.get(account.id, selected.id).bcc == "blind@example.invalid")
                 check(!model.state.value.dirty)
+                checkResponseModel(model, store, account)
             } finally {
                 withContext(Dispatchers.Main) { model.close() }
             }
         }
+    }
+    private suspend fun checkResponseModel(model: ComposerViewModel, store: OutgoingMailStore, account: UtMailAccount) {
+        val draft = store.create(
+            account.id,
+            ResponseSeed(
+                to = "recipient@example.invalid",
+                subject = "Re: Native",
+                body = "\n\n> Original",
+                inReplyTo = "<parent@example.invalid>",
+                references = "<parent@example.invalid>",
+            ),
+        )
+        withContext(Dispatchers.Main) {
+            model.event(ComposerEvent.Resume(ComposeRequest(account.id, draft.id)))
+            model.state.first { !it.busy }
+            check(model.state.value.selected?.id == draft.id)
+            model.event(ComposerEvent.Keyboard(ComposeField.BODY, MaliitTextEdit.Commit("Reply λ\n")))
+            check(model.flushForClose())
+        }
+        check(store.get(account.id, draft.id).inReplyTo == "<parent@example.invalid>")
+        check(store.get(account.id, draft.id).references == "<parent@example.invalid>")
+        check(store.get(account.id, draft.id).body.startsWith("Reply λ"))
     }
 }

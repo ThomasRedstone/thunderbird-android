@@ -100,6 +100,28 @@ class LiveMailViewModelTest {
         }
     }
 
+    @Test
+    fun `response creates one local compose request and close waits for the saved draft`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("response.sqlite")).use { database ->
+            val manager = manager(database)
+            val repository = FakeLiveMailRepository()
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            val account = manager.findAll().single().id
+            testSubject.event(LiveMailEvent.OpenAccount(account))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenFolder(repository.folder))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenMessage(repository.summary.id))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.Respond(ResponseMode.REPLY_ALL))
+            testSubject.event(LiveMailEvent.Respond(ResponseMode.REPLY_ALL))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(repository.responses).isEqualTo(1)
+            assertThat(testSubject.state.value.composeRequest).isEqualTo(ComposeRequest(account, "response-draft"))
+            assertThat(repository.refreshes).isEqualTo(0)
+        }
+    }
+
     private fun manager(database: MailDatabase): UtAccountManager {
         val settings = ServerSettings(
             "imap",
@@ -130,6 +152,11 @@ class LiveMailViewModelTest {
 private class FakeLiveMailRepository : LiveMailRepository {
     val folder = MailFolder("INBOX", "Inbox")
     var summary = MailSummary("1", "Fixture", "Sender", true)
+    var responses = 0
+    override fun respond(account: AccountId, folder: String, uid: String, mode: ResponseMode): String {
+        responses++
+        return "response-draft"
+    }
     var failFlag = false
     var pending = 0
     override fun pendingFlags(account: AccountId) = pending

@@ -20,7 +20,7 @@ import net.thunderbird.feature.account.AccountIdFactory
 object ConfinedProtocolProbe {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size in setOf(2, 5, 6, 7, 8))
+        require(args.size in setOf(2, 5, 6, 7, 8, 9))
         val label = Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000')
         check(label == "${args[0]} (enforce)")
         if (args.size == 2) verifyRestart(Path.of(args[1])) else prepare(args)
@@ -37,7 +37,8 @@ object ConfinedProtocolProbe {
         } else {
             ConnectionSecurity.SSL_TLS_REQUIRED
         }
-        if (args.size == 8) require(args[7] == "flags")
+        if (args.size >= 8) require(args[7] == "flags")
+        if (args.size == 9) require(args[8] == "reply")
         Files.createDirectories(parent())
         val directory = Files.createTempDirectory(parent(), "protocol-runtime-")
         val account = UtMailAccount(
@@ -50,9 +51,10 @@ object ConfinedProtocolProbe {
         )
         var prepared = false
         try {
-            checkNetwork(directory, account, Path.of(args[4]), args.size == 8)
+            checkNetwork(directory, account, Path.of(args[4]), args.size >= 8, args.size == 9)
             if (retain) Files.writeString(directory.resolve("protocol.fixture"), "controlled-device-protocol-v1")
-            if (args.size == 8) Files.writeString(directory.resolve("flags.fixture"), "read-starred")
+            if (args.size >= 8) Files.writeString(directory.resolve("flags.fixture"), "read-starred")
+            if (args.size == 9) Files.writeString(directory.resolve("reply.fixture"), "threaded-reply")
             prepared = true
         } finally {
             if (!retain || !prepared) cleanup(directory, account.id)
@@ -91,7 +93,12 @@ object ConfinedProtocolProbe {
                     check(!message.unread && message.starred)
                 }
                 check(repository.content(id, "INBOX", message.id).body.trim() == "Controlled incoming body")
-                check(OutgoingMailStore(database).list(id).single().state == OutgoingState.SENT)
+                val outgoing = OutgoingMailStore(database).list(id).single()
+                check(outgoing.state == OutgoingState.SENT)
+                if (Files.exists(directory.resolve("reply.fixture"))) {
+                    check(outgoing.inReplyTo == "<native-parent@example.invalid>")
+                    check(outgoing.references == "<native-root@example.invalid> <native-parent@example.invalid>")
+                }
             }
             check(logs == 0)
         } finally {
@@ -110,7 +117,13 @@ object ConfinedProtocolProbe {
         check(directory.toFile().deleteRecursively())
     }
 
-    private fun checkNetwork(directory: Path, account: UtMailAccount, certificate: Path, flags: Boolean) {
+    private fun checkNetwork(
+        directory: Path,
+        account: UtMailAccount,
+        certificate: Path,
+        flags: Boolean,
+        reply: Boolean,
+    ) {
         var logs = 0
         val logger = DefaultLogger(object : LogSink {
             override val level = LogLevel.VERBOSE
@@ -144,19 +157,7 @@ object ConfinedProtocolProbe {
             val message = repository.messages(account.id, "INBOX").single()
             check(message.subject == "Device controlled inbox")
             check(repository.content(account.id, "INBOX", message.id).body.trim() == "Controlled incoming body")
-            val outgoing = OutgoingMailStore(database)
-            val draft = outgoing.create(account.id)
-            outgoing.save(
-                account.id,
-                draft.id,
-                "recipient@example.invalid",
-                "Device queued outgoing",
-                "Phone body λ\r\n.A leading dot",
-            )
-            outgoing.queue(account, draft.id)
-            val sender = OutgoingMailSender(outgoing, SessionOutgoingTransport(sessions))
-            check(sender.send(account.id, draft.id) == OutgoingState.SENT)
-            check(sender.send(account.id, draft.id) == OutgoingState.SENT)
+            sendFixture(database, sessions, account, reply)
         }
         MailDatabase(path).use { database ->
             val manager = manager(database)
@@ -168,6 +169,39 @@ object ConfinedProtocolProbe {
             check(OutgoingMailStore(database).list(account.id).single().state == OutgoingState.SENT)
         }
         check(logs == 0)
+    }
+
+    private fun sendFixture(
+        database: MailDatabase,
+        sessions: ForegroundMailSessionFactory,
+        account: UtMailAccount,
+        reply: Boolean,
+    ) {
+        val outgoing = OutgoingMailStore(database)
+        val draft = if (reply) {
+            val repository = PersistentLiveMailRepository(database, sessions)
+            val uid = repository.messages(account.id, "INBOX").single().id
+            val id = repository.respond(account.id, "INBOX", uid, ResponseMode.REPLY)
+            outgoing.get(account.id, id).also {
+                check(it.inReplyTo == "<native-parent@example.invalid>")
+                check(it.references == "<native-root@example.invalid> <native-parent@example.invalid>")
+                check(it.body.contains("> Controlled incoming body"))
+            }
+        } else {
+            outgoing.create(account.id)
+        }
+        outgoing.save(
+            account.id,
+            draft.id,
+            "recipient@example.invalid",
+            if (reply) draft.subject else "Device queued outgoing",
+            "Phone body λ\r\n.A leading dot",
+        )
+        outgoing.queue(account, draft.id)
+        val sender = OutgoingMailSender(outgoing, SessionOutgoingTransport(sessions))
+        check(sender.send(account.id, draft.id) == OutgoingState.SENT)
+        check(sender.send(account.id, draft.id) == OutgoingState.SENT)
+        if (reply) println("Native reply seeding, quoted body, preserved threading and SMTP acceptance: PASS")
     }
 
     private fun fixtureTrust(certificate: Path): KeyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {

@@ -1572,3 +1572,42 @@ attachment checks, protocol/composer drivers and ConfinedOAuthCallbackProbe, wit
 Do not execute it against installed 0.1.17. At this checkpoint the Click transfer is still running; no installation,
 native 0.1.18 test, browser callback result or fleet update is claimed. A prepared upgrade script checks the exact
 artifact hash, stops only the old app service and makes a private SQLite quick_check backup before Phone Manager install.
+
+
+### Protected OAuth token persistence (later source, not candidate 0.1.18)
+
+OAuthTokenStore now uses the existing CredentialStore boundary for opaque token data; it has no SQLite dependency.
+Its per-account key and protected payload bind the account UUID, client ID, authorization/token endpoints and
+canonical scope set. A callback's ephemeral port is deliberately excluded so a new login port does not invalidate
+saved refresh credentials. Copying a payload to another account or changing provider configuration fails closed.
+The binding digest is a configuration guard, not a MAC or replacement for the protected service's access controls.
+
+A versioned bounded binary envelope stores access/optional refresh token and absolute expiry. Token values reject
+control/non-ASCII input and lengths over 16384 characters; decode caps total size at 40000 bytes and rejects unknown
+versions, invalid markers, truncation and trailing data. Temporary encoded/read arrays and the encoding buffer are
+cleared, including on credential-service failure. Retained immutable JVM strings are not physically erasable;
+OAuthTokens.toString is redacted. Locked/unavailable service errors propagate without treating them as missing data.
+No plaintext fallback, logging, provider configuration change, dependency or permission is introduced.
+
+Eight tests use a recording credential-service fake to verify reopen, field preservation, clearing owned arrays,
+account/configuration isolation, scope-order/redirect-port equivalence, absent refresh/expired access state,
+malformed payloads, lock/write-failure behavior, selected-account deletion and invalid token values.
+These host tests do not establish actual SignOn OAuth payload round trips or atomic refresh rotation.
+Setup ownership, account deletion/credential cleanup integration, migration, token exchange/refresh/revocation and
+IMAP/SMTP token-provider wiring remain required. This component is not yet called by the app UI and is not in the
+already built f18314918d 0.1.18 artifact; any later package containing it must use a new version.
+
+
+All 177 host app tests pass (zero failures/errors/skips), plus detekt/installDist/spotlessCheck:
+/tmp/thunderbird-oauth-storage-full.log; XML build/evidence/oauth-storage/.
+JDK 21/SDK with the standard app-scoped Gradle tasks and no-configuration-cache/isolated-projects=false/max-workers=4.
+No shared Android change; Android assembly/device suites were not rerun and the JVM module has no Android lint/device task.
+The frozen 0.1.18 test-driver JAR uploaded earlier remains matched to f18314918d, not these new token-store classes.
+
+Provider prerequisites were checked against official documentation. Google's
+[IMAP/SMTP OAuth mechanism](https://developers.google.cn/workspace/gmail/imap/xoauth2-protocol?hl=en)
+uses the full mail.google.com scope and describes public-app verification requirements. Microsoft's
+[mail protocol OAuth guide](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth/)
+requires an app registration and Outlook-resource delegated scopes for IMAP and SMTP, with offline_access for
+refresh tokens. A Graph-only token must not be assumed suitable for IMAP/SMTP. These constraints are recorded for
+implementation; no production registration, tenant policy or upstream OAuth configuration has been changed.

@@ -1,0 +1,136 @@
+package net.thunderbird.app.ubuntutouch
+
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
+import java.io.IOException
+import java.security.MessageDigest
+import net.thunderbird.core.common.oauth.OAuthConfiguration
+import net.thunderbird.feature.account.AccountId
+
+internal class OAuthTokens(val accessToken: String, val refreshToken: String?, val expiresAtMillis: Long) {
+    init {
+        require(validToken(accessToken) && (refreshToken == null || validToken(refreshToken))) { "Invalid OAuth token" }
+        require(expiresAtMillis >= 0) { "Invalid OAuth expiry" }
+    }
+
+    override fun toString(): String = "OAuthTokens(redacted)"
+}
+
+/** Opaque token data goes only to the protected service, never to the mail database. Not yet wired to setup/removal. */
+internal class OAuthTokenStore(private val credentials: CredentialStore) {
+    fun read(account: AccountId, configuration: OAuthConfiguration): OAuthTokens? {
+        val encoded = credentials.read(key(account)) ?: return null
+        return try {
+            decode(encoded, binding(account, configuration))
+        } finally {
+            encoded.fill(0)
+        }
+    }
+
+    fun write(account: AccountId, configuration: OAuthConfiguration, tokens: OAuthTokens) {
+        val encoded = encode(binding(account, configuration), tokens)
+        try {
+            credentials.write(key(account), encoded)
+        } finally {
+            encoded.fill(0)
+        }
+    }
+
+    fun delete(account: AccountId) = credentials.delete(key(account))
+
+    private fun key(account: AccountId): String = "ut-oauth-v1:$account"
+}
+
+internal class OAuthTokenStorageException : IOException(
+    "Stored OAuth state is invalid or belongs to another configuration",
+)
+
+private fun binding(account: AccountId, configuration: OAuthConfiguration): ByteArray {
+    val fields =
+        listOf(
+            account.toString(),
+            configuration.clientId,
+            configuration.authorizationEndpoint,
+            configuration.tokenEndpoint,
+        )
+    require(fields.all { it.isNotBlank() && it.length <= MAX_CONFIGURATION_FIELD }) { "Invalid OAuth configuration" }
+    require(
+        configuration.scopes.size in 1..MAX_SCOPES &&
+            configuration.scopes.all { it.isNotBlank() && it.length <= MAX_SCOPE },
+    ) {
+        "Invalid OAuth scopes"
+    }
+    val buffer = ByteArrayOutputStream()
+    val output = DataOutputStream(buffer)
+    output.writeUTF(account.toString())
+    output.writeUTF(configuration.clientId)
+    output.writeUTF(configuration.authorizationEndpoint)
+    output.writeUTF(configuration.tokenEndpoint)
+    val scopes = configuration.scopes.distinct().sorted()
+    output.writeInt(scopes.size)
+    scopes.forEach(output::writeUTF)
+    // The callback's ephemeral port changes on every login; it must not invalidate persisted refresh tokens.
+    return MessageDigest.getInstance("SHA-256").digest(buffer.toByteArray())
+}
+
+private fun encode(binding: ByteArray, tokens: OAuthTokens): ByteArray = SecretBuffer().use { buffer ->
+    val output = DataOutputStream(buffer)
+    output.writeInt(TOKEN_FORMAT_VERSION)
+    output.write(binding)
+    output.writeUTF(tokens.accessToken)
+    output.writeBoolean(tokens.refreshToken != null)
+    tokens.refreshToken?.let(output::writeUTF)
+    output.writeLong(tokens.expiresAtMillis)
+    output.flush()
+    buffer.toByteArray()
+}
+
+private fun decode(encoded: ByteArray, expectedBinding: ByteArray): OAuthTokens {
+    requireStored(encoded.size <= MAX_ENCODED_BYTES)
+    try {
+        val input = DataInputStream(ByteArrayInputStream(encoded))
+        requireStored(input.readInt() == TOKEN_FORMAT_VERSION)
+        val actualBinding = ByteArray(BINDING_BYTES)
+        input.readFully(actualBinding)
+        requireStored(MessageDigest.isEqual(expectedBinding, actualBinding))
+        val access = input.readUTF()
+        val hasRefresh = input.readUnsignedByte()
+        requireStored(hasRefresh in 0..1)
+        val refresh = if (hasRefresh == 1) input.readUTF() else null
+        val expires = input.readLong()
+        requireStored(input.available() == 0)
+        return OAuthTokens(access, refresh, expires)
+    } catch (_: IOException) {
+        throw OAuthTokenStorageException()
+    } catch (_: IllegalArgumentException) {
+        throw OAuthTokenStorageException()
+    }
+}
+
+private fun requireStored(condition: Boolean) {
+    if (!condition) throw OAuthTokenStorageException()
+}
+
+private fun validToken(value: String): Boolean =
+    value.isNotEmpty() && value.length <= MAX_TOKEN_CHARACTERS && value.all { it.code in TOKEN_ASCII }
+
+private class SecretBuffer : ByteArrayOutputStream() {
+    override fun close() {
+        buf.fill(0)
+        reset()
+    }
+}
+
+private const val TOKEN_FORMAT_VERSION = 1
+private const val BINDING_BYTES = 32
+private const val MAX_TOKEN_CHARACTERS = 16_384
+private const val MAX_ENCODED_BYTES = 40_000
+private const val FIRST_TOKEN_ASCII = 33
+private const val LAST_TOKEN_ASCII = 126
+private val TOKEN_ASCII = FIRST_TOKEN_ASCII..LAST_TOKEN_ASCII
+
+private const val MAX_CONFIGURATION_FIELD = 4096
+private const val MAX_SCOPES = 64
+private const val MAX_SCOPE = 512

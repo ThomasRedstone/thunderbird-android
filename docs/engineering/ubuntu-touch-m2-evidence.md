@@ -260,3 +260,28 @@ Preparation output: `app-ubuntu-touch/build/evidence/signon/account-prepare-016.
 
 All 37 app tests, detekt, spotlessCheck and installDist pass after the activation change. Packaging and installed-class
 confined verification for 0.1.7 are still required before closing `b-zxbi`. Physical input acceptance remains open.
+
+## Installed 0.1.7: confined credentials and upgrade gate passed
+
+0.1.7 was built clean from `d5764edd0f2519f1395f232704421371bf5adc07`, with an empty source-change patch.
+Click review and ARM64 checks pass. Size: 146,492,050 bytes; SHA256:
+`5fc26145e3ac496c81a049b23fa966a5a53952ef508f7d4d0bda69472b27c82f`. Host package:
+`app-ubuntu-touch/build/ut-candidate-8/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.7_arm64.click`.
+Phone checksum was verified before installation; the current link and installed source reference were read independently.
+Phone-fleet commit `268c562` pins this version/path/hash, preserving unrelated work and skipping whole-fleet convergence.
+
+The test JVM classpath contained **only test classes plus the installed application's production JARs**; no prototype
+production class overlay was used. The bundled JVM ran under `mail-demo.thomasredstone_mail-demo_0.1.7 (enforce)`.
+
+- An isolated cold-service check observed no SignOn bus owner, then created/read/replaced/deleted fresh credentials and
+  verified selective identity isolation. The daemon activated through the normal bus API and app confinement remained
+  enforcing. Output: `app-ubuntu-touch/build/evidence/signon/installed-017-cold-isolated.txt`.
+- A separate JVM read the account/passwords created under 0.1.6 after upgrading to 0.1.7. Account editing, password
+  replacement, obsolete-credential cleanup and account removal passed. The identity index was empty after removal,
+  and the marked probe directory was removed. Outputs: `account-prepare-016.txt` and `account-verify-017.txt` in the
+  same evidence directory. Only a synthetic account in that test directory was touched.
+
+Blocker `b-zxbi` is resolved by the supported SignOn adapter and explicit activation. This proves the confined backend
+account/secret path, persistence and identity access across this upgrade. It does not prove physical secure-field
+typing or every daemon failure/prompt condition. The phone's screen remained off; the unlock request is still pending.
+Those gaps remain open alongside live-mail implementation, not blockers to independent protocol/composer work.

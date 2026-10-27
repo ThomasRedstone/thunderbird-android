@@ -12,6 +12,7 @@ import com.fsck.k9.mail.store.imap.IdleRefreshTimer
 import com.fsck.k9.mail.store.imap.ImapClientInfo
 import com.fsck.k9.mail.store.imap.ImapStore
 import com.fsck.k9.mail.store.imap.ImapStoreConfig
+import com.fsck.k9.mail.store.imap.OpenMode
 import com.fsck.k9.mail.transport.smtp.SmtpTransport
 import java.nio.file.Path
 import kotlinx.coroutines.flow.Flow
@@ -90,6 +91,20 @@ internal class ForegroundMailSession(
         val listener = ForegroundSyncListener(onProgress)
         backend.sync(folder, SYNC_CONFIG, listener)
         listener.throwIfFailed()
+    }
+
+    fun setFlag(folder: String, uid: String, flag: Flag, value: Boolean, uidValidity: Long) {
+        require(flag in setOf(Flag.SEEN, Flag.FLAGGED))
+        val remote = imap.getFolder(folder)
+        try {
+            operation?.ensureActive()
+            remote.open(OpenMode.READ_WRITE)
+            check(remote.getUidValidity() == uidValidity) { "Mailbox identity changed; action retained for review" }
+            operation?.ensureActive()
+            remote.setFlags(listOf(remote.getMessage(uid)), setOf(flag), value)
+        } finally {
+            remote.close()
+        }
     }
 
     fun downloadMessage(folder: String, uid: String) {

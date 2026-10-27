@@ -105,6 +105,7 @@ class SignonCredentialStoreTest {
         MailDatabase(path).use { database ->
             database.execute("DROP TABLE outgoing")
             database.execute("DROP TABLE signon_identity_index")
+            database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=2")
             database.execute("INSERT INTO credential_cleanup(key) VALUES(?)", "pending")
         }

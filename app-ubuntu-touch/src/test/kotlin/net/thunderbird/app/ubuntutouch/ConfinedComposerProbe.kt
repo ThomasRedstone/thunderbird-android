@@ -71,10 +71,11 @@ object ConfinedComposerProbe {
             AccountSettingsStorage(database).insert(account)
             SignonIdentityIndex(database).put("local-index-fixture", 42)
             database.execute("DROP TABLE outgoing")
+            database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=3")
         }
         val id = MailDatabase(path).use { database ->
-            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 6L)
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 7L)
             check(AccountSettingsStorage(database).all().single().id == account.id)
             check(SignonIdentityIndex(database).find("local-index-fixture") == 42L)
             val store = OutgoingMailStore(database)

@@ -150,6 +150,7 @@ class UtAccountManagerTest {
             database.execute("DROP TABLE outgoing")
             database.execute("DROP TABLE accounts")
             database.execute("DROP TABLE credential_cleanup")
+            database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=1")
         }
         MailDatabase(path).use { database ->
@@ -158,7 +159,7 @@ class UtAccountManagerTest {
             val backend = PersistentBackendStorage(database, "existing-account")
             assertThat(backend.getFolderServerIds()).isEqualTo(listOf("INBOX"))
             assertThat(backend.getExtraNumber("checkpoint")).isEqualTo(42L)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(6L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(7L)
         }
     }
 

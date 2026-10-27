@@ -167,6 +167,7 @@ class OutgoingMailStoreTest {
             val account = account(database)
             database.execute("INSERT INTO signon_identity_index(key,identity_id) VALUES('fixture',42)")
             database.execute("DROP TABLE outgoing")
+            database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=3")
             account.id
         }
@@ -174,7 +175,7 @@ class OutgoingMailStoreTest {
             assertThat(OutgoingMailStore(database).list(accountId)).isEqualTo(emptyList())
             assertThat(SignonIdentityIndex(database).find("fixture")).isEqualTo(42L)
             assertThat(AccountSettingsStorage(database).all().single().id).isEqualTo(accountId)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(6L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(7L)
         }
     }
 
@@ -225,6 +226,7 @@ class OutgoingMailStoreTest {
             database.execute("ALTER TABLE outgoing DROP COLUMN cc")
             database.execute("ALTER TABLE outgoing DROP COLUMN bcc")
             database.execute("ALTER TABLE outgoing DROP COLUMN uncertain_attempt")
+            database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=4")
             account.id to draft.id
         }
@@ -274,6 +276,7 @@ class OutgoingMailStoreTest {
             val mime = database.query("SELECT mime FROM outgoing WHERE id=?", draft.id) { getBlob(0) }.single()
             database.execute("ALTER TABLE outgoing DROP COLUMN cc")
             database.execute("ALTER TABLE outgoing DROP COLUMN bcc")
+            database.execute("DROP TABLE pending_flags")
             database.execute("PRAGMA user_version=5")
             Triple(account.id, draft.id, mime)
         }
@@ -323,6 +326,38 @@ class OutgoingMailStoreTest {
                 assertThat(runCatching { testSubject.queue(account, draft.id) }.isFailure).isTrue()
                 assertThat(testSubject.get(account.id, draft.id).state).isEqualTo(OutgoingState.DRAFT)
             }
+        }
+    }
+
+    @Test
+    fun `schema six upgrade preserves recipients and queued MIME without inventing uncertain history`() {
+        val path = directory.root.toPath().resolve("version-six.sqlite")
+        val reference = MailDatabase(path).use { database ->
+            val account = account(database)
+            val store = OutgoingMailStore(database)
+            val draft = store.create(account.id)
+            store.save(
+                account.id,
+                draft.id,
+                "recipient@example.invalid",
+                "Migration",
+                "Body",
+                cc = "copy@example.invalid",
+                bcc = "blind@example.invalid",
+            )
+            store.queue(account, draft.id)
+            database.execute("DROP TABLE pending_flags")
+            database.execute("PRAGMA user_version=6")
+            account.id to draft.id
+        }
+        MailDatabase(path).use { database ->
+            val (account, id) = reference
+            val testSubject = OutgoingMailStore(database)
+            assertThat(testSubject.get(account, id).cc).isEqualTo("copy@example.invalid")
+            assertThat(testSubject.get(account, id).bcc).isEqualTo("blind@example.invalid")
+            assertThat(testSubject.get(account, id).hasUncertainAttempt).isFalse()
+            assertThat(testSubject.claim(account, id) != null).isTrue()
+            assertThat(PendingFlagStore(database).list(account).isEmpty()).isTrue()
         }
     }
 

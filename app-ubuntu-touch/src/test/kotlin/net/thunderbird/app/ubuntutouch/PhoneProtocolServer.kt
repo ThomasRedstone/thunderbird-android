@@ -17,8 +17,10 @@ import jakarta.mail.internet.MimeMessage as JakartaMessage
 object PhoneProtocolServer {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size in 2..3)
-        val startTls = args.size == 3
+        require(args.size in 2..4)
+        val startTls = args.size >= 3
+        val flags = args.size == 4
+        if (flags) require(args[3] == "flags")
         if (startTls) require(args[2] == "starttls")
         val host = args[0]
         val output = Path.of(args[1]).toAbsolutePath()
@@ -48,14 +50,21 @@ object PhoneProtocolServer {
         )
         try {
             server.start()
-            serve(server, store, host, output, startTls)
+            serve(server, store, host, output, startTls, flags)
         } finally {
             server.stop()
             check(material.toFile().deleteRecursively())
         }
     }
 
-    private fun serve(server: GreenMail, store: KeyStore, host: String, output: Path, startTls: Boolean) {
+    private fun serve(
+        server: GreenMail,
+        store: KeyStore,
+        host: String,
+        output: Path,
+        startTls: Boolean,
+        flags: Boolean,
+    ) {
         val managers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
             init(store, PASSWORD.toCharArray())
         }
@@ -93,9 +102,22 @@ object PhoneProtocolServer {
                 "Independent server observation: intended recipient, Unicode/dot-stuffed body and single delivery PASS",
             )
             if (startTls) check(gateways.all { it.upgrades.get() >= 2 })
+            if (flags) checkFlags(server)
         } finally {
             gateways.forEach { it.close() }
         }
+    }
+
+    private fun checkFlags(server: GreenMail) {
+        JakartaSession.getInstance(Properties()).getStore("imap").use { store ->
+            store.connect("127.0.0.1", server.imap.port, "fixture", PASSWORD)
+            store.getFolder("INBOX").use { folder ->
+                folder.open(jakarta.mail.Folder.READ_ONLY)
+                check(folder.messages.single().isSet(jakarta.mail.Flags.Flag.SEEN))
+                check(folder.messages.single().isSet(jakarta.mail.Flags.Flag.FLAGGED))
+            }
+        }
+        println("Independent IMAP oracle: read and starred flags PASS")
     }
 
     private const val PASSWORD = "device-fixture-password"

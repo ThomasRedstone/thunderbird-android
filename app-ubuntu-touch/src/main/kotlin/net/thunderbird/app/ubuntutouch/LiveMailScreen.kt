@@ -17,24 +17,14 @@ import androidx.compose.ui.unit.dp
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleLarge
+import net.thunderbird.core.common.mail.Flag
 
 @Composable
 internal fun LiveMailScreen(state: LiveMailState, onEvent: (LiveMailEvent) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextTitleLarge("Mailboxes")
         TextBodyLarge("Foreground preview · Cached mail opens offline")
-        if (state.account != null) {
-            ButtonText("Back", { onEvent(LiveMailEvent.Back) }, enabled = !state.busy)
-            ButtonText(
-                if (state.folder == null) "Refresh folders" else "Sync folder",
-                { onEvent(LiveMailEvent.Refresh) },
-                enabled = !state.busy,
-            )
-        }
-        MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel operation") {
-            onEvent(LiveMailEvent.Cancel)
-        }
-        state.notice?.let { TextBodyLarge(it) }
+        MailboxControls(state, onEvent)
         val content = state.content
         when {
             content != null -> {
@@ -42,6 +32,7 @@ internal fun LiveMailScreen(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
                     TextBodyLarge("Only a preview is cached.")
                     ButtonText("Download full message", { onEvent(LiveMailEvent.Download) }, enabled = !state.busy)
                 }
+                MessageFlagButtons(content.summary, state.busy, onEvent)
                 MailReader(content, Modifier.weight(1f))
             }
 
@@ -84,6 +75,46 @@ internal fun LiveMailScreen(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
 }
 
 @Composable
+private fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Unit) {
+    if (state.account != null) {
+        ButtonText("Back", { onEvent(LiveMailEvent.Back) }, enabled = !state.busy)
+        ButtonText(
+            if (state.folder == null) "Refresh folders" else "Sync folder",
+            { onEvent(LiveMailEvent.Refresh) },
+            enabled = !state.busy,
+        )
+    }
+    MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel operation") {
+        onEvent(LiveMailEvent.Cancel)
+    }
+    if (state.pendingActions >
+        0
+    ) {
+        TextBodyLarge("${state.pendingActions} local changes · Sync each changed folder to apply")
+    }
+    state.notice?.let { TextBodyLarge(it) }
+    if (state.pendingActions > 0) {
+        if (state.confirmDiscard) {
+            TextBodyLarge("Discard local changes and use the last cached server flags?")
+            ButtonText("Discard changes", { onEvent(LiveMailEvent.ConfirmDiscard) }, enabled = !state.busy)
+            ButtonText("Keep changes", { onEvent(LiveMailEvent.CancelDiscard) }, enabled = !state.busy)
+        } else {
+            ButtonText("Review local changes", { onEvent(LiveMailEvent.DiscardPending) }, enabled = !state.busy)
+        }
+    }
+}
+
+@Composable
+private fun MessageFlagButtons(summary: MailSummary, busy: Boolean, onEvent: (LiveMailEvent) -> Unit) {
+    ButtonText(if (summary.unread) "Mark read" else "Mark unread", {
+        onEvent(LiveMailEvent.ChangeFlag(Flag.SEEN, summary.unread))
+    }, enabled = !busy)
+    ButtonText(if (summary.starred) "Remove star" else "Star message", {
+        onEvent(LiveMailEvent.ChangeFlag(Flag.FLAGGED, !summary.starred))
+    }, enabled = !busy)
+}
+
+@Composable
 private fun MailReader(content: MailContent, modifier: Modifier = Modifier) {
     SelectionContainer(modifier) {
         Column(Modifier.verticalScroll(rememberScrollState()), Arrangement.spacedBy(12.dp)) {
@@ -106,7 +137,7 @@ private fun MailMessageList(
         LazyColumn(Modifier.weight(1f)) {
             items(state.messages, key = { it.id }) { message ->
                 ButtonText(
-                    "${if (message.unread) "Unread · " else ""}${message.subject}\n${message.sender}",
+                    messageLabel(message),
                     { onEvent(LiveMailEvent.OpenMessage(message.id)) },
                     Modifier.fillMaxWidth().heightIn(min = 64.dp),
                     enabled = !state.busy,
@@ -115,3 +146,7 @@ private fun MailMessageList(
         }
     }
 }
+
+private fun messageLabel(message: MailSummary): String =
+    "${if (message.starred) "Starred · " else ""}${if (message.unread) "Unread · " else ""}" +
+        "${message.subject}\n${message.sender}"

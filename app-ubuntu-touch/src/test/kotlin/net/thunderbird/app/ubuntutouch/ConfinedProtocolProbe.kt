@@ -20,7 +20,7 @@ import net.thunderbird.feature.account.AccountIdFactory
 object ConfinedProtocolProbe {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size in setOf(2, 5, 6, 7))
+        require(args.size in setOf(2, 5, 6, 7, 8))
         val label = Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000')
         check(label == "${args[0]} (enforce)")
         if (args.size == 2) verifyRestart(Path.of(args[1])) else prepare(args)
@@ -31,12 +31,13 @@ object ConfinedProtocolProbe {
     private fun prepare(args: Array<String>) {
         val retain = args.size >= 6
         if (retain) require(args[5] == "retain-for-restart")
-        val security = if (args.size == 7) {
+        val security = if (args.size >= 7) {
             require(args[6] == "starttls")
             ConnectionSecurity.STARTTLS_REQUIRED
         } else {
             ConnectionSecurity.SSL_TLS_REQUIRED
         }
+        if (args.size == 8) require(args[7] == "flags")
         Files.createDirectories(parent())
         val directory = Files.createTempDirectory(parent(), "protocol-runtime-")
         val account = UtMailAccount(
@@ -49,8 +50,9 @@ object ConfinedProtocolProbe {
         )
         var prepared = false
         try {
-            checkNetwork(directory, account, Path.of(args[4]))
+            checkNetwork(directory, account, Path.of(args[4]), args.size == 8)
             if (retain) Files.writeString(directory.resolve("protocol.fixture"), "controlled-device-protocol-v1")
+            if (args.size == 8) Files.writeString(directory.resolve("flags.fixture"), "read-starred")
             prepared = true
         } finally {
             if (!retain || !prepared) cleanup(directory, account.id)
@@ -85,6 +87,9 @@ object ConfinedProtocolProbe {
                 )
                 val repository = PersistentLiveMailRepository(database, sessions)
                 val message = repository.messages(id, "INBOX").single()
+                if (Files.exists(directory.resolve("flags.fixture"))) {
+                    check(!message.unread && message.starred)
+                }
                 check(repository.content(id, "INBOX", message.id).body.trim() == "Controlled incoming body")
                 check(OutgoingMailStore(database).list(id).single().state == OutgoingState.SENT)
             }
@@ -105,7 +110,7 @@ object ConfinedProtocolProbe {
         check(directory.toFile().deleteRecursively())
     }
 
-    private fun checkNetwork(directory: Path, account: UtMailAccount, certificate: Path) {
+    private fun checkNetwork(directory: Path, account: UtMailAccount, certificate: Path, flags: Boolean) {
         var logs = 0
         val logger = DefaultLogger(object : LogSink {
             override val level = LogLevel.VERBOSE
@@ -113,12 +118,7 @@ object ConfinedProtocolProbe {
                 logs++
             }
         })
-        val trust = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
-            load(null, null)
-            Files.newInputStream(certificate).use {
-                setCertificateEntry("fixture", CertificateFactory.getInstance("X.509").generateCertificate(it))
-            }
-        }
+        val trust = fixtureTrust(certificate)
         val path = directory.resolve("mail.sqlite")
         val mime = directory.resolve("mime")
         MailDatabase(path).use { database ->
@@ -140,6 +140,7 @@ object ConfinedProtocolProbe {
                 it.sync("INBOX")
             }
             val repository = PersistentLiveMailRepository(database, sessions)
+            if (flags) checkFlagActions(repository, account.id)
             val message = repository.messages(account.id, "INBOX").single()
             check(message.subject == "Device controlled inbox")
             check(repository.content(account.id, "INBOX", message.id).body.trim() == "Controlled incoming body")
@@ -167,6 +168,27 @@ object ConfinedProtocolProbe {
             check(OutgoingMailStore(database).list(account.id).single().state == OutgoingState.SENT)
         }
         check(logs == 0)
+    }
+
+    private fun fixtureTrust(certificate: Path): KeyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+        load(null, null)
+        Files.newInputStream(certificate).use {
+            setCertificateEntry("fixture", CertificateFactory.getInstance("X.509").generateCertificate(it))
+        }
+    }
+
+    private fun checkFlagActions(repository: PersistentLiveMailRepository, account: AccountId) {
+        val uid = repository.messages(account, "INBOX").single().id
+        repository.changeFlag(account, "INBOX", uid, net.thunderbird.core.common.mail.Flag.SEEN, true)
+        repository.changeFlag(account, "INBOX", uid, net.thunderbird.core.common.mail.Flag.FLAGGED, true)
+        check(repository.pendingFlags(account) == 2)
+        check(!repository.content(account, "INBOX", uid).summary.unread)
+        check(repository.content(account, "INBOX", uid).summary.starred)
+        repository.refresh(account, "INBOX")
+        check(repository.pendingFlags(account) == 0)
+        check(!repository.content(account, "INBOX", uid).summary.unread)
+        check(repository.content(account, "INBOX", uid).summary.starred)
+        println("Native queued read/star flags and foreground reconciliation: PASS")
     }
 
     private fun manager(database: MailDatabase) = UtAccountManager(

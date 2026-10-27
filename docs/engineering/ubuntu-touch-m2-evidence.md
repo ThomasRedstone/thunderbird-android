@@ -830,3 +830,40 @@ Evidence (including 88-test XML) is under `app-ubuntu-touch/build/evidence/recip
 Fleet commit `6482bb5` changes only this app's pin; unrelated dirty fleet work is preserved, with no full-fleet converge.
 Reply/forward, Sent filing, message actions, attachments, HTML/privacy, account/search/provider and background/security/
 release requirements remain on the full roadmap, alongside outstanding physical/provider and interruption checks.
+
+
+## Daily-use message actions: offline read/unread and star
+
+Bounded work item: reader controls queue explicit read/unread and starred/unstarred assignments without credentials or
+network access. Show the local flags immediately, preserve them across process restart, and reconcile during explicit
+folder sync. Scope assignments to account/folder/UID/UIDVALIDITY. Never replay an old action onto a reused message UID.
+Keep failed actions durable, allow explicit local discard, and preserve acknowledged flags even if later sync fails.
+Exclusions: archive/trash/delete/move/copy, bulk actions, automatic mark-read, background replay, cross-folder automatic
+processing, physical UI/provider acceptance and broader interruption coverage remain open requirements.
+
+Schema 7 adds pending_flags with account/folder cascading ownership and monotonically allocated action IDs. Repeated
+assignments replace an action with a new ID, so an old acknowledgement cannot erase a newer choice. Local summaries
+overlay assignments only while cached UID validity matches. Explicit folder refresh first syncs, then applies each
+assignment with UIDVALIDITY checked on the same selected read-write IMAP folder used for STORE. Unknown or changed
+mailbox identity is not accepted. On acknowledgement, cache update and pending-row deletion share a local transaction;
+repeating an interrupted flag assignment is idempotent. A follow-up sync reads server flags. Pending changes in other
+folders remain visibly queued until those folders are synced. Stale/conflicting changes remain for review/discard.
+
+The reader uses Bolt buttons and MVI events for read/star toggles, disables them during work, displays pending counts
+and offers a confirmed local discard path. Network errors reload readable cache/pending state without exposing raw
+server errors. Source uses the existing ImapStore/ImapFolder APIs; the backend's generic setFlag does not accept a UID
+validity guard, so the session checks identity on its selected folder before calling the shared folder's setFlags.
+
+96 app tests pass with zero failures/errors/skips; detekt and installDist pass. Real TLS IMAP tests independently read
+server flags via Jakarta Mail, verify offline-only updates before sync, restart persistence, both toggle directions,
+UID-validity rejection with unchanged server state, safe discard, account isolation/cascade and stale acknowledgement.
+A separate durability test proves acknowledged cache flags survive reopen before any later sync. Migration6→7 retains
+Cc/Bcc/frozen queue data without inventing uncertainty. Model and Bolt tests cover local event wiring, busy controls and
+explicit discard confirmation. Exact command: `./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test
+:app-ubuntu-touch:detekt :app-ubuntu-touch:installDist --no-configuration-cache
+-Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`, JDK21/Android SDK. Log: `/tmp/thunderbird-flags-final.log`.
+Final spotlessCheck follows. No shared Android source changed; Android assembly/device tests were not rerun, and the
+JVM application has no Android lint/device task.
+
+0.1.13 is the candidate version; packaging/native acceptance is pending at this source checkpoint. The phone still has
+0.1.12/schema6. Do not run schema7 probes against the older installed production JARs.

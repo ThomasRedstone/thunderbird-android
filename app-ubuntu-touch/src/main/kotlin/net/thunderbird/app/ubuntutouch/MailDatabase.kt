@@ -9,7 +9,8 @@ import java.nio.file.Path
 private const val SIGNON_SCHEMA_VERSION = 3L
 private const val OUTGOING_SCHEMA_VERSION = 4L
 private const val ATTEMPT_SCHEMA_VERSION = 5L
-private const val CURRENT_SCHEMA_VERSION = 6L
+private const val RECIPIENT_SCHEMA_VERSION = 6L
+private const val CURRENT_SCHEMA_VERSION = 7L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught") // Always close/roll back on failure, including cancellation; rethrow unchanged.
@@ -29,7 +30,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < SIGNON_SCHEMA_VERSION) createSignonSchema()
             if (version < OUTGOING_SCHEMA_VERSION) createOutgoingSchema()
             if (version < ATTEMPT_SCHEMA_VERSION) createAttemptHistorySchema()
-            if (version < CURRENT_SCHEMA_VERSION) createRecipientSchema()
+            if (version < RECIPIENT_SCHEMA_VERSION) createRecipientSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createPendingFlagsSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
         } catch (exception: Exception) {
@@ -73,10 +75,21 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createPendingFlagsSchema() = transaction {
+        execute(
+            """CREATE TABLE pending_flags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                folder INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE, uid TEXT NOT NULL,
+                flag TEXT NOT NULL, enabled INTEGER NOT NULL, uid_validity INTEGER NOT NULL,
+                UNIQUE(account,folder,uid,flag))""",
+        )
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createRecipientSchema() = transaction {
         execute("ALTER TABLE outgoing ADD COLUMN cc TEXT NOT NULL DEFAULT ''")
         execute("ALTER TABLE outgoing ADD COLUMN bcc TEXT NOT NULL DEFAULT ''")
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$RECIPIENT_SCHEMA_VERSION")
     }
 
     private fun createAttemptHistorySchema() = transaction {

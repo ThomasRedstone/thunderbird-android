@@ -289,6 +289,116 @@ class ForegroundMailSessionTest {
         }
     }
 
+    @Test
+    fun `offline read and star changes survive restart and reconcile with actual IMAP flags`() {
+        deliver("Actions", "Controlled action body")
+        var repository = PersistentLiveMailRepository(database, factory())
+        repository.refresh(account.id, "INBOX")
+        val uid = repository.messages(account.id, "INBOX").single().id
+        repository.changeFlag(account.id, "INBOX", uid, Flag.SEEN, true)
+        repository.changeFlag(account.id, "INBOX", uid, Flag.FLAGGED, true)
+        assertThat(repository.content(account.id, "INBOX", uid).summary.unread).isFalse()
+        assertThat(repository.content(account.id, "INBOX", uid).summary.starred).isTrue()
+        withOracleInbox { folder ->
+            assertThat(folder.messages.single().isSet(jakarta.mail.Flags.Flag.SEEN)).isFalse()
+            assertThat(folder.messages.single().isSet(jakarta.mail.Flags.Flag.FLAGGED)).isFalse()
+        }
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        repository = PersistentLiveMailRepository(database, factory())
+        assertThat(repository.pendingFlags(account.id)).isEqualTo(2)
+        assertThat(repository.content(account.id, "INBOX", uid).summary.starred).isTrue()
+        repository.refresh(account.id, "INBOX")
+        assertThat(repository.pendingFlags(account.id)).isEqualTo(0)
+        withOracleInbox { folder ->
+            assertThat(folder.messages.single().isSet(jakarta.mail.Flags.Flag.SEEN)).isTrue()
+            assertThat(folder.messages.single().isSet(jakarta.mail.Flags.Flag.FLAGGED)).isTrue()
+        }
+        repository.changeFlag(account.id, "INBOX", uid, Flag.SEEN, false)
+        repository.changeFlag(account.id, "INBOX", uid, Flag.FLAGGED, false)
+        repository.refresh(account.id, "INBOX")
+        withOracleInbox { folder ->
+            assertThat(folder.messages.single().isSet(jakarta.mail.Flags.Flag.SEEN)).isFalse()
+            assertThat(folder.messages.single().isSet(jakarta.mail.Flags.Flag.FLAGGED)).isFalse()
+        }
+        assertThat(repository.content(account.id, "INBOX", uid).summary.unread).isTrue()
+        assertThat(repository.content(account.id, "INBOX", uid).summary.starred).isFalse()
+    }
+
+    @Test
+    fun `mailbox identity mismatch never applies queued flags to a reused UID and allows local discard`() {
+        deliver("UID safety", "Controlled body")
+        val testSubject = PersistentLiveMailRepository(database, factory())
+        testSubject.refresh(account.id, "INBOX")
+        val uid = testSubject.messages(account.id, "INBOX").single().id
+        val folder = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        val validity = checkNotNull(folder.getFolderExtraNumber("imapUidValidity"))
+        folder.setFolderExtraNumber("imapUidValidity", validity + 1)
+        testSubject.changeFlag(account.id, "INBOX", uid, Flag.FLAGGED, true)
+        assertThat(runCatching { testSubject.refresh(account.id, "INBOX") }.isFailure).isTrue()
+        assertThat(testSubject.pendingFlags(account.id)).isEqualTo(1)
+        withOracleInbox { remote ->
+            assertThat(remote.messages.single().isSet(jakarta.mail.Flags.Flag.FLAGGED)).isFalse()
+        }
+        assertThat(testSubject.content(account.id, "INBOX", uid).summary.starred).isFalse()
+        testSubject.discardFlags(account.id)
+        assertThat(testSubject.pendingFlags(account.id)).isEqualTo(0)
+    }
+
+    @Test
+    fun `acknowledging an older flag assignment cannot remove a newer local decision`() {
+        deliver("Coalescing", "Controlled body")
+        val repository = PersistentLiveMailRepository(database, factory())
+        repository.refresh(account.id, "INBOX")
+        val uid = repository.messages(account.id, "INBOX").single().id
+        val testSubject = PendingFlagStore(database)
+        testSubject.enqueue(account.id, "INBOX", uid, Flag.FLAGGED, true)
+        val old = testSubject.list(account.id).single()
+        testSubject.enqueue(account.id, "INBOX", uid, Flag.FLAGGED, false)
+        testSubject.acknowledge(account.id, old)
+        assertThat(testSubject.list(account.id).single().enabled).isFalse()
+        assertThat(repository.content(account.id, "INBOX", uid).summary.starred).isFalse()
+        val latest = testSubject.list(account.id).single()
+        testSubject.acknowledge(account.id, latest)
+        assertThat(testSubject.list(account.id).isEmpty()).isTrue()
+        assertThat(repository.content(account.id, "INBOX", uid).summary.starred).isFalse()
+    }
+
+    @Test
+    fun `acknowledged flag is durable locally even before another network sync`() {
+        deliver("Ack durability", "Controlled body")
+        var repository = PersistentLiveMailRepository(database, factory())
+        repository.refresh(account.id, "INBOX")
+        val uid = repository.messages(account.id, "INBOX").single().id
+        val actions = PendingFlagStore(database)
+        actions.enqueue(account.id, "INBOX", uid, Flag.FLAGGED, true)
+        actions.acknowledge(account.id, actions.list(account.id).single())
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        repository = PersistentLiveMailRepository(database, factory())
+        assertThat(repository.pendingFlags(account.id)).isEqualTo(0)
+        assertThat(repository.content(account.id, "INBOX", uid).summary.starred).isTrue()
+    }
+
+    @Test
+    fun `pending flags are account isolated and account removal cascades them`() {
+        deliver("Isolation", "Controlled body")
+        val repository = PersistentLiveMailRepository(database, factory())
+        repository.refresh(account.id, "INBOX")
+        val uid = repository.messages(account.id, "INBOX").single().id
+        val testSubject = PendingFlagStore(database)
+        testSubject.enqueue(account.id, "INBOX", uid, Flag.FLAGGED, true)
+        val other = account.copy(id = AccountIdFactory.create(), credentialKey = UUID.randomUUID().toString())
+        AccountSettingsStorage(database).insert(other)
+        val action = testSubject.list(account.id).single()
+        assertThat(testSubject.list(other.id).isEmpty()).isTrue()
+        testSubject.acknowledge(other.id, action)
+        testSubject.discard(other.id)
+        assertThat(testSubject.list(account.id).single()).isEqualTo(action)
+        AccountSettingsStorage(database).delete(account.id)
+        assertThat(testSubject.list(account.id).isEmpty()).isTrue()
+    }
+
     private fun deliver(subject: String, body: String) {
         val message =
             JakartaMessage(JakartaSession.getInstance(Properties()), raw(subject, body, EMAIL).byteInputStream())

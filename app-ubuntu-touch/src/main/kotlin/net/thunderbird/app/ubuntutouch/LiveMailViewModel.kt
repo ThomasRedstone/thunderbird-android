@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.account.AccountId
 
 internal data class LiveMailState(
@@ -18,6 +19,8 @@ internal data class LiveMailState(
     val folder: MailFolder? = null,
     val messages: List<MailSummary> = emptyList(),
     val content: MailContent? = null,
+    val pendingActions: Int = 0,
+    val confirmDiscard: Boolean = false,
     val busy: Boolean = false,
     val canCancel: Boolean = false,
     val cancelling: Boolean = false,
@@ -30,6 +33,10 @@ internal sealed interface LiveMailEvent {
     data class OpenAccount(val id: AccountId) : LiveMailEvent
     data class OpenFolder(val folder: MailFolder) : LiveMailEvent
     data class OpenMessage(val uid: String) : LiveMailEvent
+    data class ChangeFlag(val flag: Flag, val enabled: Boolean) : LiveMailEvent
+    data object DiscardPending : LiveMailEvent
+    data object ConfirmDiscard : LiveMailEvent
+    data object CancelDiscard : LiveMailEvent
     data object Refresh : LiveMailEvent
     data object Download : LiveMailEvent
     data object Cancel : LiveMailEvent
@@ -48,14 +55,10 @@ internal class LiveMailViewModel(
     fun event(event: LiveMailEvent) {
         val current = state.value
         if (event == LiveMailEvent.Cancel) {
-            if (current.busy && current.canCancel) {
-                activeOperation?.cancelIn(scope)
-                mutableState.value =
-                    current.copy(cancelling = true, notice = "Cancelling… Waiting for the operation to stop.")
-            }
+            cancel(current)
             return
         }
-        if (current.busy) return
+        if (current.busy || handleActions(event, current)) return
         when (event) {
             is LiveMailEvent.OpenAccount -> {
                 require(manager.findById(event.id) != null)
@@ -72,8 +75,6 @@ internal class LiveMailViewModel(
                 load(current, uid = event.uid)
             }
 
-            LiveMailEvent.Cancel -> Unit
-
             LiveMailEvent.Refresh -> load(current, network = true)
 
             LiveMailEvent.Download -> load(current, uid = current.content?.summary?.id, download = true)
@@ -83,10 +84,43 @@ internal class LiveMailViewModel(
                 current.folder != null -> current.copy(folder = null, messages = emptyList(), notice = null)
                 else -> LiveMailState(manager.findAll())
             }
+
+            else -> Unit
         }
     }
 
-    private fun load(initial: LiveMailState, uid: String? = null, network: Boolean = false, download: Boolean = false) {
+    private fun cancel(current: LiveMailState) {
+        if (current.busy && current.canCancel) {
+            activeOperation?.cancelIn(scope)
+            mutableState.value =
+                current.copy(cancelling = true, notice = "Cancelling… Waiting for the operation to stop.")
+        }
+    }
+
+    private fun handleActions(event: LiveMailEvent, current: LiveMailState): Boolean {
+        when (event) {
+            is LiveMailEvent.ChangeFlag -> current.content?.let { load(current, uid = it.summary.id, action = event) }
+
+            LiveMailEvent.DiscardPending -> mutableState.value = current.copy(confirmDiscard = true)
+
+            LiveMailEvent.CancelDiscard -> mutableState.value = current.copy(confirmDiscard = false)
+
+            LiveMailEvent.ConfirmDiscard -> if (current.confirmDiscard) {
+                load(current.copy(confirmDiscard = false), uid = current.content?.summary?.id, action = event)
+            }
+
+            else -> return false
+        }
+        return true
+    }
+
+    private fun load(
+        initial: LiveMailState,
+        uid: String? = null,
+        network: Boolean = false,
+        download: Boolean = false,
+        action: LiveMailEvent? = null,
+    ) {
         val account = initial.account ?: return
         val operation = if (network || download) MailOperation() else null
         activeOperation = operation
@@ -95,6 +129,16 @@ internal class LiveMailViewModel(
             try {
                 val loaded = withContext(Dispatchers.IO) {
                     operation?.ensureActive()
+                    if (action is LiveMailEvent.ChangeFlag && uid != null) {
+                        repository.changeFlag(
+                            account,
+                            checkNotNull(initial.folder).id,
+                            uid,
+                            action.flag,
+                            action.enabled,
+                        )
+                    }
+                    if (action == LiveMailEvent.ConfirmDiscard) repository.discardFlags(account)
                     if (network) repository.refresh(account, initial.folder?.id, checkNotNull(operation))
                     if (download && uid != null) {
                         repository.download(account, checkNotNull(initial.folder).id, uid, checkNotNull(operation))
@@ -116,7 +160,9 @@ internal class LiveMailViewModel(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
-                mutableState.value = initial.copy(
+                val retained =
+                    withContext(Dispatchers.IO) { runCatching { readCache(initial, uid) }.getOrDefault(initial) }
+                mutableState.value = retained.copy(
                     busy = false,
                     canCancel = false,
                     cancelling = false,
@@ -138,6 +184,7 @@ internal class LiveMailViewModel(
         val folder = initial.folder?.let { old -> folders.find { it.id == old.id } }
         return initial.copy(
             folders = folders,
+            pendingActions = repository.pendingFlags(account),
             folder = folder,
             messages = folder?.let { repository.messages(account, it.id) }.orEmpty(),
             content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,

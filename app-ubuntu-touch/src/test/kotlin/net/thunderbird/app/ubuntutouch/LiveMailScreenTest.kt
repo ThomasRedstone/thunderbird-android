@@ -8,6 +8,7 @@ import assertk.assertThat
 import assertk.assertions.isEqualTo
 import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
 import net.thunderbird.components.ui.testing.ComposeUiTestHarness
+import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
@@ -62,5 +63,26 @@ class LiveMailScreenTest : ComposeUiTestHarness() {
         onNodeWithText("Working…").assertIsDisplayed()
         onNodeWithText("Refresh folders").assertIsNotEnabled()
         onNodeWithText("Back").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `reader offers read and star toggles and disables them while working`() = runComposeTest {
+        val state = mutableStateOf(
+            LiveMailState(
+                emptyList(),
+                account = AccountIdFactory.create(),
+                folder = MailFolder("INBOX", "Inbox"),
+                content = MailContent(MailSummary("1", "Fixture", "Sender", true), "Body", true),
+            ),
+        )
+        var event: LiveMailEvent? = null
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state.value) { event = it } } }
+        onNodeWithText("Mark read").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.ChangeFlag(Flag.SEEN, true))
+        onNodeWithText("Star message").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.ChangeFlag(Flag.FLAGGED, true))
+        state.value = state.value.copy(busy = true)
+        onNodeWithText("Mark read").assertIsNotEnabled()
+        onNodeWithText("Star message").assertIsNotEnabled()
     }
 }

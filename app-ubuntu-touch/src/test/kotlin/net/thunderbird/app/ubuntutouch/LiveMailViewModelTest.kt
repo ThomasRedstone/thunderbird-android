@@ -10,6 +10,7 @@ import com.fsck.k9.mail.ServerSettings
 import java.util.UUID
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Rule
@@ -62,6 +63,37 @@ class LiveMailViewModelTest {
         }
     }
 
+    @Test
+    fun `local flags update reader without networking and discarding needs explicit confirmation`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("flags.sqlite")).use { database ->
+            val manager = manager(database)
+            val repository = FakeLiveMailRepository()
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(manager.findAll().single().id))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenFolder(repository.folder))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenMessage(repository.summary.id))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.ChangeFlag(Flag.SEEN, true))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.content?.summary?.unread).isEqualTo(false)
+            assertThat(testSubject.state.value.pendingActions).isEqualTo(1)
+            assertThat(repository.refreshes).isEqualTo(0)
+            testSubject.event(LiveMailEvent.ConfirmDiscard)
+            assertThat(repository.pending).isEqualTo(1)
+            testSubject.event(LiveMailEvent.DiscardPending)
+            testSubject.event(LiveMailEvent.CancelDiscard)
+            testSubject.event(LiveMailEvent.ConfirmDiscard)
+            assertThat(repository.pending).isEqualTo(1)
+            testSubject.event(LiveMailEvent.DiscardPending)
+            testSubject.event(LiveMailEvent.ConfirmDiscard)
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.pendingActions).isEqualTo(0)
+            assertThat(repository.refreshes).isEqualTo(0)
+        }
+    }
+
     private fun manager(database: MailDatabase): UtAccountManager {
         val settings = ServerSettings(
             "imap",
@@ -91,7 +123,16 @@ class LiveMailViewModelTest {
 
 private class FakeLiveMailRepository : LiveMailRepository {
     val folder = MailFolder("INBOX", "Inbox")
-    val summary = MailSummary("1", "Fixture", "Sender", true)
+    var summary = MailSummary("1", "Fixture", "Sender", true)
+    var pending = 0
+    override fun pendingFlags(account: AccountId) = pending
+    override fun discardFlags(account: AccountId) {
+        pending = 0
+    }
+    override fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) {
+        summary = if (flag == Flag.SEEN) summary.copy(unread = !value) else summary.copy(starred = value)
+        pending++
+    }
     var refreshes = 0
     private var downloaded = false
     override fun folders(account: AccountId) = listOf(folder)

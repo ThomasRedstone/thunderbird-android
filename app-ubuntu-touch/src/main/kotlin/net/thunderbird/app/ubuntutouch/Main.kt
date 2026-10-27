@@ -139,7 +139,8 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single<SentCopyTransport> { SessionSentCopyTransport(get()) }
             single { SentCopyFiler(get(), get()) }
             single { OutgoingMailSender(get(), get(), get()) }
-            factory { ComposerViewModel(get(), get(), get(), filing = get()) }
+            single { MailSignatureStore(get()) }
+            factory { ComposerViewModel(get(), get(), get(), filing = get(), signatures = get()) }
             single<Logger> { DefaultLogger(sink = ConsoleLogSink()) }
             single { MaliitKeyboard(get()) }
         },

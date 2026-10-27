@@ -13,7 +13,8 @@ private const val RECIPIENT_SCHEMA_VERSION = 6L
 private const val FLAG_SCHEMA_VERSION = 7L
 private const val THREAD_SCHEMA_VERSION = 8L
 private const val SENT_SCHEMA_VERSION = 9L
-private const val CURRENT_SCHEMA_VERSION = 10L
+private const val OAUTH_SCHEMA_VERSION = 10L
+private const val CURRENT_SCHEMA_VERSION = 11L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -37,7 +38,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < FLAG_SCHEMA_VERSION) createPendingFlagsSchema()
             if (version < THREAD_SCHEMA_VERSION) createThreadingSchema()
             if (version < SENT_SCHEMA_VERSION) createSentSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createOAuthAccountSchema()
+            if (version < OAUTH_SCHEMA_VERSION) createOAuthAccountSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createSignatureSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
@@ -82,9 +84,18 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createSignatureSchema() = transaction {
+        execute(
+            """CREATE TABLE IF NOT EXISTS signatures (
+                account TEXT PRIMARY KEY NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                text TEXT NOT NULL, enabled INTEGER NOT NULL, replies INTEGER NOT NULL, forwards INTEGER NOT NULL)""",
+        )
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createOAuthAccountSchema() = transaction {
         execute("ALTER TABLE accounts ADD COLUMN oauth_provider TEXT")
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$OAUTH_SCHEMA_VERSION")
     }
 
     private fun createSentSchema() = transaction {

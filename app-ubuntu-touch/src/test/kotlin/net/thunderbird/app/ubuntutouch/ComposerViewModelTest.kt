@@ -23,6 +23,36 @@ class ComposerViewModelTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `new draft snapshots enabled account signature and reopen never adds another copy`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val manager = manager(database)
+            val account = manager.findAll().single().id
+            val store = OutgoingMailStore(database)
+            val signatures = MailSignatureStore(database)
+            signatures.save(account, MailSignature("Fixture signature", enabled = true))
+            val testSubject = ComposerViewModel(
+                manager,
+                store,
+                OutgoingMailSender(store) { _, _ -> },
+                backgroundScope,
+                signatures = signatures,
+            )
+            testSubject.event(ComposerEvent.Account(account))
+            testSubject.state.first { !it.busy }
+            testSubject.event(ComposerEvent.New)
+            val created = testSubject.state.first { !it.busy }
+            val id = checkNotNull(created.selected).id
+            assertThat(created.fields.getValue(ComposeField.BODY).text).isEqualTo("\n\n-- \nFixture signature")
+            signatures.save(account, MailSignature("Replacement", enabled = true))
+            testSubject.event(ComposerEvent.Back)
+            testSubject.state.first { !it.busy }
+            testSubject.event(ComposerEvent.Open(id))
+            val reopened = testSubject.state.first { !it.busy }
+            assertThat(reopened.fields.getValue(ComposeField.BODY).text).isEqualTo("\n\n-- \nFixture signature")
+        }
+    }
+
+    @Test
     fun `autosave and back preserve latest edits and queue does not send`() = runTest {
         MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
             val manager = manager(database)

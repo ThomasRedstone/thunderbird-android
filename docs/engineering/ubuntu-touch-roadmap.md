@@ -392,3 +392,10 @@ navigation preserves pending records, window close waits for active work and
 broker notifications refresh status. Full379 host tests and quality/distribution
 checks pass. Minimal outbound Content Hub permission approval, ARM64 package and
 native/physical receiver/crash/upgrade acceptance remain required. Phone remains27.
+
+Development0.1.31 adds a per-account plain-text signature core with disabled
+initial defaults and reply/forward preferences. Schema11 migration, restart,
+account removal/isolation and new-draft snapshot/no-duplicate reopen tests pass;
+full386 app tests and quality/distribution checks pass. Signature editor/settings
+UI, native schema migration/composition and physical acceptance remain required.
+HTML signatures and multiple sender identities remain open. No31 package/deploy.

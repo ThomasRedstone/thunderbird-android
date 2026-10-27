@@ -31,7 +31,9 @@ internal class ResponseDraftFactory(private val database: MailDatabase) {
             val text = checkNotNull(plainTextBody(message)) { "A plain-text body is required" }
             seed(message, text, accounts.map { it.address }, mode)
         }
-        return OutgoingMailStore(database).create(account, seed).id
+        return OutgoingMailStore(
+            database,
+        ).create(account, MailSignatureStore(database).read(account).apply(seed, mode)).id
     }
 
     internal fun seed(message: Message, text: String, ownAddresses: List<String>, mode: ResponseMode): ResponseSeed {

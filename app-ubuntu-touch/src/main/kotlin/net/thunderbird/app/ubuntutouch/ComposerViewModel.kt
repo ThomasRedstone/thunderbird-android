@@ -24,6 +24,7 @@ internal class ComposerViewModel(
     private val sender: OutgoingMailSender,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val filing: SentCopyFiler? = null,
+    private val signatures: MailSignatureStore? = null,
 ) : AutoCloseable {
     private val mutableState = MutableStateFlow(ComposerState(manager.findAll()))
     val state = mutableState.asStateFlow()
@@ -143,7 +144,9 @@ internal class ComposerViewModel(
 
             ComposerEvent.New -> if (!current.dirty) {
                 operate {
-                    val draft = store.create(checkNotNull(it.account))
+                    val account = checkNotNull(it.account)
+                    val seed = signatures?.read(account)?.apply(ResponseSeed()) ?: ResponseSeed()
+                    val draft = store.create(account, seed)
                     reload(it, draft.id)
                 }
             }

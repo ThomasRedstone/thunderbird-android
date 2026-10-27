@@ -358,7 +358,7 @@ class OAuthAccountOwnershipTest {
             assertThat(testSubject.passwords(id).incoming).isEqualTo(passwords.incoming)
             assertThat(database.query("SELECT body FROM outgoing") { getText(0) }).isEqualTo(listOf("Kept body"))
             assertThat(database.query("SELECT uid FROM messages") { getText(0) }).isEqualTo(listOf("1"))
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(10L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(11L)
         }
     }
 

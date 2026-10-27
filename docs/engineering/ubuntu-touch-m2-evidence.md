@@ -3138,3 +3138,31 @@ The artifact retains accounts/networking policy only. It is **not deployed**;
 phone remains0.1.27. Outbound permission q-jk4j, confined receiver/native/physical
 acceptance and provider decision q-ar74 remain open. Preserve candidate32 unchanged;
 future production edits require version0.1.31 before its next package.
+
+### Per-account plain-text signature core (0.1.31 development)
+
+Schema11 adds account-owned signature text with explicit enable/reply/forward
+preferences and cascade removal. Defaults are disabled/empty. Text is bounded to
+16384 characters and rejects NUL/unsupported control characters. Configuration and
+seed diagnostics redact text. New drafts snapshot the enabled signature; saved
+or reopened drafts are never rewritten when settings change. Reply/forward seed
+integration places the signature before quoted text and preserves recipients and
+thread headers. HTML signatures and multiple sender identities remain separate.
+
+Twenty focused signature/response/composer tests pass. Then **386 full app tests
+pass**, zero failures/errors/skips, with detekt/installDist/spotlessCheck:
+`/tmp/thunderbird-signatures-core-full.log`. Same JDK/SDK/Gradle flags as above;
+unfiltered `:app-ubuntu-touch:test :app-ubuntu-touch:detekt
+:app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck`.
+Tests include real SQLite reopen/account isolation/removal, version10→11 migration
+retaining an existing draft with signature disabled, foreign-account FK failure,
+invalid input, reply/forward policy/thread preservation and actual composer new/
+reopen without duplicate signature insertion. Current native probe sources expect
+schema11; old frozen phone probe artifacts are preserved and must not be mixed
+with this new ABI/schema. No native schema11 migration result is claimed.
+
+Signature editing/settings UI is still missing, so users cannot configure this
+feature yet. Continue its model/editor/lifecycle and native acceptance. Source
+metadata advanced0.1.31 after immutable30 freeze; no31 package or deployment.
+Phone remains27/schema10. q-jk4j outbound permission and q-ar74 OAuth decisions
+remain pending; no policy or OAuth configuration changes were made.

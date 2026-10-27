@@ -252,3 +252,16 @@ This passes on FP4. Composer checks also pass. The existing controlled protocol/
 account-wide and deduplicated multi-account enumeration; require host independent mailbox assertions/exit 0 before
 fresh-process offline verification. These pass on 0.1.17, followed by independent private-fixture cleanup checks.
 Actual cross-account SMTP/provider and physical scope-control/keyboard journeys remain open.
+
+## Decoded attachment fixture on33
+
+`ConfinedAttachmentProbe` is a private synthetic storage test with a fake receiver; it does
+not exercise Content Hub. Use the installed33 JVM and exact33 enforcing profile with the
+frozen `candidate-033-attachment-probe-2.jar` driver. Set `LANG=C.UTF-8 LC_ALL=C.UTF-8`
+before JVM startup: setting Java file.encoding alone does not establish Unicode filesystem
+encoding. The normal phone app uses the Lomiri-provided UTF8 locale. `prepare` emits its
+private FIXTURE_DIR; `reopen FIXTURE_DIR` verifies bytes and uncertain journal in a fresh
+JVM without replay, then cleans it. `cleanup FIXTURE_DIR` removes only an owned incomplete
+fixture after explicit failure inspection; unexpected files/symlinks are retained.
+Require both processes to exit0. See M2 evidence for exact hashes/logs. This test does not
+replace physical attachment selection, real receiver transfer or large-file/abrupt-loss tests.

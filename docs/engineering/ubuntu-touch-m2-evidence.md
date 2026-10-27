@@ -3619,3 +3619,50 @@ Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks pass; build87235 exi
 is not cold-build/CI reproducibility proof. No33 install/native/physical acceptance yet;
 phone32 and its fleet pin remain unchanged. Preserve this artifact; further production
 changes must use a new version.
+
+### Installed 0.1.33 and confined decoded attachment recovery (2026-10-27)
+
+The FP4 upgraded 32→33 after exact old source/process guards and normal close of PID 478802
+(with a guarded pidfd SIGCONT for its stopped state). Transfer size/hash and new clean source
+markers match immutable candidate35. Schema 15 pre-upgrade backup:
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/0.1.33-oygasxhw`. Upgrade exited0,
+`/tmp/thunderbird-033-upgrade.log`; known user-bus/old-profile-cache warnings remain.
+Installed main JAR SHA256 `d90e713454d66801991dcd20fa1641381abe0c689a85929c23df463e898f99fc`
+matches candidate35. Actual production 15→15 initialization/quick_check passed under exact 0.1.33
+enforcing confinement: `/tmp/thunderbird-033-production-migration.log`.
+
+New test-only ConfinedAttachmentProbe runs against installed 0.1.33 APIs with private synthetic
+SQLite/MIME/export/journal storage and a fake broker. It decodes 65,553 binary bytes, preserves
+`café final.bin`, verifies 0600 file / 0700 directory, records a synthetic lost Charge reply,
+and reopens in a fresh JVM with the receiver unavailable. Bytes and CHARGING journal survive;
+no Charge is replayed. Explicit private-copy cleanup and complete fixture cleanup succeed.
+No production account/credentials, network, Content Hub service or real receiver is used.
+Logs `/tmp/thunderbird-033-attachment-prepare-2.log` and
+`/tmp/thunderbird-033-attachment-reopen.log` exit0. Five-class driver (no JUnit classes):
+`build/evidence/native-033/candidate-033-attachment-probe-2.jar`, SHA256
+`ed04b99f086a3b3dc912e73d391e3cafbde540aff045c65228869d98362c8e41`.
+It was compiled after the frozen package; production source remains unchanged.
+
+Initial SSH probe failed before file creation because its missing locale selected ASCII
+filename encoding. `/tmp/thunderbird-033-locale-diagnostic.log` shows native.encoding and
+sun.jnu.encoding are ASCII under C, UTF8 under C.UTF8, despite file.encoding=UTF8 in both.
+The normal Lomiri app exports LANG=en_GB.UTF8; this was a probe-environment mismatch.
+The exact 0.1.33 helper now sets LANG/LC_ALL=C.UTF8; the new driver explicitly requires UTF8.
+The initial failed fixture was safely cleaned by the scoped driver cleanup mode:
+`/tmp/thunderbird-033-attachment-cleanup.log`. Initial driver/log are preserved without a
+passing claim. Production locale-independent filename behavior is not established.
+GitNexus debugging instructions were consulted; its repository listing has no Thunderbird
+index, so stack traces, local source and measured environment/properties provided the trace.
+
+Launch printed Started then lost registry connection (exit255):
+`/tmp/thunderbird-033-launch.log`. Independent checks found exact 0.1.33 enforcing JVM 505622
+T(stopped) and one owned main window (`/tmp/thunderbird-033-window.log`). This does not
+prove focus, visibility or physical attachment controls. Local fleet commit `d4ba958` pins
+the exact 0.1.33 artifact/hash; scoped pm lint passes with unrelated work/index preserved.
+No fleet sync/prune/push was performed.
+
+Full 430 app tests pass with zero failures/errors/skips plus detekt/spotlessCheck:
+`/tmp/thunderbird-033-native-driver-full.log`. Two new host probe/path-validation tests and
+quality checks also pass in `/tmp/thunderbird-033-attachment-probe-check-2.log`. Existing
+production 428-test/installDist verification is unchanged. Real outbound permission/receiver,
+physical UI, large-file/native-memory/cancellation and power-loss acceptance remain open.

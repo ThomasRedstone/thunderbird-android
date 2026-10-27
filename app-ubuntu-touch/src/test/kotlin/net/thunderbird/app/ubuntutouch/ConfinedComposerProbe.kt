@@ -1,5 +1,6 @@
 package net.thunderbird.app.ubuntutouch
 
+import androidx.compose.ui.text.input.TextFieldValue
 import com.fsck.k9.mail.AuthType
 import com.fsck.k9.mail.ConnectionSecurity
 import com.fsck.k9.mail.ServerSettings
@@ -8,6 +9,7 @@ import java.nio.file.Path
 import java.util.UUID
 import javax.swing.SwingUtilities
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.thunderbird.components.core.logging.DefaultLogger
@@ -32,10 +34,12 @@ object ConfinedComposerProbe {
         } finally {
             check(directory.toFile().deleteRecursively())
         }
-        println("Enforcing profile, Swing Main dispatcher, SQLite draft/queue and uncertain recovery: PASS")
+        println(
+            "Confined Swing Main, draft/queue, lifecycle flush and uncertain recovery: PASS",
+        )
     }
 
-    private fun checkFixture(directory: Path) {
+    private suspend fun checkFixture(directory: Path) {
         var logs = 0
         val logger = DefaultLogger(object : LogSink {
             override val level = LogLevel.VERBOSE
@@ -90,6 +94,39 @@ object ConfinedComposerProbe {
             check(store.get(account.id, id).state == OutgoingState.QUEUED)
             check(store.get(account.id, id).body == "Controlled body λ")
         }
+        checkLifecycle(path, account)
         check(logs == 0)
+    }
+
+    private suspend fun checkLifecycle(path: Path, account: UtMailAccount) {
+        MailDatabase(path).use { database ->
+            val store = OutgoingMailStore(database)
+            val manager =
+                UtAccountManager(AccountSettingsStorage(database), SignonCredentialStore(SignonIdentityIndex(database)))
+            val model = withContext(Dispatchers.Main) {
+                ComposerViewModel(manager, store, OutgoingMailSender(store) { _, _ -> error("Must not send") })
+            }
+            try {
+                withContext(Dispatchers.Main) {
+                    model.event(ComposerEvent.Account(account.id))
+                    model.state.first { !it.busy }
+                    model.event(ComposerEvent.New)
+                    model.state.first { !it.busy }
+                    model.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Immediate native close")))
+                    check(model.flushForClose())
+                    model.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Invalid\r\nheader")))
+                    check(!model.flushForClose())
+                    check(model.state.value.dirty)
+                    model.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Native background save")))
+                    model.flushOnBackground()
+                    model.state.first { !it.busy }
+                }
+                val selected = checkNotNull(model.state.value.selected)
+                check(store.get(account.id, selected.id).subject == "Native background save")
+                check(!model.state.value.dirty)
+            } finally {
+                withContext(Dispatchers.Main) { model.close() }
+            }
+        }
     }
 }

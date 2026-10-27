@@ -50,6 +50,7 @@ internal fun MailApplicationScreen(
         MailDestination.ACCOUNTS -> {
             val accounts = loadOwnedMailModel(createAccounts)
             if (accounts != null) {
+                RegisterMailClose(accounts, lifecycle, accounts::flushForClose, {})
                 val state by accounts.state.collectAsState()
                 Column(
                     Modifier.fillMaxSize().mailBack(!state.busy) {

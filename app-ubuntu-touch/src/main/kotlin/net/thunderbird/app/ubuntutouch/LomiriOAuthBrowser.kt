@@ -1,6 +1,7 @@
 package net.thunderbird.app.ubuntutouch
 
 import com.sun.security.auth.module.UnixSystem
+import java.awt.Desktop
 import java.io.IOException
 import java.net.URI
 import org.freedesktop.dbus.annotations.DBusInterfaceName
@@ -19,10 +20,7 @@ internal class LomiriOAuthBrowser(
     private val dispatch: (String) -> Unit = ::dispatchOAuthUri,
 ) : OAuthBrowser {
     override fun open(authorizationUri: URI) {
-        require(
-            authorizationUri.scheme == "https" && !authorizationUri.host.isNullOrBlank() &&
-                authorizationUri.rawUserInfo == null && authorizationUri.rawFragment == null,
-        ) { "Invalid authorization browser target" }
+        requireOAuthBrowserTarget(authorizationUri)
         val dispatched = try {
             dispatch(authorizationUri.toASCIIString())
             true
@@ -58,4 +56,29 @@ private fun dispatchOAuthUri(uri: String) {
 internal interface OAuthUrlDispatcher : DBusInterface {
     @DBusMemberName("DispatchURL")
     fun dispatchUrl(url: String, destinationPackage: String)
+}
+
+internal class DesktopOAuthBrowser(
+    private val browse: (URI) -> Unit = { Desktop.getDesktop().browse(it) },
+) : OAuthBrowser {
+    override fun open(authorizationUri: URI) {
+        requireOAuthBrowserTarget(authorizationUri)
+        val dispatched = try {
+            browse(authorizationUri)
+            true
+        } catch (_: IOException) {
+            false
+        } catch (_: UnsupportedOperationException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
+        if (!dispatched) throw OAuthBrowserException()
+    }
+}
+
+private fun requireOAuthBrowserTarget(uri: URI) {
+    require(
+        uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.rawUserInfo == null && uri.rawFragment == null,
+    ) { "Invalid authorization browser target" }
 }

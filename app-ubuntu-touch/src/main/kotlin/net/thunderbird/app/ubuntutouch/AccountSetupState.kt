@@ -32,6 +32,10 @@ internal data class AccountSetupState(
     val busy: Boolean = false,
     val message: String? = null,
     val pendingRemoval: AccountId? = null,
+    val providers: List<OAuthProviderChoice> = emptyList(),
+    val providerId: String? = null,
+    val signingIn: Boolean = false,
+    val cancelling: Boolean = false,
 ) {
     override fun toString(): String = "AccountSetupState(redacted)"
 
@@ -44,7 +48,25 @@ internal data class AccountSetupState(
         server("smtp", AccountField.SMTP_HOST, AccountField.SMTP_PORT, AccountField.SMTP_USER, smtpStartTls)
             .copy(authenticationType = existing?.outgoing?.authenticationType ?: AuthType.PLAIN),
         existing?.credentialKey ?: UUID.randomUUID().toString(),
+        existing?.oauthProviderId,
     )
+
+    fun selectProvider(id: String?): AccountSetupState {
+        val available = id == null || providers.any { it.id == id }
+        if (!editing || editingId != null || !available) return this
+        val cleared = AccountField.entries.associateWith { TextFieldValue(it.initial) } + fields.filterKeys {
+            it == AccountField.NAME || it == AccountField.ADDRESS
+        }
+        return copy(providerId = id, fields = cleared, message = null)
+    }
+
+    fun changeField(field: AccountField, value: TextFieldValue): AccountSetupState =
+        if (field in visibleFields) copy(fields = fields + (field to value)) else this
+
+    val providerAvailable: Boolean get() = providerId == null || providers.any { it.id == providerId }
+
+    val visibleFields: List<AccountField>
+        get() = if (providerId == null) AccountField.entries else listOf(AccountField.NAME, AccountField.ADDRESS)
 
     fun text(field: AccountField): String = fields.getValue(field).text
 
@@ -62,6 +84,7 @@ internal data class AccountSetupState(
 }
 
 internal sealed interface AccountSetupEvent {
+    data class SelectProvider(val id: String?) : AccountSetupEvent
     data object New : AccountSetupEvent
     data class Edit(val id: AccountId) : AccountSetupEvent
     data class Change(val field: AccountField, val value: TextFieldValue) : AccountSetupEvent {

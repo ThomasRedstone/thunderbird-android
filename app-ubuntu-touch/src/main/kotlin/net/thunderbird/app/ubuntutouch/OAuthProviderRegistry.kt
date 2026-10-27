@@ -1,11 +1,13 @@
 package net.thunderbird.app.ubuntutouch
 
+import com.fsck.k9.mail.AuthType
 import com.fsck.k9.mail.AuthenticationFailedException
 import com.fsck.k9.mail.ConnectionSecurity
 import com.fsck.k9.mail.ServerSettings
 import java.net.URI
 import net.thunderbird.core.common.net.HostNameUtils
 import net.thunderbird.core.common.oauth.OAuthConfiguration
+import net.thunderbird.feature.account.AccountIdFactory
 
 internal data class OAuthMailServer(val host: String, val port: Int, val security: ConnectionSecurity) {
     init {
@@ -24,8 +26,13 @@ internal data class OAuthProviderSpec(
     val configuration: OAuthConfiguration,
     val incoming: OAuthMailServer,
     val outgoing: OAuthMailServer,
+    val displayName: String = id,
 ) {
     init {
+        require(
+            displayName.isNotBlank() && displayName.length <= MAX_PROVIDER_NAME &&
+                displayName.none { it.isISOControl() },
+        )
         require(PROVIDER_ID.matches(id)) { "Invalid OAuth provider ID" }
         require(configuration.clientId.isNotBlank() && configuration.clientId.length <= MAX_CLIENT_ID)
         require(configuration.scopes.size in 1..MAX_SCOPES && configuration.scopes.all(::validScope))
@@ -41,6 +48,22 @@ internal class OAuthProviderRegistry(specs: List<OAuthProviderSpec> = emptyList(
 
     init {
         require(providers.size == specs.size) { "Duplicate OAuth provider ID" }
+    }
+
+    fun choices(): List<OAuthProviderChoice> = providers.values.map { OAuthProviderChoice(it.id, it.displayName) }
+
+    fun candidate(providerId: String, name: String, address: String, existing: UtMailAccount?): UtMailAccount {
+        val provider = providers[providerId] ?: unavailableProvider()
+        val grant = OAuthGrant(existing?.id ?: AccountIdFactory.create())
+        return UtMailAccount(
+            grant.accountId,
+            name,
+            address,
+            provider.incoming.settings("imap", address),
+            provider.outgoing.settings("smtp", address),
+            grant.credentialKey,
+            provider.id,
+        )
     }
 
     fun configurationFor(account: UtMailAccount): OAuthConfiguration {
@@ -65,3 +88,18 @@ private const val MAX_MAIL_PORT = 65535
 private const val MAX_CLIENT_ID = 4096
 private const val MAX_SCOPES = 64
 private const val MAX_SCOPE_LENGTH = 512
+
+internal data class OAuthProviderChoice(val id: String, val name: String)
+
+private fun OAuthMailServer.settings(type: String, username: String) = ServerSettings(
+    type,
+    host,
+    port,
+    security,
+    AuthType.XOAUTH2,
+    username,
+    null,
+    null,
+)
+
+private const val MAX_PROVIDER_NAME = 256

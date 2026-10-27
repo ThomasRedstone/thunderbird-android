@@ -2002,3 +2002,56 @@ remains empty. Real Gmail/Microsoft registrations, required scopes, verified Mic
 and native focus/suspend/keyring acceptance remain open. No OAuth configuration factory, client registration,
 dependency or permission was changed. Installed phone/fleet remain 0.1.18; next package must bump all three version
 locations to 0.1.19, and schema-10 probes must not overwrite the frozen schema-9 installed-package driver.
+
+
+### OAuth account setup integration (source only)
+
+Account setup now exposes only configured provider choices. OAuth forms collect name/address and build mail settings
+from the registry's approved host/port/TLS values; password and manual server fields are hidden, cleared on provider
+selection and reject late hidden-field edits. Registry choices carry a validated display name, without exposing
+client IDs or endpoints. A missing provider disables browser sign-in while allowing the user to return to account
+removal. The production registry remains empty: Gmail/Outlook buttons are not advertised without registration.
+
+AccountSetupViewModel owns the single-use authorization attempt. Browser-wait cancellation remains busy until
+listener/exchange cleanup completes; once protected commit starts the form waits for the saved outcome. Disposal
+cancels the attempt before the model scope and suppresses late state publication. Reauthorization retains the old
+protected grant until successful replacement; the snapshot captured when editing is checked before dispatch and
+at commit. Changing providers clears passwords while preserving name/address. Successful manual-save text now
+points to the already connected Mailboxes/Write flows.
+
+Main Koin composition now binds OAuthAccountAuthorization and injects it into account setup. Ubuntu Touch uses
+Lomiri browser dispatch; desktop uses a separate HTTPS-only Desktop browser adapter with generic, redacted errors.
+No real provider registration, OAuth configuration factory, dependency or permission changed.
+
+Typed address is used as the configured protocol username; it is not asserted to be a provider-verified Microsoft
+identity, and no unverified JWT-derived alternative names are supplied. Real provider registration/scopes/identity
+validation and end-to-end acceptance remain gates. Physical phone focus restoration, keyboard and suspension are
+not proven by host model or Compose tests. This code is not installed in phone 0.1.18; next package must use 0.1.19.
+
+Window-close lifecycle integration now registers account setup alongside the composer/mailbox owners. Closing the
+window cancels a browser wait and joins its cleanup, or waits for a protected commit already in progress before
+disposal. Dedicated model tests exercise both paths. Abrupt process termination still relies on the existing
+credential cleanup journal. A dedicated pending-credential-cleanup retry control remains a follow-up; current OAuth
+setup reports that condition and the manager's durable cleanup API remains available.
+
+Twelve model tests exercise provider selection/secret clearing, approved server construction, denial/retry,
+cancellation/cleanup, disposal, retained grants on cancelled reauthorization, stale editing snapshots, protected
+commit cancellation, empty provider choices, both window-close paths and immediate cancellation before a queued
+authorization coroutine starts. Four rendered Compose tests verify hidden password/server fields, browser sign-in
+events, cancellation availability and missing-provider behaviour. Two desktop-browser adapter tests cover HTTPS
+validation and error redaction. All use synthetic data; no provider login or real message delivery occurs here.
+
+The immediate-cancel regression initially failed with a generic failure instead of “Sign-in cancelled.”
+(/tmp/thunderbird-oauth-setup-cancel-before.log; build/evidence/oauth-setup/cancel-before-start-before.xml).
+OAuthAccountAuthorizationAttempt now reports pre-start cancellation as CancellationException; the model handles it
+consistently with cancellation during browser or exchange work.
+
+Final verification: all 274 app tests pass, zero failures/errors/skips, plus detekt/installDist/spotlessCheck.
+Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Log: /tmp/thunderbird-oauth-setup-full.log; XML: build/evidence/oauth-setup/. The initial focused model/Compose checks
+also passed (/tmp/thunderbird-oauth-setup-focused.log); final full verification includes subsequent lifecycle and
+immediate-cancel regressions. Initial virtual-clock timeouts in socket tests were corrected with bounded real-time
+waits; they were not treated as application evidence. No shared engine/Android changes; prior SMTP/Android consumer
+checks remain applicable. Android instrumentation and native deployment were not run for this JVM-only slice.

@@ -49,7 +49,7 @@ internal class OAuthAccountAuthorizationAttempt(
     val committing: Boolean get() = phase.get() == Phase.COMMITTING
 
     suspend fun authorize(): OAuthAccountAuthorizationResult {
-        check(phase.compareAndSet(Phase.READY, Phase.RUNNING)) { "Authorization attempt already used" }
+        begin()
         return try {
             withContext(Dispatchers.IO) {
                 val context = currentCoroutineContext()
@@ -90,6 +90,12 @@ internal class OAuthAccountAuthorizationAttempt(
             worker.set(null)
             phase.set(Phase.FINISHED)
         }
+    }
+
+    private fun begin() {
+        val started = phase.compareAndSet(Phase.READY, Phase.RUNNING)
+        if (!started && phase.get() == Phase.CANCELLED) throw CancellationException("Authorization cancelled")
+        check(started) { "Authorization attempt already used" }
     }
 
     /** False means the protected commit has started or the attempt has already finished. Never blocks on keyring IO. */

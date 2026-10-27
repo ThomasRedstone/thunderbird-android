@@ -5,10 +5,12 @@ import com.fsck.k9.mail.ConnectionSecurity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.thunderbird.feature.account.AccountId
@@ -16,26 +18,35 @@ import net.thunderbird.feature.account.AccountId
 internal class AccountSetupViewModel(
     private val manager: UtAccountManager,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    private val authorization: OAuthAccountAuthorization? = null,
+    private val providers: OAuthProviderRegistry = OAuthProviderRegistry(),
 ) : AutoCloseable {
-    private val mutableState = MutableStateFlow(AccountSetupState(manager.findAll()))
+    private var work: Job? = null
+    private var closed = false
+    private var editingSnapshot: UtMailAccount? = null
+    private var activeAuthorization: OAuthAccountAuthorizationAttempt? = null
+    private val mutableState = MutableStateFlow(initial())
     val state = mutableState.asStateFlow()
 
     fun event(event: AccountSetupEvent) {
         val current = state.value
-        if (current.busy) return
+        if (!acceptEvent(event, current)) return
         when (event) {
-            AccountSetupEvent.New -> mutableState.value = AccountSetupState(manager.findAll(), editing = true)
+            AccountSetupEvent.New -> {
+                editingSnapshot = null
+                mutableState.value = initial().copy(editing = true)
+            }
+
+            is AccountSetupEvent.SelectProvider -> mutableState.value = current.selectProvider(event.id)
 
             is AccountSetupEvent.Edit -> edit(event.id)
 
-            is AccountSetupEvent.KeyboardEdit -> mutableState.value = current.copy(
-                fields =
-                current.fields + (event.field to applyMaliitEdit(current.fields.getValue(event.field), event.edit)),
+            is AccountSetupEvent.KeyboardEdit -> mutableState.value = current.changeField(
+                event.field,
+                applyMaliitEdit(current.fields.getValue(event.field), event.edit),
             )
 
-            is AccountSetupEvent.Change ->
-                mutableState.value =
-                    current.copy(fields = current.fields + (event.field to event.value))
+            is AccountSetupEvent.Change -> mutableState.value = current.changeField(event.field, event.value)
 
             is AccountSetupEvent.StartTls -> mutableState.value = if (event.incoming) {
                 current.copy(imapStartTls = event.enabled)
@@ -43,9 +54,12 @@ internal class AccountSetupViewModel(
                 current.copy(smtpStartTls = event.enabled)
             }
 
-            AccountSetupEvent.Cancel -> mutableState.value = AccountSetupState(manager.findAll())
+            AccountSetupEvent.Cancel -> {
+                editingSnapshot = null
+                mutableState.value = initial()
+            }
 
-            AccountSetupEvent.Save -> save(current)
+            AccountSetupEvent.Save -> if (current.providerId == null) save(current) else signIn(current)
 
             is AccountSetupEvent.RequestRemoval -> mutableState.value = current.copy(pendingRemoval = event.id)
 
@@ -55,8 +69,73 @@ internal class AccountSetupViewModel(
         }
     }
 
+    private fun acceptEvent(event: AccountSetupEvent, current: AccountSetupState): Boolean {
+        if (closed) return false
+        if (current.busy && event == AccountSetupEvent.Cancel && current.signingIn) cancelAuthorization()
+        return !current.busy
+    }
+
+    private fun initial(message: String? = null) = AccountSetupState(
+        manager.findAll(),
+        message = message,
+        providers = if (authorization == null) emptyList() else providers.choices(),
+    )
+
+    private fun cancelAuthorization() {
+        val cancelled = activeAuthorization?.cancel() == true
+        mutableState.value = state.value.copy(
+            cancelling = true,
+            message = if (cancelled) "Cancelling sign-in…" else "Completing the protected account save…",
+        )
+    }
+
+    private fun signIn(current: AccountSetupState) {
+        val attempt = runCatching {
+            val existing = current.editingId?.let { id -> checkNotNull(editingSnapshot).also { check(it.id == id) } }
+            val candidate = providers.candidate(
+                checkNotNull(current.providerId),
+                current.text(AccountField.NAME),
+                current.text(AccountField.ADDRESS).trim(),
+                existing,
+            )
+            checkNotNull(authorization).prepare(candidate, existing)
+        }.getOrElse {
+            mutableState.value =
+                current.copy(message = "Check the account name, address and available sign-in provider.")
+            return
+        }
+        activeAuthorization = attempt
+        mutableState.value = current.copy(busy = true, signingIn = true, message = "Continue sign-in in your browser.")
+        work = scope.launch {
+            val result = runCatching { attempt.authorize() }
+            if (closed || !scope.isActive || activeAuthorization !== attempt) return@launch
+            activeAuthorization = null
+            result.onSuccess {
+                mutableState.value = initial(
+                    if (it.cleanupPending) {
+                        "Account saved. Unlock the keyring to finish removing obsolete credentials."
+                    } else {
+                        "Account signed in. Open Mailboxes to receive mail."
+                    },
+                )
+            }.onFailure {
+                mutableState.value = if (it is CancellationException) {
+                    initial("Sign-in cancelled.")
+                } else {
+                    current.copy(
+                        message = oauthErrorMessage(it),
+                        busy = false,
+                        signingIn = false,
+                        cancelling = false,
+                    )
+                }
+            }
+        }
+    }
+
     private fun edit(id: AccountId) {
         val account = checkNotNull(manager.findById(id))
+        editingSnapshot = account
         val fields = mapOf(
             AccountField.NAME to account.displayName, AccountField.ADDRESS to account.address,
             AccountField.IMAP_HOST to account.incoming.host, AccountField.IMAP_PORT to account.incoming.port.toString(),
@@ -68,6 +147,8 @@ internal class AccountSetupViewModel(
             manager.findAll(),
             editing = true,
             editingId = id,
+            providers = initial().providers,
+            providerId = account.oauthProviderId,
             fields = fields,
             imapStartTls = account.incoming.connectionSecurity == ConnectionSecurity.STARTTLS_REQUIRED,
             smtpStartTls = account.outgoing.connectionSecurity == ConnectionSecurity.STARTTLS_REQUIRED,
@@ -90,7 +171,7 @@ internal class AccountSetupViewModel(
         if (!cleaned) {
             return@perform "Account saved. Unlock the keyring and save again to remove obsolete passwords."
         }
-        "Account saved. Mail receiving and sending are not connected in this preview."
+        "Account saved. Open Mailboxes to receive mail or Write to compose a message."
     }
 
     private fun remove(current: AccountSetupState) {
@@ -103,11 +184,12 @@ internal class AccountSetupViewModel(
 
     private fun perform(current: AccountSetupState, operation: () -> String) {
         mutableState.value = current.copy(busy = true, message = null)
-        scope.launch {
+        work = scope.launch {
             runCatching { withContext(Dispatchers.IO) { operation() } }
-                .onSuccess { mutableState.value = AccountSetupState(manager.findAll(), message = it) }
+                .onSuccess { if (!closed) mutableState.value = initial(it) }
                 .onFailure { failure ->
                     if (failure is CancellationException) throw failure
+                    if (closed) return@onFailure
                     val fields = current.fields.mapValues { (field, value) ->
                         if (field.secret) TextFieldValue() else value
                     }
@@ -116,7 +198,17 @@ internal class AccountSetupViewModel(
         }
     }
 
+    suspend fun flushForClose(): Boolean {
+        activeAuthorization?.cancel()
+        work?.join()
+        return !state.value.busy
+    }
+
     override fun close() {
+        closed = true
+        editingSnapshot = null
+        activeAuthorization?.cancel()
+        activeAuthorization = null
         scope.cancel()
         mutableState.value = AccountSetupState(emptyList())
     }
@@ -134,4 +226,12 @@ private fun errorMessage(failure: Throwable): String = when (failure) {
             "Enter both passwords for a new account or password change. TLS is required."
 
     else -> "Unable to complete changes. Check device storage and try again."
+}
+
+private fun oauthErrorMessage(failure: Throwable): String = when (failure) {
+    is OAuthAuthorizationDeniedException -> "Sign-in was declined. No new authorization was saved."
+    is OAuthBrowserException -> "Unable to open the browser. Try signing in again."
+    is OAuthLoopbackException -> "Sign-in timed out or could not return to the app. Try again."
+    is SecretStoreException -> "Unlock the system keyring and try again. No plaintext fallback was used."
+    else -> "Unable to finish sign-in. Check your connection and account settings, then try again."
 }

@@ -49,4 +49,28 @@ class LomiriOAuthBrowserTest {
                 assertThat(error?.suppressed?.size).isEqualTo(0)
             }
     }
+
+    @Test
+    fun `desktop dispatch preserves HTTPS request and rejects unsafe targets`() {
+        val sent = mutableListOf<URI>()
+        val testSubject = DesktopOAuthBrowser { sent.add(it) }
+        val uri = URI("https://login.example.invalid/?state=controlled")
+        testSubject.open(uri)
+        assertThat(sent).isEqualTo(listOf(uri))
+        assertThat(runCatching { testSubject.open(URI("http://login.example.invalid")) }.isFailure).isTrue()
+        assertThat(sent).isEqualTo(listOf(uri))
+    }
+
+    @Test
+    fun `desktop browser failures expose only a generic failure`() {
+        listOf(IOException("private"), UnsupportedOperationException("private"), SecurityException("private"))
+            .forEach { failure ->
+                val testSubject = DesktopOAuthBrowser { throw failure }
+                val error = runCatching { testSubject.open(URI("https://login.example.invalid/?state=private")) }
+                    .exceptionOrNull()
+                assertThat(error is OAuthBrowserException).isTrue()
+                assertThat(error?.cause).isNull()
+                assertThat(error?.message).isEqualTo("Unable to open authorization browser")
+            }
+    }
 }

@@ -43,13 +43,13 @@ internal fun AccountSetupScreen(
     ) {
         TextTitleLarge(if (state.editing) "Account setup" else "Accounts")
         state.message?.let { TextBodyLarge(it) }
-        if (state.busy) TextBodyLarge("Saving changes…")
+        if (state.busy && !state.signingIn) TextBodyLarge("Saving changes…")
         when {
             state.editing -> AccountForm(state, onEvent, keyboard)
 
             state.pendingRemoval != null -> {
                 TextBodyLarge(
-                    "Remove this account, its saved passwords and local cached mail? Mail on the server will remain.",
+                    "Remove this account, its saved credentials and local cached mail? Mail on the server will remain.",
                 )
                 ButtonText("Remove account", {
                     onEvent(AccountSetupEvent.ConfirmRemoval)
@@ -79,11 +79,36 @@ private fun AccountList(state: AccountSetupState, onEvent: (AccountSetupEvent) -
 }
 
 @Composable
+private fun AccountAuthenticationChoices(state: AccountSetupState, onEvent: (AccountSetupEvent) -> Unit) {
+    if (state.editingId != null && state.providerId == null) {
+        TextBodyLarge("Leave both password fields blank to keep your saved passwords.")
+    }
+
+    if (state.editingId == null && state.providers.isNotEmpty()) {
+        ButtonText("Password or app password", {
+            onEvent(AccountSetupEvent.SelectProvider(null))
+        }, enabled = !state.busy)
+        state.providers.forEach { provider ->
+            ButtonText(provider.name, { onEvent(AccountSetupEvent.SelectProvider(provider.id)) }, enabled = !state.busy)
+        }
+    }
+    if (state.providerId != null) {
+        TextBodyLarge(
+            if (state.providerAvailable) {
+                "Sign in using your provider's browser page. Your password is not entered in this app."
+            } else {
+                "Sign-in is currently unavailable for this provider."
+            },
+        )
+    }
+}
+
+@Composable
 private fun AccountForm(state: AccountSetupState, onEvent: (AccountSetupEvent) -> Unit, keyboard: MaliitKeyboard?) {
     val focusManager = LocalFocusManager.current
     val onFocus = rememberAccountFocus(state, onEvent, keyboard)
-    if (state.editingId != null) TextBodyLarge("Leave both password fields blank to keep your saved passwords.")
-    AccountField.entries.forEach { field ->
+    AccountAuthenticationChoices(state, onEvent)
+    state.visibleFields.forEach { field ->
         val modifier = Modifier.fillMaxWidth().onFocusChanged { focus ->
             onFocus(field, focus.isFocused)
         }
@@ -123,14 +148,14 @@ private fun AccountForm(state: AccountSetupState, onEvent: (AccountSetupEvent) -
             else -> Unit
         }
     }
-    ButtonText("Save account", {
+    ButtonText(if (state.providerId == null) "Save account" else "Sign in with browser", {
         focusManager.clearFocus()
         onEvent(AccountSetupEvent.Save)
-    }, enabled = !state.busy)
+    }, enabled = !state.busy && state.providerAvailable)
     ButtonText("Cancel", {
         focusManager.clearFocus()
         onEvent(AccountSetupEvent.Cancel)
-    }, enabled = !state.busy)
+    }, enabled = !state.busy || (state.signingIn && !state.cancelling))
 }
 
 @Composable

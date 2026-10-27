@@ -2752,3 +2752,31 @@ Artifacts: `app-ubuntu-touch/build/evidence/signon-confined-private/`, including
 source, ARM64 library and `notifier-and-completed-read.patch` on top of current upstream. Cross-build log
 `/tmp/thunderbird-signon-arm64-repeat-build.log`. No app source/version bump was needed because only isolated service
 fixtures changed. Normal0.1.25 keyring reads remain failing until a separately reviewed integration path is implemented.
+
+
+### 0.1.26 independent folder and search sort preferences
+
+Source `ebeffb1854` changes sort selection from one shared session/global choice to separate account/folder,
+account-wide search and unified-search choices. The existing global file stays a migration default for views without
+an override. Atomic0600 sidecars contain only the bounded sort enum; SHA-256 filenames frame scope/account/folder
+identities, so opaque or path-like mailbox names never become paths. Failed writes preserve the scoped session choice,
+show the existing failure/retry notice and remain part of the close/flush boundary. Account and folder navigation,
+search-scope changes and database/model restart restore the appropriate choice without network or credentials.
+Stale sidecar cleanup on deleted accounts/folders remains a retention follow-up; this does not complete the broader
+storage lifecycle or large-mailbox gate.
+
+The new regression first failed because changing Inbox to Subject also changed Archive (expected NEWEST, got SUBJECT):
+`/tmp/thunderbird-sort-context-before.log`, `app-ubuntu-touch/build/evidence/sort-context/before.xml`.
+After: focused sort/model/rendered tests pass; **342 app tests, zero failures/errors/skips**, detekt, installDist and
+spotlessCheck pass (`/tmp/thunderbird-sort-context-full.log`; XML `build/evidence/sort-context/after/`).
+Commands use JDK21/SDK and `./gradlew :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+No shared/Android source, OAuth registrations, schema or permissions changed. This JVM app has no Android lint or
+instrumentation task; prior shared Android assembly checks remain applicable.
+
+Candidate28: `app-ubuntu-touch/build/ut-candidate-28/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.26_arm64.click`.
+Size147716936; SHA-256 `e415b8dfba0d56804e35646e021cb280070c35db620099a9e95d147fc9ee3068`.
+Embedded clean source `ebeffb1854`; SOURCE-CHANGES empty. Click review and ARM64 launcher/JVM/AWT/Skiko checks pass
+(`/tmp/thunderbird-026-click.log`). Same pinned builder and verified candidate5 runtime reused, not a new cold build.
+Phone remains0.1.25; no26 transfer/installation or scoped-sort native acceptance yet. The experimental SignOn service
+repair is **not part of this package**. Production large protected reads and real provider/physical journeys remain open.

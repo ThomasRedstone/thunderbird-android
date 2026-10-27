@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.25 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 340 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 342 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.25 embeds clean `a1948b0768`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.25 install verified; local fleet `a8e4a39` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -205,8 +205,14 @@ Cached sorting is implemented in 0.1.20 development source: newest/oldest, subje
 starred-first modes apply to folder and account/unified search results without network access. Host model, SQLite
 and rendered UI checks pass, including stable identity ties and resetting a scrolled list after changing order.
 Selection survives navigation and restarts through an atomic private preference file, with explicit save-failure
-feedback and retry. Per-folder preferences, locale-specific collation, native
+feedback and retry. Locale-specific collation, native
 phone acceptance and large-mailbox performance remain open; 0.1.20 ARM64 Click is built and reviewed, with phone installation/acceptance pending.
+
+Version0.1.26 adds independent persistent sort choices for each account/folder, account-wide cached search and unified
+search. Existing global preferences remain the default for views without a saved choice. Private atomic sidecar files
+contain only the sort enum; account/folder identifiers are hashed in filenames. Host restart/navigation, legacy-default
+and save-failure/retry checks pass, including a fail-before cross-folder regression. The reviewed ARM64 package is built;
+phone installation/physical acceptance and stale preference-file retention remain open.
 
 Reader attachment names, MIME types and counts are implemented in 0.1.21 development source for complete cached
 messages, including HTML-only bodies. Incomplete messages request full download; shared sanitization and classification,

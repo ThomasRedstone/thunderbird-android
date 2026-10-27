@@ -21,6 +21,27 @@ class LiveMailViewModelTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `cached reload refreshes reader list after another owner changes cache without network`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val accounts = manager(database)
+            val repository = FakeLiveMailRepository()
+            val testSubject = LiveMailViewModel(accounts, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(accounts.findAll().single().id))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenFolder(repository.folder))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenMessage("1"))
+            testSubject.state.first { !it.busy }
+            repository.summary = repository.summary.copy(subject = "Changed cached message")
+            testSubject.event(LiveMailEvent.ReloadCached)
+            val refreshed = testSubject.state.first { !it.busy }
+            assertThat(refreshed.content).isEqualTo(null)
+            assertThat(refreshed.messages.single().subject).isEqualTo("Changed cached message")
+            assertThat(repository.refreshes).isEqualTo(0)
+        }
+    }
+
+    @Test
     fun `cached navigation is offline and failed refresh preserves readable mail`() = runTest {
         MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
             val manager = manager(database)

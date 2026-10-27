@@ -448,3 +448,12 @@ quality/distribution checks pass, including real TLS source removal/destination
 failure/recovery. Destination/review/reconciliation UI and retained-copy access,
 native/physical acceptance, large-payload behavior and retention policy remain open.
 This is not a completed user-facing Move feature. Phone remains31/schema11.
+
+Development 0.1.32/schema15 now integrates the Move destination picker, explicit source verification
+and destination sync, queued-intent review, uncertain-result retry confirmation, retained-source
+paging and foreground reconciliation into the mailbox. Opening history, selecting a destination and
+queuing an intent do not submit a move. Returning to the mailbox reloads its cache without network.
+The global MVI owner cancels active operations on background/close. Controlled TLS testing confirms
+that reconciliation of an uncertain attempt does not submit a second server copy. Host UI/model
+tests pass; this source is not packaged or phone-accepted yet. The phone remains on 0.1.31/schema11.
+Bulk moves, broader folder operations, native recovery/performance and physical UI acceptance remain open.

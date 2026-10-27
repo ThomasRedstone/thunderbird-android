@@ -92,6 +92,7 @@ fun main() {
                                 lifecycle = lifecycle,
                                 createSave = { koin.get<MessageSaveRuntime>() },
                                 createSignatures = { koin.get<SignatureSettingsViewModel>() },
+                                createMoves = { koin.get<MailMoveViewModel>() },
                             )
                         }
                     }
@@ -134,6 +135,8 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
                     System.getenv("APP_ID") ?: "mail-demo.thomasredstone_mail-demo_0.1.32",
                 )
             }
+            single<MailMoveOperations> { PersistentMailMoveOperations(get(), get(), get()) }
+            single { MailMoveViewModel(get()) }
             single { OutgoingMailStore(get()) }
             single<OutgoingTransport> { SessionOutgoingTransport(get()) }
             single { SentCopyStore(get()) }

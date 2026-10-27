@@ -60,6 +60,7 @@ internal sealed interface LiveMailEvent {
     data object ConfirmDiscard : LiveMailEvent
     data object CancelDiscard : LiveMailEvent
     data object SyncQueuedFlags : LiveMailEvent
+    data object ReloadCached : LiveMailEvent
     data object Refresh : LiveMailEvent
     data object Download : LiveMailEvent
     data object Cancel : LiveMailEvent
@@ -171,6 +172,8 @@ internal class LiveMailViewModel(
 
     private fun handleActions(event: LiveMailEvent, current: LiveMailState): Boolean {
         when (event) {
+            LiveMailEvent.ReloadCached -> load(current.forCachedReload(), action = event)
+
             is LiveMailEvent.Search -> search(current, event.query)
 
             is LiveMailEvent.SearchScope -> if (current.folder != null && current.content == null) {
@@ -181,9 +184,9 @@ internal class LiveMailViewModel(
 
             is LiveMailEvent.OpenSearchResult -> openSearchResult(current, event.hit)
 
-            is LiveMailEvent.Respond -> current.content?.let { load(current, uid = it.summary.id, action = event) }
-
-            is LiveMailEvent.ChangeFlag -> current.content?.let { load(current, uid = it.summary.id, action = event) }
+            is LiveMailEvent.Respond,
+            is LiveMailEvent.ChangeFlag,
+            -> current.content?.let { load(current, uid = it.summary.id, action = event) }
 
             LiveMailEvent.DiscardPending -> mutableState.value = current.copy(confirmDiscard = true)
 
@@ -397,3 +400,12 @@ private fun LiveMailState.searchingFor(action: LiveMailEvent?): Boolean =
 
 private fun keepInitialOnFailure(action: LiveMailEvent?, operation: MailOperation?): Boolean =
     operation?.cancellationRequested == true || action is LiveMailEvent.Source
+
+private fun LiveMailState.forCachedReload(): LiveMailState = copy(
+    account = returnAccount ?: account,
+    folder = returnFolder ?: folder,
+    returnAccount = null,
+    returnFolder = null,
+    content = null,
+    source = null,
+)

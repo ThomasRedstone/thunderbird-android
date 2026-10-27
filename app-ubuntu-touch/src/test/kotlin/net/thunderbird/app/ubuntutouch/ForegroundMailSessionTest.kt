@@ -143,6 +143,13 @@ class ForegroundMailSessionTest {
             assertThat(
                 PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX").isMessagePresent(key.uid),
             ).isTrue()
+            val operations = PersistentMailMoveOperations(database, accounts, sessions)
+            assertThat(operations.overview(null).history.single().move.state).isEqualTo(MailMoveState.UNKNOWN)
+            operations.retained(outcome, 0)
+            assertThat(operations.reconcile(outcome, MailOperation())).isTrue()
+            assertThat(store.list(account.id).single().state).isEqualTo(MailMoveState.UNKNOWN)
+            assertThat(gateway.droppedMoveAcknowledgements.get()).isEqualTo(1)
+            withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(1) }
         }
         assertThat(logEvents).isEqualTo(0)
     }

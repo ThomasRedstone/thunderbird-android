@@ -35,6 +35,7 @@ internal fun LiveMailScreen(
     state: LiveMailState,
     keyboard: MaliitKeyboard? = null,
     onSave: ((MessageSaveEvent.Prepare) -> Unit)? = null,
+    onMove: ((MailMessageKey) -> Unit)? = null,
     onEvent: (LiveMailEvent) -> Unit,
 ) {
     val height = keyboard?.height?.collectAsState()?.value ?: 0
@@ -56,8 +57,7 @@ internal fun LiveMailScreen(
                     TextBodyLarge("Only a preview is cached.")
                     ButtonText("Download full message", { onEvent(LiveMailEvent.Download) }, enabled = !state.busy)
                 }
-                ButtonText("View source", { onEvent(LiveMailEvent.Source()) }, enabled = !state.busy)
-                ReaderSaveAction(state, onSave)
+                ReaderTools(state, onSave, onMove, onEvent)
                 MessageFlagButtons(content.summary, state.busy, onEvent)
                 ResponseButtons(content, state.busy, onEvent)
                 MailReader(content, state.accounts.find { it.id == state.account }?.displayName, Modifier.weight(1f))

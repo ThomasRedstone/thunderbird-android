@@ -38,9 +38,13 @@ internal fun MailApplicationScreen(
     lifecycle: MailWindowLifecycle,
     createSave: (() -> MessageSaveRuntime)? = null,
     createSignatures: (() -> SignatureSettingsViewModel)? = null,
+    createMoves: (() -> MailMoveViewModel)? = null,
 ) {
     val save = createSave?.let { loadOwnedMailModel(it)?.model }
     if (save != null) RegisterMailClose(save, lifecycle, save::flushForClose, {})
+    val moves = createMoves?.let { loadOwnedMailModel(it) }
+    if (moves != null) RegisterMailClose(moves, lifecycle, moves::flushForClose, moves::background)
+    val transfers = collectMailboxTransfers(save, moves)
     var destination by remember { mutableStateOf(MailDestination.DEMO) }
     var composeRequest by remember { mutableStateOf<ComposeRequest?>(null) }
     when (destination) {
@@ -77,10 +81,16 @@ internal fun MailApplicationScreen(
             if (mailbox != null) {
                 RegisterMailClose(mailbox, lifecycle, mailbox::flushForClose, {})
                 val state by mailbox.state.collectAsState()
-                MailboxDestination(state, mailbox::event, keyboard, { destination = it }, save) {
-                    composeRequest = it
-                    destination = MailDestination.COMPOSE
-                }
+                MailboxDestination(
+                    state,
+                    mailbox::event,
+                    keyboard,
+                    MailboxNavigation({ destination = it }, {
+                        composeRequest = it
+                        destination = MailDestination.COMPOSE
+                    }),
+                    transfers,
+                )
             }
         }
     }
@@ -137,53 +147,114 @@ private fun SignatureSettingsDestination(
     }
 }
 
+private class MailboxNavigation(val navigate: (MailDestination) -> Unit, val compose: (ComposeRequest) -> Unit)
+private class MailboxTransfers(
+    val save: MessageSaveState?,
+    val saveEvent: (MessageSaveEvent) -> Unit,
+    val moves: MailMoveUiState?,
+    val moveEvent: (MailMoveEvent) -> Unit,
+)
+
+@Composable
+private fun collectMailboxTransfers(save: MessageSaveViewModel?, moves: MailMoveViewModel?): MailboxTransfers =
+    MailboxTransfers(
+        save?.state?.collectAsState()?.value,
+        { save?.event(it) },
+        moves?.state?.collectAsState()?.value,
+        { moves?.event(it) },
+    )
+
 @Composable
 private fun MailboxDestination(
     state: LiveMailState,
     onEvent: (LiveMailEvent) -> Unit,
     keyboard: MaliitKeyboard?,
-    navigate: (MailDestination) -> Unit,
-    save: MessageSaveViewModel?,
-    compose: (ComposeRequest) -> Unit,
+    navigation: MailboxNavigation,
+    transfers: MailboxTransfers,
 ) {
     var saving by remember { mutableStateOf(false) }
-    val saveState = save?.state?.collectAsState()?.value
-    LaunchedEffect(state.composeRequest) { state.composeRequest?.let(compose) }
+    var moving by remember { mutableStateOf(false) }
+    val saveState = transfers.save
+    val moveState = transfers.moves
+    val exitMove = {
+        moving = false
+        onEvent(LiveMailEvent.ReloadCached)
+    }
+    LaunchedEffect(state.composeRequest) { state.composeRequest?.let(navigation.compose) }
     Column(
-        Modifier.fillMaxSize().mailBack(!state.busy) {
-            if (saving) {
-                saving = false
-            } else if (state.account == null) {
-                navigate(MailDestination.DEMO)
-            } else {
-                onEvent(LiveMailEvent.Back)
+        Modifier.fillMaxSize().mailBack(!state.busy && moveState?.busy != true) {
+            when {
+                moving -> exitMove()
+                saving -> saving = false
+                state.account == null -> navigation.navigate(MailDestination.DEMO)
+                else -> onEvent(LiveMailEvent.Back)
             }
         },
     ) {
-        if (saving && save != null && saveState != null) {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+        when {
+            moving && moveState != null -> {
+                ButtonText("Back to mailbox", exitMove, enabled = !moveState.busy)
+                MailMoveScreen(moveState, transfers.moveEvent)
+            }
+
+            saving && saveState != null -> Column(Modifier.verticalScroll(rememberScrollState())) {
                 ButtonText("Back to mailbox", { saving = false })
-                MessageSaveControls(saveState, save::event)
+                MessageSaveControls(saveState, transfers.saveEvent)
             }
-        } else {
-            NavigationButtons(state.busy, navigate, keyboard)
-            if (saveState?.pending?.record != null || saveState?.notice != null) {
-                ButtonText("Review message transfer", { saving = true })
-            }
-            LiveMailScreen(
+
+            else -> MailboxContent(
                 state,
+                onEvent,
                 keyboard,
-                onSave = save?.let { model ->
-                    { request ->
-                        keyboard?.focus(false)
-                        if (!model.state.value.busy && model.state.value.pending?.record == null) model.event(request)
-                        saving = true
-                    }
-                },
-                onEvent = onEvent,
+                navigation,
+                transfers,
+                MailboxPanels({ saving = true }, { moving = true }),
             )
         }
     }
+}
+
+private class MailboxPanels(val save: () -> Unit, val move: () -> Unit)
+
+@Composable
+private fun MailboxContent(
+    state: LiveMailState,
+    onEvent: (LiveMailEvent) -> Unit,
+    keyboard: MaliitKeyboard?,
+    navigation: MailboxNavigation,
+    transfers: MailboxTransfers,
+    panels: MailboxPanels,
+) {
+    val saveState = transfers.save
+    NavigationButtons(state.busy, navigation.navigate, keyboard)
+    if (saveState?.pending?.record != null || saveState?.notice != null) {
+        ButtonText("Review message transfer", panels.save)
+    }
+    if (transfers.moves != null) {
+        ButtonText("Move history", {
+            transfers.moveEvent(MailMoveEvent.Open())
+            panels.move()
+        })
+    }
+    LiveMailScreen(
+        state,
+        keyboard,
+        onSave = saveState?.let { saved ->
+            { request ->
+                keyboard?.focus(false)
+                if (!saved.busy && saved.pending?.record == null) transfers.saveEvent(request)
+                panels.save()
+            }
+        },
+        onMove = transfers.moves?.let {
+            { key ->
+                keyboard?.focus(false)
+                transfers.moveEvent(MailMoveEvent.Open(key))
+                panels.move()
+            }
+        },
+        onEvent = onEvent,
+    )
 }
 
 @Composable

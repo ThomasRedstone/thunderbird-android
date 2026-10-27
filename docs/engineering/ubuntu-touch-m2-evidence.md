@@ -3421,3 +3421,24 @@ yet connected to a user view. Next: destination/review/reconciliation UI with re
 copy access, native/physical acceptance and history/retention policy. Broader folder
 operations and cache-origin semantics stay on the roadmap. Source32 is unpackaged;
 phone remains31/schema11. No permissions or OAuth configuration changed.
+
+### Move UI integration (2026-10-27, development 0.1.32)
+
+The app now wires a single lifecycle-owned Move model and persistent operations service through Koin.
+The reader opens a destination picker; mailbox navigation exposes saved move history. Source
+verification and destination sync are explicit network actions. Queueing remains local, followed by
+a separate reviewed submission. Unknown outcomes require a fresh duplicate-risk confirmation;
+viewing retained source invalidates that confirmation. Reconciliation syncs folders without replaying
+the move. Completed payload cleanup still requires exact destination-cache proof. History includes
+the owning account name. Cached mailbox reload after closing Move never refreshes the server.
+
+Verification: focused 43 tests passed, including rendered Compose controls, cancellation/close,
+cached reload and real TLS uncertain reconciliation with independent destination message count.
+Logs: `/tmp/thunderbird-move-ui-focused-3.log` and `/tmp/thunderbird-move-ui-full.log`.
+Full app tests, detekt, installDist and spotlessCheck passed using JDK21/Android SDK,
+`--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4` and tasks
+`:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck`.
+No shared modules changed. Android device tests do not exercise this JVM application.
+No new Click or native/physical acceptance is claimed. Phone stays 0.1.31/schema11; development
+source remains 0.1.32/schema15. Large-message native performance, abrupt termination recovery,
+bulk operations and resolution of partial/unknown remote outcomes remain required.

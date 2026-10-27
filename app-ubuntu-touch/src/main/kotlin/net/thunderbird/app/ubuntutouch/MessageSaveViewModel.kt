@@ -5,8 +5,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.thunderbird.feature.account.AccountId
@@ -38,12 +41,19 @@ internal class MessageSaveViewModel(
     private val controller: ContentExportController,
     private val accounts: UtAccountManager,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    changes: Flow<ContentHubChange> = emptyFlow(),
 ) : AutoCloseable {
     private val mutableState = MutableStateFlow(MessageSaveState(busy = true))
     val state = mutableState.asStateFlow()
 
     init {
         scope.launch { perform { recover() } }
+        scope.launch {
+            changes.collect { change ->
+                state.first { !it.busy }
+                if (state.value.pending?.record?.transfer == change.reference) event(MessageSaveEvent.Refresh)
+            }
+        }
     }
 
     fun event(event: MessageSaveEvent) {
@@ -126,6 +136,11 @@ internal class MessageSaveViewModel(
                 notice = "Unable to save. Cached mail and pending transfers are retained.",
             )
         }
+    }
+
+    suspend fun flushForClose(): Boolean {
+        state.first { !it.busy }
+        return true
     }
 
     override fun close() {

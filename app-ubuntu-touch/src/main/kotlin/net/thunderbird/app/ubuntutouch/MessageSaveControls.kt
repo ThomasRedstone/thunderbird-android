@@ -60,3 +60,20 @@ internal fun MessageSaveControls(state: MessageSaveState, onEvent: (MessageSaveE
         }
     }
 }
+
+@Composable
+internal fun ReaderSaveAction(state: LiveMailState, onSave: ((MessageSaveEvent.Prepare) -> Unit)?) {
+    val request = state.saveRequest()
+    if (onSave != null && request != null) {
+        ButtonText("Save message (.eml)", { onSave(request) }, enabled = !state.busy)
+    }
+}
+
+internal fun LiveMailState.saveRequest(): MessageSaveEvent.Prepare? {
+    val message = content
+    return if (message?.complete == true && account != null && folder != null) {
+        MessageSaveEvent.Prepare(account, folder.id, message.summary.id)
+    } else {
+        null
+    }
+}

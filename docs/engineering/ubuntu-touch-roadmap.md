@@ -385,3 +385,10 @@ wire encoding, unique-owner replacement rejection and authenticated/spoofed sign
 checks pass. Full373 app tests and quality/distribution checks pass. Save UI/model,
 DI/lifecycle integration, permission review and native/physical acceptance remain
 open; this does not yet provide a user-facing Save action. See M2 evidence.
+
+Reader Save integration now exists in source0.1.30: complete cached messages route
+their account/folder/UID to a singleton export owner and destination/review view;
+navigation preserves pending records, window close waits for active work and
+broker notifications refresh status. Full379 host tests and quality/distribution
+checks pass. Minimal outbound Content Hub permission approval, ARM64 package and
+native/physical receiver/crash/upgrade acceptance remain required. Phone remains27.

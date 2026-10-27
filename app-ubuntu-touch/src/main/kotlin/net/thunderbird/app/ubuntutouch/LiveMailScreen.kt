@@ -31,7 +31,12 @@ import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldOutlined
 import net.thunderbird.core.common.mail.Flag
 
 @Composable
-internal fun LiveMailScreen(state: LiveMailState, keyboard: MaliitKeyboard? = null, onEvent: (LiveMailEvent) -> Unit) {
+internal fun LiveMailScreen(
+    state: LiveMailState,
+    keyboard: MaliitKeyboard? = null,
+    onSave: ((MessageSaveEvent.Prepare) -> Unit)? = null,
+    onEvent: (LiveMailEvent) -> Unit,
+) {
     val height = keyboard?.height?.collectAsState()?.value ?: 0
     val windowHeight = LocalWindowInfo.current.containerSize.height.coerceAtLeast(0)
     val inset = with(LocalDensity.current) { height.coerceIn(0, windowHeight).toDp() }
@@ -52,6 +57,7 @@ internal fun LiveMailScreen(state: LiveMailState, keyboard: MaliitKeyboard? = nu
                     ButtonText("Download full message", { onEvent(LiveMailEvent.Download) }, enabled = !state.busy)
                 }
                 ButtonText("View source", { onEvent(LiveMailEvent.Source()) }, enabled = !state.busy)
+                ReaderSaveAction(state, onSave)
                 MessageFlagButtons(content.summary, state.busy, onEvent)
                 ResponseButtons(content, state.busy, onEvent)
                 MailReader(content, state.accounts.find { it.id == state.account }?.displayName, Modifier.weight(1f))

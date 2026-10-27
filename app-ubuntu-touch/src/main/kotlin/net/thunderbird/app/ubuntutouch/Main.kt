@@ -90,6 +90,7 @@ fun main() {
                                 createMailbox = { koin.get<LiveMailViewModel>() },
                                 createComposer = { koin.get<ComposerViewModel>() },
                                 lifecycle = lifecycle,
+                                createSave = { koin.get<MessageSaveRuntime>() },
                             )
                         }
                     }
@@ -124,6 +125,14 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single<LiveMailRepository> { PersistentLiveMailRepository(get(), get()) }
             single { MailSortPreferences(mailDatabasePath().resolveSibling("mail-sort")) }
             factory { LiveMailViewModel(get(), get(), sortPreferences = get()) }
+            single {
+                MessageSaveRuntime(
+                    get(),
+                    get(),
+                    mailDatabasePath().parent,
+                    System.getenv("APP_ID") ?: "mail-demo.thomasredstone_mail-demo_0.1.30",
+                )
+            }
             single { OutgoingMailStore(get()) }
             single<OutgoingTransport> { SessionOutgoingTransport(get()) }
             single { SentCopyStore(get()) }

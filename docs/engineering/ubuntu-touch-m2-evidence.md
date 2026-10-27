@@ -3064,3 +3064,39 @@ user-facing Save action, new permissions, phone deployment or receiver acceptanc
 is claimed. Remaining integration must prevent overlapping model owners, handle
 export-root cache eviction, recover/review old-version transfers and preserve
 pending metadata on close/suspend. Source stays0.1.30 until its first package.
+
+### Reader Save integration checkpoint
+
+Koin now provides one application-owned MessageSaveRuntime. It creates/validates
+private0700 exports storage under app data, opens a dedicated broker connection,
+and owns the model independently of mailbox navigation. Complete cached readers
+expose Save message (.eml), passing the selected account/folder/UID. Incomplete
+messages do not expose Save. The destination/review view scrolls and returns to
+the existing reader. Pending/error records can be reopened from Mailboxes.
+Authenticated notifications queue a status refresh after any current operation;
+manual refresh remains available. No callback repeats Charge.
+
+Window close waits for the model's active operation to settle. Navigation and
+backgrounding leave the application owner and journal intact. Disposal cancels
+its UI scope and closes its broker connection on IO without deleting leases.
+A stalled broker can delay window close; bounded interruption/timeout acceptance
+is still open. Process-kill, suspend/resume and upgrade behavior need native tests.
+
+**379 full app tests pass**, zero failures/errors/skips, with detekt, installDist
+and spotlessCheck: `/tmp/thunderbird-message-save-integration-full.log`.
+Commands use the same JDK/SDK/Gradle flags above, with unfiltered
+`:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck` after spotlessApply. New tests cover actual reader
+identity routing, incomplete/busy Save gating, explicit cleanup confirmation,
+missing exports-root recovery and symlink rejection without target chmod.
+This proves host wiring/UI/model behavior, not a real phone receiver journey.
+
+The package policy remains exactly accounts/networking. Proposed additional
+policy group is **content_exchange_source**, keeping policy_version2404.1 and
+both existing groups. It grants the platform-defined outbound Content Hub export
+service/transfer access needed for user-selected destinations. No broad filesystem
+grant, lifecycle exemption, inbound provider hook or OAuth change is proposed.
+AGENTS.md says “Add permissions without explicit request and justification” is
+prohibited. Obtain explicit user approval before editing mail-demo.apparmor.
+Phone remains0.1.27; source0.1.30 is still unpackaged. Native package/receiver,
+restart/upgrade, large-message/native-memory and physical acceptance stay open.

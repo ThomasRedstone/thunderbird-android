@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +36,10 @@ internal fun MailApplicationScreen(
     createMailbox: () -> LiveMailViewModel,
     createComposer: () -> ComposerViewModel,
     lifecycle: MailWindowLifecycle,
+    createSave: (() -> MessageSaveRuntime)? = null,
 ) {
+    val save = createSave?.let { loadOwnedMailModel(it)?.model }
+    if (save != null) RegisterMailClose(save, lifecycle, save::flushForClose, {})
     var destination by remember { mutableStateOf(MailDestination.DEMO) }
     var composeRequest by remember { mutableStateOf<ComposeRequest?>(null) }
     when (destination) {
@@ -86,7 +90,7 @@ internal fun MailApplicationScreen(
             if (mailbox != null) {
                 RegisterMailClose(mailbox, lifecycle, mailbox::flushForClose, {})
                 val state by mailbox.state.collectAsState()
-                MailboxDestination(state, mailbox::event, keyboard, { destination = it }) {
+                MailboxDestination(state, mailbox::event, keyboard, { destination = it }, save) {
                     composeRequest = it
                     destination = MailDestination.COMPOSE
                 }
@@ -101,16 +105,46 @@ private fun MailboxDestination(
     onEvent: (LiveMailEvent) -> Unit,
     keyboard: MaliitKeyboard?,
     navigate: (MailDestination) -> Unit,
+    save: MessageSaveViewModel?,
     compose: (ComposeRequest) -> Unit,
 ) {
+    var saving by remember { mutableStateOf(false) }
+    val saveState = save?.state?.collectAsState()?.value
     LaunchedEffect(state.composeRequest) { state.composeRequest?.let(compose) }
     Column(
         Modifier.fillMaxSize().mailBack(!state.busy) {
-            if (state.account == null) navigate(MailDestination.DEMO) else onEvent(LiveMailEvent.Back)
+            if (saving) {
+                saving = false
+            } else if (state.account == null) {
+                navigate(MailDestination.DEMO)
+            } else {
+                onEvent(LiveMailEvent.Back)
+            }
         },
     ) {
-        NavigationButtons(state.busy, navigate, keyboard)
-        LiveMailScreen(state, keyboard, onEvent)
+        if (saving && save != null && saveState != null) {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                ButtonText("Back to mailbox", { saving = false })
+                MessageSaveControls(saveState, save::event)
+            }
+        } else {
+            NavigationButtons(state.busy, navigate, keyboard)
+            if (saveState?.pending?.record != null || saveState?.notice != null) {
+                ButtonText("Review message transfer", { saving = true })
+            }
+            LiveMailScreen(
+                state,
+                keyboard,
+                onSave = save?.let { model ->
+                    { request ->
+                        keyboard?.focus(false)
+                        if (!model.state.value.busy && model.state.value.pending?.record == null) model.event(request)
+                        saving = true
+                    }
+                },
+                onEvent = onEvent,
+            )
+        }
     }
 }
 

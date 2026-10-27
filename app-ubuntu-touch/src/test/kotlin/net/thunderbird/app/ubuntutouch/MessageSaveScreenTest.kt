@@ -1,0 +1,61 @@
+package net.thunderbird.app.ubuntutouch
+
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.performClick
+import assertk.assertThat
+import assertk.assertions.isEqualTo
+import net.thunderbird.components.ui.bolt.atom.Surface
+import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
+import net.thunderbird.components.ui.testing.ComposeUiTestHarness
+import net.thunderbird.feature.account.AccountIdFactory
+import org.junit.Test
+
+class MessageSaveScreenTest : ComposeUiTestHarness() {
+    @Test
+    fun `complete reader passes actual account folder and uid and busy disables save`() = runComposeTest {
+        val account = AccountIdFactory.create()
+        val current = mutableStateOf(
+            LiveMailState(
+                emptyList(),
+                account = account,
+                folder = MailFolder("Archive", "Archive"),
+                content = MailContent(MailSummary("42", "Fixture", "Sender", false), "Fixture", true),
+            ),
+        )
+        val events = mutableListOf<MessageSaveEvent.Prepare>()
+        setContent {
+            ThunderbirdBoltTheme {
+                Surface { LiveMailScreen(current.value, onSave = events::add, onEvent = {}) }
+            }
+        }
+        onNodeWithText("Save message (.eml)").performClick()
+        assertThat(events).isEqualTo(listOf(MessageSaveEvent.Prepare(account, "Archive", "42")))
+        current.value = current.value.copy(busy = true)
+        onNodeWithText("Save message (.eml)").assertIsNotEnabled()
+        current.value = current.value.copy(content = current.value.content?.copy(complete = false))
+        onNodeWithText("Save message (.eml)").assertDoesNotExist()
+    }
+
+    @Test
+    fun `uncertain transfer cleanup requires review and names the limited effect`() = runComposeTest {
+        val record = ExportLeaseRecord(
+            java.util.UUID.randomUUID(),
+            AccountIdFactory.create(),
+            "attachment-fixture/message.eml",
+            ExportLeasePhase.CHARGING,
+            ExportTransferReference(":1.42", "/transfers/fixture/export/1"),
+        )
+        val current = mutableStateOf(MessageSaveState(pending = ExportReconcileResult(record)))
+        val events = mutableListOf<MessageSaveEvent>()
+        setContent {
+            ThunderbirdBoltTheme { Surface { MessageSaveControls(current.value, events::add) } }
+        }
+        onNodeWithText("Delete temporary copy").assertDoesNotExist()
+        onNodeWithText("Review temporary copy cleanup").performClick()
+        assertThat(events).isEqualTo(listOf(MessageSaveEvent.ReviewDiscard))
+        current.value = current.value.copy(confirmDiscard = true)
+        onNodeWithText("Delete temporary copy").performClick()
+        assertThat(events.last()).isEqualTo(MessageSaveEvent.ConfirmDiscard)
+    }
+}

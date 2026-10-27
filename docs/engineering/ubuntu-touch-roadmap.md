@@ -473,3 +473,8 @@ Native32 recovery also passes after Runtime.halt with an open transaction attemp
 overwrite retained bytes and mark the move complete. Reopen restores the committed bytes
 and uncertain intent; private fixture cleanup succeeds. Power-loss durability and other
 interruption boundaries remain open. This is test-only evidence against the frozen32 package.
+
+Native32 controlled STARTTLS Move submission/reconciliation now passes with a synthetic
+protected account and independent host IMAP assertions: source absent, exactly one intact
+destination copy, and verified retained-payload cleanup. Repeated completed submission is
+rejected. Physical UI, real providers and native lost-acknowledgement coverage remain open.

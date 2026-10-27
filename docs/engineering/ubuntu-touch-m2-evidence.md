@@ -3516,3 +3516,35 @@ spotlessCheck pass: `/tmp/thunderbird-032-move-crash-check.log`; the new test in
 checks rollback of the attempted corruption. No production source/package changed. This
 proves recovery from abrupt JVM termination at this transaction boundary; it does not
 prove power-loss/fsync guarantees, every interruption point or real native IMAP submission.
+
+### Native controlled STARTTLS Move on installed 0.1.32 (2026-10-27)
+
+`ConfinedMoveProtocolProbe` passed under exact32 enforcing confinement using the installed
+JVM and application JARs. A synthetic protected account discovers/syncs folders, explicitly
+verifies its source message, queues a local move, submits it once, then reconciles both
+folders. Its destination body matches, source cache is empty, journal remains COMPLETE,
+and retained bytes are released only after destination-cache verification. Submitting the
+completed record again is rejected. No message/account/secret logging was observed through
+the injected logger. The synthetic account/credential/index/database fixture was cleaned up.
+No production account, trust store, app policy or package was changed.
+
+Independent host Jakarta IMAP assertions confirm INBOX empty and exactly one intact Archive
+message, with matching subject/body. The fixture's STARTTLS upgrade counter confirms multiple
+real encrypted connections. Both phone and host exited0; the host server stopped. This proves
+controlled native protocol submission/reconciliation, not Gmail/Outlook, physical Move UI,
+acknowledgement-loss on the phone or large-message performance.
+
+Logs: `/tmp/thunderbird-032-move-protocol.log`, `/tmp/thunderbird-032-move-server.log`.
+Driver: `build/evidence/native-032/candidate-032-move-protocol-probe.jar` (2 classes), SHA256
+`c851145fe074d9767bb3e37d830f8dd4b91af3c636cda9de98875aeac3f29ab3`.
+Compilation, detekt and spotlessCheck pass: `/tmp/thunderbird-032-move-protocol-check-2.log`.
+Only test sources changed; the frozen32 artifact remains unchanged.
+
+Reproduction: use an absent output path with `:app-ubuntu-touch:phoneProtocolServer`,
+`-PutProtocolHost=HOST_TEST_IP -PutProtocolOutput=ABSENT_PATH -PutProtocolSecurity=starttls
+-PutProtocolFlags=move` and the standard JDK21/SDK/Gradle flags. `utProtocolFlags=move` selects
+the test fixture mode; it does not enable app flags or change policy. Copy the generated
+fixture certificate and driver to the private probes directory; run the exact32 helper with
+`net.thunderbird.app.ubuntutouch.ConfinedMoveProtocolProbe candidate-032-move-protocol-probe.jar
+HOST_TEST_IP IMAP_PORT SMTP_PORT CERTIFICATE_PATH`. Create the fixture's stop file after
+phone success and require the independent oracle/server exit0.

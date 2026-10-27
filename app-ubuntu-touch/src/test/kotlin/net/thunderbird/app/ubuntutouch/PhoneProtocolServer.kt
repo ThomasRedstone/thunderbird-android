@@ -20,7 +20,7 @@ object PhoneProtocolServer {
         require(args.size in 2..6)
         val startTls = args.size >= 3
         val features = args.drop(3).toSet()
-        require(features.all { it in setOf("flags", "reply", "sent") })
+        require(features.all { it in setOf("flags", "reply", "sent", "move") })
         if (startTls) require(args[2] == "starttls")
         val host = args[0]
         val output = Path.of(args[1]).toAbsolutePath()
@@ -89,20 +89,41 @@ object PhoneProtocolServer {
             server.userManager.getUser("fixture").deliver(
                 JakartaMessage(JakartaSession.getInstance(Properties()), raw.byteInputStream()),
             )
-            if ("sent" in features) prepareSent(server)
+            if ("sent" in features) prepareFolder(server, "Sent")
+            if ("move" in features) prepareFolder(server, "Archive")
             Files.newBufferedWriter(output.resolve("endpoints.properties")).use {
                 it.write("host=$host\nimap=${imapPort}\nsmtp=${smtpPort}\n")
             }
             println("READY: controlled TLS IMAP/SMTP on $host")
             val deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10)
             while (!Files.exists(output.resolve("stop")) && System.nanoTime() < deadline) Thread.sleep(100)
-            val messageId = checkDelivery(server, features)
-            if (startTls) check(gateways.all { it.upgrades.get() >= 2 })
-            if ("flags" in features) checkFlags(server)
-            if ("sent" in features) checkSent(server, messageId, "reply" in features)
+            verifyServerOutcome(server, features, startTls, gateways)
         } finally {
             gateways.forEach { it.close() }
         }
+    }
+
+    private fun verifyServerOutcome(
+        server: GreenMail,
+        features: Set<String>,
+        startTls: Boolean,
+        gateways: List<StartTlsGateway>,
+    ) {
+        val messageId = if ("move" in features) {
+            checkMove(server)
+            ""
+        } else {
+            checkDelivery(server, features)
+        }
+        if (startTls) {
+            if ("move" in features) {
+                check(gateways.first().upgrades.get() >= 2)
+            } else {
+                check(gateways.all { it.upgrades.get() >= 2 })
+            }
+        }
+        if ("flags" in features) checkFlags(server)
+        if ("sent" in features) checkSent(server, messageId, "reply" in features)
     }
 
     private fun checkDelivery(server: GreenMail, features: Set<String>): String =
@@ -122,11 +143,28 @@ object PhoneProtocolServer {
             }
         }
 
-    private fun prepareSent(server: GreenMail) {
+    private fun prepareFolder(server: GreenMail, name: String) {
         JakartaSession.getInstance(Properties()).getStore("imap").use { store ->
             store.connect("127.0.0.1", server.imap.port, "fixture", PASSWORD)
-            check(store.getFolder("Sent").create(jakarta.mail.Folder.HOLDS_MESSAGES))
+            check(store.getFolder(name).create(jakarta.mail.Folder.HOLDS_MESSAGES))
         }
+    }
+
+    private fun checkMove(server: GreenMail) {
+        JakartaSession.getInstance(Properties()).getStore("imap").use { store ->
+            store.connect("127.0.0.1", server.imap.port, "fixture", PASSWORD)
+            store.getFolder("INBOX").use {
+                it.open(jakarta.mail.Folder.READ_ONLY)
+                check(it.messageCount == 0)
+            }
+            store.getFolder("Archive").use {
+                it.open(jakarta.mail.Folder.READ_ONLY)
+                val message = it.messages.single()
+                check(message.subject == "Device controlled inbox")
+                check(message.content.toString().trim() == "Controlled incoming body")
+            }
+        }
+        println("Independent IMAP oracle: source absent and exactly one intact destination copy PASS")
     }
 
     private fun checkSent(server: GreenMail, messageId: String, reply: Boolean) {

@@ -1086,3 +1086,21 @@ provider recovery remain open. Production source/package remains the deployed 0.
 All 121 app tests pass with zero failures/errors/skips, alongside app detekt and spotlessCheck
 (`/tmp/thunderbird-wire-full.log`). Changed documentation passes focused formatting checks.
 Only tests and evidence changed; Android assembly/device suites were not rerun.
+
+### Authenticated body-fetch interruption and recovery
+
+The controlled STARTTLS gateway now has a bounded full-body truncation fault. After real authentication and folder
+selection, it forwards the BODY[] literal announcement and its first 16 bytes, then closes the TLS connection. Its
+counter proves the body-transfer fault occurred. A real sync reports failure; an already cached complete message
+retains its original subject/body and full-download flag, while any partial new record is not marked fully downloaded.
+After database close/reopen and reconnect, sync recovers both messages and the entire Unicode body. The test log sink
+receives no events. This covers a host authenticated mid-body disconnect, not just handshake interruption.
+
+TLS material generation is shared with the existing fixture helper instead of duplicating keytool setup. Fault-mode
+response parsing is limited to controlled fixtures; normal gateway traffic retains byte-stream forwarding. These are
+test-only changes, so installed 0.1.15 remains unchanged. Phone/provider interruption, active authenticated cancellation,
+blocked-write recovery and physical lifecycle testing remain open.
+
+All 122 app tests pass with zero failures/errors/skips, plus app detekt and spotlessCheck
+(`/tmp/thunderbird-fetch-full.log`). Final XML is retained in `build/evidence/sent-copies/`.
+No production/shared Android changes or new permissions; Android build/device suites were not rerun.

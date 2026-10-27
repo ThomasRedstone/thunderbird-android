@@ -24,6 +24,7 @@ internal class StartTlsGateway(
     address: InetAddress = InetAddress.getLoopbackAddress(),
     private val allowRejectedHandshake: Boolean = false,
     private val dropAppendAcknowledgement: Boolean = false,
+    private val dropFetchBody: Boolean = false,
 ) : AutoCloseable {
     private val listener = ServerSocket(0, 10, address)
     private val workers = Executors.newCachedThreadPool()
@@ -31,6 +32,7 @@ internal class StartTlsGateway(
     private val failures = ConcurrentLinkedQueue<Exception>()
     val upgrades = AtomicInteger()
     val droppedAppendAcknowledgements = AtomicInteger()
+    val truncatedFetchBodies = AtomicInteger()
     private val appendResponseDropped = AtomicBoolean()
     val port: Int get() = listener.localPort
 
@@ -82,8 +84,8 @@ internal class StartTlsGateway(
                 }
             }
             try {
-                if (dropAppendAcknowledgement) {
-                    relayUntilAppendAcknowledgement(backend, encrypted)
+                if (dropAppendAcknowledgement || dropFetchBody) {
+                    relayWithFault(backend, encrypted)
                 } else {
                     backend.inputStream.copyTo(encrypted.outputStream)
                 }
@@ -96,8 +98,8 @@ internal class StartTlsGateway(
         }
     }
 
-    /** Only used for bounded APPEND/search fixtures, whose server responses contain no body literals. */
-    private fun relayUntilAppendAcknowledgement(backend: Socket, encrypted: Socket) {
+    /** Test-only response faults. Literal truncation closes immediately; normal body streaming uses the byte relay. */
+    private fun relayWithFault(backend: Socket, encrypted: Socket) {
         while (true) {
             val response = try {
                 readLine(backend)
@@ -105,13 +107,27 @@ internal class StartTlsGateway(
                 return
             }
             val appendAccepted = Regex("^[^ ]+ OK .*APPEND.*", RegexOption.IGNORE_CASE).matches(response)
-            if (appendAccepted && appendResponseDropped.compareAndSet(false, true)) {
+            if (dropAppendAcknowledgement && appendAccepted && appendResponseDropped.compareAndSet(false, true)) {
                 droppedAppendAcknowledgements.incrementAndGet()
                 encrypted.close()
                 return
             }
             reply(encrypted, response)
+            if (truncateFetch(backend, encrypted, response)) break
         }
+    }
+
+    private fun truncateFetch(backend: Socket, encrypted: Socket, response: String): Boolean {
+        if (dropFetchBody && Regex("""^\* .* FETCH .*BODY\[\].*\{[0-9]+\}$""").matches(response)) {
+            val prefix = backend.inputStream.readNBytes(16)
+            check(prefix.size == 16)
+            encrypted.outputStream.write(prefix)
+            encrypted.outputStream.flush()
+            truncatedFetchBodies.incrementAndGet()
+            encrypted.close()
+            return true
+        }
+        return false
     }
 
     private fun imapUpgrade(peer: Socket) {
@@ -157,10 +173,10 @@ internal class StartTlsGateway(
 internal class StartTlsMaterial(directory: Path) {
     val trust: KeyStore
     val context: SSLContext
+    val path: Path = directory.resolve("starttls.p12")
+    val password = "controlled-fixture"
 
     init {
-        val path = directory.resolve("starttls.p12")
-        val password = "controlled-fixture"
         val process = ProcessBuilder(
             "${System.getProperty("java.home")}/bin/keytool", "-genkeypair", "-alias", "server", "-keyalg", "RSA",
             "-keysize", "2048", "-validity", "2", "-dname", "CN=localhost", "-ext", "SAN=dns:localhost",

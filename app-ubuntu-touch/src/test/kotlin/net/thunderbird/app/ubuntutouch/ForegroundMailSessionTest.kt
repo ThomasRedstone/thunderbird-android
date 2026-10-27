@@ -23,7 +23,6 @@ import java.nio.file.Path
 import java.security.KeyStore
 import java.util.Properties
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import net.thunderbird.components.core.logging.DefaultLogger
 import net.thunderbird.components.core.logging.LogEvent
 import net.thunderbird.components.core.logging.LogLevel
@@ -40,6 +39,7 @@ import org.junit.rules.TemporaryFolder
 import jakarta.mail.Session as JakartaSession
 import jakarta.mail.internet.MimeMessage as JakartaMessage
 
+@Suppress("LargeClass") // Real-engine protocol cases share one owned TLS/server/database lifecycle fixture.
 class ForegroundMailSessionTest {
     @get:Rule val directory = TemporaryFolder()
     private lateinit var database: MailDatabase
@@ -555,6 +555,57 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `authenticated truncated body sync preserves cached mail and recovers on reconnect`() {
+        deliver("Existing cache", "Previously complete body")
+        factory().open(account.id).use {
+            it.refreshFolders()
+            it.sync("INBOX")
+        }
+        val original = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        val originalUid = original.getMessageServerIds().single()
+        deliver("Interrupted new mail", "New body λ ".repeat(100))
+        val material = StartTlsMaterial(directory.root.toPath())
+        StartTlsGateway(true, server.imap.port, material.context, dropFetchBody = true).use { gateway ->
+            accounts.updateSync(account.id) {
+                it.copy(
+                    incoming = settings(
+                        "imap",
+                        gateway.port,
+                    ).copy(connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED),
+                )
+            }
+            val sessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("interrupted-mime"),
+            )
+            val failure = runCatching { sessions.open(account.id).use { it.sync("INBOX") } }.exceptionOrNull()
+            assertThat(failure).isNotNull()
+            assertThat(gateway.truncatedFetchBodies.get()).isEqualTo(1)
+            assertThat(original.readMessage(originalUid)?.subject).isEqualTo("Existing cache")
+            assertThat(Flag.X_DOWNLOADED_FULL in original.getMessageFlags(originalUid)).isTrue()
+            val oldBody = MimeUtility.findFirstPartByMimeType(original.readMessage(originalUid)!!, "text/plain")
+            assertThat(MessageExtractor.getTextFromPart(oldBody).trim()).isEqualTo("Previously complete body")
+            original.getMessageServerIds().filter { it != originalUid }.forEach {
+                assertThat(Flag.X_DOWNLOADED_FULL in original.getMessageFlags(it)).isFalse()
+            }
+        }
+        accounts.updateSync(account.id) { it.copy(incoming = settings("imap", server.imaps.port)) }
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        factory().open(account.id).use { it.sync("INBOX") }
+        val recovered = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        assertThat(recovered.getMessageServerIds().size).isEqualTo(2)
+        val newUid = recovered.getMessageServerIds().single { it != originalUid }
+        assertThat(Flag.X_DOWNLOADED_FULL in recovered.getMessageFlags(newUid)).isTrue()
+        val body = MimeUtility.findFirstPartByMimeType(recovered.readMessage(newUid)!!, "text/plain")
+        assertThat(MessageExtractor.getTextFromPart(body).trim()).isEqualTo("New body λ ".repeat(100).trim())
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
     fun `existing provider Sent copy is found instead of appending another copy`() {
         prepareSentFolder()
         val store = OutgoingMailStore(database)
@@ -647,24 +698,11 @@ class ForegroundMailSessionTest {
         @JvmStatic
         fun startControlledServer() {
             material = Files.createTempDirectory("mail-controlled-tls-")
-            val path = material.resolve("server.p12")
-            val process = ProcessBuilder(
-                "${System.getProperty("java.home")}/bin/keytool", "-genkeypair", "-alias", "server",
-                "-keyalg", "RSA", "-keysize", "2048", "-validity", "2", "-dname", "CN=localhost",
-                "-ext", "SAN=dns:localhost", "-storetype", "PKCS12", "-keystore", path.toString(),
-                "-storepass", PASSWORD, "-keypass", PASSWORD, "-noprompt",
-            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-            check(process.waitFor(30, TimeUnit.SECONDS) && process.exitValue() == 0)
-            val keys = KeyStore.getInstance("PKCS12").apply {
-                Files.newInputStream(path).use { load(it, PASSWORD.toCharArray()) }
-            }
-            trustedCertificates = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
-                load(null, null)
-                setCertificateEntry("fixture", keys.getCertificate("server"))
-            }
+            val tls = StartTlsMaterial(material)
+            trustedCertificates = tls.trust
             mapOf(
-                "greenmail.tls.keystore.file" to path.toString(),
-                "greenmail.tls.keystore.password" to PASSWORD,
+                "greenmail.tls.keystore.file" to tls.path.toString(),
+                "greenmail.tls.keystore.password" to tls.password,
             ).forEach { (key, value) ->
                 previousProperties[key] = System.getProperty(key)
                 System.setProperty(key, value)

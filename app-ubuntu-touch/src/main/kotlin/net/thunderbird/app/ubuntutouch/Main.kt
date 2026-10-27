@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -47,6 +48,8 @@ fun main() {
     initializeMailRuntime(koin.get())
     val keyboard = if (isUbuntuTouch) koin.get<MaliitKeyboard>() else null
     application {
+        val scope = rememberCoroutineScope()
+        val lifecycle = remember { MailWindowLifecycle(scope) }
         var viewModel by remember { mutableStateOf<DemoMailViewModel?>(null) }
         var failed by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
@@ -55,7 +58,7 @@ fun main() {
                 .onFailure { failed = true }
         }
         Window(
-            onCloseRequest = ::exitApplication,
+            onCloseRequest = { lifecycle.requestClose(::exitApplication) },
             title = "Mail demo — Ubuntu Touch",
             state = rememberWindowState(
                 width = screenSize?.width?.dp ?: 420.dp,
@@ -70,7 +73,7 @@ fun main() {
                 }
             },
         ) {
-            KeyboardWindowFocus(window, keyboard)
+            KeyboardWindowFocus(window, keyboard, lifecycle)
             val density = if (isUbuntuTouch) Density(FP4_UI_DENSITY) else LocalDensity.current
             CompositionLocalProvider(LocalDensity provides density) {
                 ThunderbirdBoltTheme {
@@ -85,6 +88,7 @@ fun main() {
                                 createAccounts = { koin.get<AccountSetupViewModel>() },
                                 createMailbox = { koin.get<LiveMailViewModel>() },
                                 createComposer = { koin.get<ComposerViewModel>() },
+                                lifecycle = lifecycle,
                             )
                         }
                     }
@@ -119,11 +123,12 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
 }.koin
 
 @Composable
-private fun KeyboardWindowFocus(window: java.awt.Window, keyboard: MaliitKeyboard?) {
+private fun KeyboardWindowFocus(window: java.awt.Window, keyboard: MaliitKeyboard?, lifecycle: MailWindowLifecycle) {
     DisposableEffect(window, keyboard) {
         val listener = object : WindowAdapter() {
             override fun windowLostFocus(event: WindowEvent) {
                 keyboard?.windowFocusChanged(false)
+                lifecycle.background()
             }
             override fun windowGainedFocus(event: WindowEvent) {
                 keyboard?.windowFocusChanged(true)

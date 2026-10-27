@@ -34,6 +34,7 @@ internal fun MailApplicationScreen(
     createAccounts: () -> AccountSetupViewModel,
     createMailbox: () -> LiveMailViewModel,
     createComposer: () -> ComposerViewModel,
+    lifecycle: MailWindowLifecycle,
 ) {
     var destination by remember { mutableStateOf(MailDestination.DEMO) }
     when (destination) {
@@ -68,6 +69,10 @@ internal fun MailApplicationScreen(
         MailDestination.COMPOSE -> {
             val composer = loadOwnedMailModel(createComposer)
             if (composer != null) {
+                DisposableEffect(composer, lifecycle) {
+                    val registration = lifecycle.register(composer::flushForClose, composer::flushOnBackground)
+                    onDispose { registration.close() }
+                }
                 val state by composer.state.collectAsState()
                 ComposerDestination(state, composer::event, keyboard) { destination = it }
             }

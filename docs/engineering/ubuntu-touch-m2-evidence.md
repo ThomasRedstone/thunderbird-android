@@ -658,3 +658,41 @@ peer, schema recovery and `protocol-run-010` phone/server/cleanup results. This 
 not a physical Compose/Maliit journey or a suspend/background-delivery proof. Native cancellation during authenticated
 IMAP body fetch or SMTP DATA/blocked writes is not claimed; the DATA response-wait cancellation proof above is a host
 JVM test. Successful STARTTLS/provider interoperability and the physical journey remain open.
+
+
+## Draft recovery: graceful close and focus loss
+
+A focused follow-up fixes the 400 ms autosave gap for normal window close. `MailWindowLifecycle` registers the live
+composer's save callback and waits before exiting; failed saves keep the same editor and input alive for correction
+and retry. Duplicate close requests share the pending close. Window focus loss requests an immediate local draft save.
+`ComposerViewModel.flushForClose()` cancels/joins the debounce and serialises the latest snapshot through the existing
+write mutex. It checks persisted outgoing state before saving, so a concurrent queue operation cannot be rewritten as
+a draft. It does not initiate SMTP or silently retry an outgoing message.
+
+Bounded acceptance: edits typed immediately before normal close survive process exit; invalid draft headers prevent
+close without losing editable input; background save does not wait for the debounce; disposed editors do not
+participate. Exclusions: SIGKILL/power-loss durability of the final unsaved keystrokes, Ubuntu Touch suspend acceptance,
+server-side Drafts/Sent filing, attachments and unrelated composition features remain open.
+
+Verification on 2026-10-27:
+
+- The opt-in `desktopDraftCloseProbe` launches the actual app under isolated Xvfb/X11 and a synthetic-only private
+  SQLite fixture. Java Robot opens Write/account/draft, replaces the subject and immediately dispatches WINDOW_CLOSING.
+  No credentials or network access are used. The task removes inherited Wayland/session-bus variables to avoid routing
+  Robot input into the host desktop portal. It requires an explicit synthetic marker under `/tmp/mail-composer-visual-*`.
+- With the immediate-exit close handler restored temporarily, the process exits 0 but independent SQLite inspection
+  finds the old subject `Controlled composer fixture`. With the fix restored, the same probe exits 0 and independent
+  SQLite assertion finds exactly `draft survives close`. Source was restored in a `finally` block before final checks.
+- 83 app tests pass with zero failures/errors/skips, including immediate flush, invalid-header failure/retry,
+  background flush, pending-save close ordering, duplicate close and participant disposal. Detekt and installDist pass.
+  Exact combined command: `./gradlew :app-ubuntu-touch:desktopDraftCloseProbe :app-ubuntu-touch:spotlessApply
+  :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist --no-configuration-cache
+  -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`, with JDK21/Android SDK and synthetic/Xvfb environment.
+  Final `spotlessCheck` is run separately. This JVM application has no Android lint/connected-test task; no shared
+  Android module changed, so Android assembly/device tests were not rerun for this local lifecycle change.
+- Before/after logs: `app-ubuntu-touch/build/evidence/draft-lifecycle/{before,after}.log`.
+  The earlier Robot run inherited host Wayland and stalled before clicks; it is excluded from bug evidence.
+
+This change is source/desktop verified; the installed phone remains 0.1.10 without this fix until a new candidate is
+packaged and deployed. Native focus-loss/suspend/rotation acceptance remains open. A 400 ms uncommitted window still
+exists for abrupt termination, and focus-loss saving cannot guarantee completion before OS suspension.

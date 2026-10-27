@@ -118,6 +118,54 @@ class ComposerViewModelTest {
         }
     }
 
+    @Test
+    fun `close flush persists edits before debounce and failed flush preserves editor`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val manager = manager(database)
+            val store = OutgoingMailStore(database)
+            val testSubject = ComposerViewModel(manager, store, OutgoingMailSender(store) { _, _ -> }, backgroundScope)
+            val account = manager.findAll().single().id
+            testSubject.event(ComposerEvent.Account(account))
+            testSubject.state.first { !it.busy }
+            testSubject.event(ComposerEvent.New)
+            testSubject.state.first { !it.busy }
+            val id = checkNotNull(testSubject.state.value.selected).id
+            testSubject.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Immediate close")))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(store.get(account, id).subject).isEqualTo("Immediate close")
+            testSubject.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Invalid\r\nheader")))
+            assertThat(testSubject.flushForClose()).isFalse()
+            assertThat(testSubject.state.value.dirty).isTrue()
+            assertThat(
+                testSubject.state.value.fields.getValue(ComposeField.SUBJECT).text,
+            ).isEqualTo("Invalid\r\nheader")
+            assertThat(store.get(account, id).subject).isEqualTo("Immediate close")
+            testSubject.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Recovered")))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(store.get(account, id).subject).isEqualTo("Recovered")
+        }
+    }
+
+    @Test
+    fun `background flush saves immediately without waiting for debounce`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val manager = manager(database)
+            val store = OutgoingMailStore(database)
+            val testSubject = ComposerViewModel(manager, store, OutgoingMailSender(store) { _, _ -> }, backgroundScope)
+            val account = manager.findAll().single().id
+            testSubject.event(ComposerEvent.Account(account))
+            testSubject.state.first { !it.busy }
+            testSubject.event(ComposerEvent.New)
+            testSubject.state.first { !it.busy }
+            val id = checkNotNull(testSubject.state.value.selected).id
+            testSubject.event(ComposerEvent.Change(ComposeField.BODY, TextFieldValue("Background edit")))
+            testSubject.flushOnBackground()
+            testSubject.state.first { !it.busy }
+            assertThat(store.get(account, id).body).isEqualTo("Background edit")
+            assertThat(testSubject.state.value.dirty).isFalse()
+        }
+    }
+
     private fun manager(database: MailDatabase): UtAccountManager {
         val server = ServerSettings(
             "imap",

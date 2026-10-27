@@ -130,3 +130,14 @@ tasks.register<JavaExec>("phoneProtocolServer") {
     providers.gradleProperty("utProtocolHost").orNull?.let { args(it) }
     providers.gradleProperty("utProtocolOutput").orNull?.let { args(it) }
 }
+
+// Opt-in actual window close regression: requires an isolated synthetic XDG_DATA_HOME and Xvfb.
+tasks.register<JavaExec>("desktopDraftCloseProbe") {
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("net.thunderbird.app.ubuntutouch.DesktopDraftCloseProbe")
+    jvmArgs("-Dskiko.renderApi=SOFTWARE")
+    environment("XDG_SESSION_TYPE", "x11")
+    environment.remove("WAYLAND_DISPLAY")
+    environment.remove("DBUS_SESSION_BUS_ADDRESS")
+}

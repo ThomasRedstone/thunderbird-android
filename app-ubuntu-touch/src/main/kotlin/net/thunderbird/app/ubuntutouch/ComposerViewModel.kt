@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -213,6 +214,36 @@ internal class ComposerViewModel(
                 if (activeOperation === operation) activeOperation = null
             }
         }
+    }
+
+    suspend fun flushForClose(): Boolean {
+        autosave?.cancelAndJoin()
+        val snapshot = state.value
+        if (!snapshot.dirty || snapshot.selected?.state != OutgoingState.DRAFT) return true
+        return try {
+            val saved = withContext(Dispatchers.IO) {
+                writes.withLock {
+                    val row = store.get(checkNotNull(snapshot.account), checkNotNull(snapshot.selected).id)
+                    if (row.state == OutgoingState.DRAFT) saveDraft(snapshot) else snapshot.copy(dirty = false)
+                }
+            }
+            val latest = state.value
+            val unchanged = latest.selected?.id == snapshot.selected?.id && latest.fields == snapshot.fields
+            if (unchanged) {
+                mutableState.value =
+                    latest.copy(selected = saved.selected, items = saved.items, dirty = false)
+            }
+            unchanged
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Exception) {
+            mutableState.value = state.value.copy(notice = "Draft could not be saved. Keep this screen open and retry.")
+            false
+        }
+    }
+
+    fun flushOnBackground() {
+        if (state.value.dirty && !state.value.busy) event(ComposerEvent.Save)
     }
 
     override fun close() {

@@ -266,6 +266,10 @@ regression checks for changed shared code. Test boundaries with meaningful cases
 platform contracts and user journeys. Validate the packaged application on real hardware; desktop execution alone
 does not cover Ubuntu Touch confinement or lifecycle behaviour.
 
+Graceful-close draft flushing and immediate focus-loss saving are implemented and desktop verified; deployment and
+physical suspend/lifecycle acceptance remain open (see milestone 2 evidence). Abrupt termination can still lose input
+inside the debounce interval.
+
 The immediate work is milestone 2: verify the cached mailbox and composer/outbox UI on device, complete
 cancellation and recovery gaps, and verify receiving/sending on the phone. Keep outstanding source/package
 alignment and physical checks visible as candidates advance; record concrete blockers and continue independent work.

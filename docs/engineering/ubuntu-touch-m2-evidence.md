@@ -2403,3 +2403,23 @@ Focused log `/tmp/thunderbird-flag-sync-focused.log`; full log `/tmp/thunderbird
 --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
 Scoped documentation checks pass. No Android lint or device target exists in this JVM app; Android/shared source was
 unchanged and prior shared-engine Android assembly evidence is unchanged. No native queued-sync test was run.
+
+
+### Verified 0.1.23 ARM64 package
+
+Candidate25 built from clean `7373dbe8bb9a27fd9920f3b1d1cfa7e91cce5d16`; embedded SOURCE-CHANGES is empty.
+Artifact: `app-ubuntu-touch/build/ut-candidate-25/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.23_arm64.click`.
+Size 147645634 bytes; SHA-256 `bd20e537af42e93c30a248968d75ea3268678560e2ad4f6efdeb8f3cc9186a4b`.
+Click review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-023-click.log`). The same pinned builder
+and verified candidate5 ARM runtime were reused; cold reproducibility remains unproven.
+
+Matching frozen drivers: `build/evidence/oauth-native-023/candidate-023-probes.jar` (62 classes),
+SHA-256 `c8a7f2262ddc66d0fa513793647e537979100f66feef98add970997718b496a3`;
+`host-server-023.jar` (2 classes), SHA-256 `a0834d9c72ec14c9f593463deab61f1d11e1aaaaca3b1765e40452d7243ab769`.
+Use these with installed 0.1.23 classes; prior driver/package pairs remain preserved. Existing native fixtures do not
+prove the new queued-sync button's physical UI acceptance.
+
+No transfer or installation of 0.1.23 was attempted. Latest verified phone version remains 0.1.18 and partial 0.1.19
+is retained. The old upgrade script is hardcoded to 0.1.19; adapt and validate the selected newer version, source/hash
+and database backup before using Phone Manager. Phone b-nnxn and OAuth registration decision q-ar74 remain partial
+gaps. Provider scope/identity validation code gates also remain required independently of registration approval.

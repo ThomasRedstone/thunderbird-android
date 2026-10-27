@@ -224,7 +224,8 @@ is built and reviewed; installation remains pending.
 Explicit foreground queued-flag synchronization is implemented in 0.1.23 development source. It visits changed folders
 in the selected account or all configured accounts in unified scope, isolates folder failures, retains unresolved work,
 reports counts and supports owned-transport cancellation. Controlled IMAP replay after database reopen and mailbox/UI
-checks cover this path. Background scheduling, native/physical/provider acceptance and large-mailbox performance remain open.
+checks cover this path. The 0.1.23 ARM64 Click is built and reviewed; installation remains pending. Background scheduling,
+native/physical/provider acceptance and large-mailbox performance remain open.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

@@ -133,6 +133,23 @@ class PersistentBackendStorageTest {
         assertThat(path.toFile().readBytes().contentEquals(corrupt)).isTrue()
     }
 
+    @Test
+    fun `protocol failure details are not stored in plaintext`() {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val storage = PersistentBackendStorage(database, "fixture")
+            storage.createFolderUpdater().use { it.createFolders(listOf(inbox)) }
+            val testSubject = storage.getFolder("INBOX")
+            testSubject.setStatus("untrusted reflected credential fixture")
+            val status = database.query(
+                "SELECT text_value FROM metadata WHERE folder=? AND name='status'",
+                testSubject.id,
+            ) {
+                getText(0)
+            }.single()
+            assertThat(status).isEqualTo("failed")
+        }
+    }
+
     private fun message(uid: String): MimeMessage = MimeMessage.parseMimeMessage(
         """From: sender@example.invalid
 To: recipient@example.invalid

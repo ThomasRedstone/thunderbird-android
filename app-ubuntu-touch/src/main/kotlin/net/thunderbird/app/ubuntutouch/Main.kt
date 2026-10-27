@@ -44,6 +44,7 @@ fun main() {
     // canvas. Match the actual screen explicitly, as in the mobileapp port.
     val screenSize = if (isUbuntuTouch) Toolkit.getDefaultToolkit().screenSize else null
     val koin = startApplicationKoin(isUbuntuTouch)
+    initializeMailRuntime(koin.get())
     val keyboard = if (isUbuntuTouch) koin.get<MaliitKeyboard>() else null
     application {
         var viewModel by remember { mutableStateOf<DemoMailViewModel?>(null) }

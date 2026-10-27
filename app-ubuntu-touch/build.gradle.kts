@@ -11,7 +11,7 @@ plugins {
     alias(libs.plugins.compose)
 }
 
-version = "0.1.7"
+version = "0.1.8"
 
 application {
     mainClass.set("net.thunderbird.app.ubuntutouch.MainKt")
@@ -24,6 +24,8 @@ dependencies {
     runtimeOnly(libs.dbus.java.transport.junixsocket)
     implementation(projects.backend.demo)
     implementation(projects.backend.api)
+    implementation(projects.backend.imap)
+    implementation(projects.legacy.logging)
     implementation(projects.mail.common)
     implementation(projects.core.common)
     implementation(projects.feature.account.api)
@@ -31,6 +33,7 @@ dependencies {
     implementation(libs.tb.mobile.components.ui.bolt)
     testImplementation(libs.tb.mobile.components.ui.testing)
     testImplementation(libs.jetbrains.compose.ui.test)
+    testImplementation(libs.greenmail)
     implementation(
         when (providers.gradleProperty("utTargetArch").orNull) {
             null -> compose.desktop.currentOs

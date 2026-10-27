@@ -18,7 +18,9 @@ internal class PersistentBackendFolder(
     private val metadata = MailMetadata(database, account, id)
     override val name: String
         get() = database.query("SELECT name FROM folders WHERE id=?", id) { getText(0) }.single()
-    override val visibleLimit: Int = Int.MAX_VALUE
+
+    // Use the caller's explicit sync limit instead of downloading the entire mailbox.
+    override val visibleLimit: Int = -1
 
     override fun getMessageServerIds(): Set<String> =
         database.query("SELECT uid FROM messages WHERE folder=?", id) { getText(0) }.toSet()
@@ -37,7 +39,9 @@ internal class PersistentBackendFolder(
         metadata.text("moreMessages")?.let(MoreMessages::valueOf) ?: MoreMessages.UNKNOWN
     override fun setMoreMessages(moreMessages: MoreMessages) = metadata.setText("moreMessages", moreMessages.name)
     override fun setLastChecked(timestamp: Long) = metadata.setNumber("lastChecked", timestamp)
-    override fun setStatus(status: String?) = metadata.setText("status", status)
+
+    // The engine forwards root exception messages here; never persist reflected credentials or raw server errors.
+    override fun setStatus(status: String?) = metadata.setText("status", status?.let { "failed" })
     override fun isMessagePresent(messageServerId: String): Boolean =
         database.query("SELECT 1 FROM messages WHERE folder=? AND uid=?", id, messageServerId) {
             getLong(0)

@@ -247,6 +247,7 @@ forkhandles-bom = { module = "dev.forkhandles:forkhandles-bom", version.ref = "f
 forkhandles-fabrikate4k = { module = "dev.forkhandles:fabrikate4k" }
 glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
 glide-compiler = { module = "com.github.bumptech.glide:compiler", version.ref = "glide" }
+greenmail = { module = "com.icegreen:greenmail", version = "2.1.14" }
 icu4j-charset = { module = "com.ibm.icu:icu4j-charset", version.ref = "icu4j" }
 jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrainsAnnotations" }
 jetbrains-compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "jetbrainsCompose" }

@@ -13,8 +13,8 @@ and a reproducible supported release.
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
 | Platform | 0.1.7 installed on FP4; 0.1.4 sizing/typing confirmed; SQLite/SignOn confinement checks pass | Physical secure-input UI, rotation and lifecycle checks |
-| Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Live IMAP/SMTP, composition and daily-use features |
-| Engineering | 37 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
+| Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Live-mail UI, composition/outbox and daily-use features; controlled TLS IMAP/SMTP engine tests pass |
+| Engineering | 45 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | SignOn fix committed/pushed as `d5764edd0f`; installed 0.1.7 embeds that clean source | Ongoing live-mail work and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `268c562` pins installed 0.1.7/hash | Foreground journeys, recovery and lifecycle verification |
 
@@ -32,7 +32,7 @@ setup UI; the user previously confirmed full-screen sizing and on-screen typing 
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
 for the initial scope, and [milestone 2 evidence](ubuntu-touch-m2-evidence.md) for current build/device results and gaps.
-Live receiving/sending remain unfinished.
+Controlled-server engine receiving/sending tests pass; the user-facing receiving/sending journey remains unfinished.
 
 ## Starting point
 
@@ -150,7 +150,8 @@ Deliver this milestone as bounded work packages:
 Acceptance: the complete flow works against a controlled test server on the device, then an explicitly configured real
 test account. Verify rejected credentials, invalid certificates, interrupted sync and send failure recovery. Do not
 request or log production credentials to substitute for controlled tests. Measure package size, startup time and memory.
-This milestone is in progress, beginning with package 2.1. Live network mail remains unimplemented.
+This milestone is in progress. Storage, protected setup and controlled-server protocol integration are implemented;
+mailbox UI, drafts/outbox, cancellation and the phone vertical slice remain incomplete.
 
 ## Milestone 3 Daily use in the foreground
 
@@ -263,6 +264,6 @@ regression checks for changed shared code. Test boundaries with meaningful cases
 platform contracts and user journeys. Validate the packaged application on real hardware; desktop execution alone
 does not cover Ubuntu Touch confinement or lifecycle behaviour.
 
-The immediate work is checkpoint A followed by milestone 2. The first live-mail implementation item is 2.1: shared mail
-contracts and persistent JVM storage. Continue into account setup, receiving and sending until the phone vertical slice
-passes, recording any concrete blockers rather than treating the demo as the endpoint.
+The immediate work is milestone 2: connect the tested protocol/storage foundation to a cached mailbox UI, complete
+composition with persistent drafts/outbox, and verify receiving/sending on the phone. Keep outstanding source/package
+alignment and physical checks visible as candidates advance; record concrete blockers and continue independent work.

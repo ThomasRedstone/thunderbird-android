@@ -285,3 +285,45 @@ Blocker `b-zxbi` is resolved by the supported SignOn adapter and explicit activa
 account/secret path, persistence and identity access across this upgrade. It does not prove physical secure-field
 typing or every daemon failure/prompt condition. The phone's screen remained off; the unlock request is still pending.
 Those gaps remain open alongside live-mail implementation, not blockers to independent protocol/composer work.
+
+
+## Work package 2.3: foreground protocol engine foundation
+
+Brief: connect the existing JVM IMAP backend and SMTP transport to protected account settings and persistent
+account-scoped storage. Expose foreground operations for folder discovery, sync, explicit full-body fetch and sending.
+Keep all blocking operations on IO callers, retain TLS validation, and disable the legacy engine's sensitive logging.
+This bounded foundation does not complete receiving UI, cancellation, composition/outbox or device acceptance.
+
+Implemented: `ForegroundMailSessionFactory`, `ForegroundMailSession`, `ForegroundSyncListener` and `MailRuntime`.
+Sessions resolve secrets only when opened; settings in SQLite retain no passwords. Sync callback failures propagate
+to callers. The preview window is 100 messages with a 1 MiB automatic body limit; explicit fetching uses the engine's
+complete-message API. Shared sync cancellation remains an upstream integration gap; closing pooled connections is
+not claimed to cancel an active sync. Background/push platform methods fail explicitly and no push API is exposed.
+
+The legacy logger is initialised with a disabled, non-controllable wrapper before engine use. Its message lambdas
+are not evaluated, and debug/sensitive flags cannot be enabled. Folder status stores only a generic failure marker,
+not raw exception text that can reflect server input or credentials.
+
+Verification on 2026-10-27: 45 app tests pass, zero failures/errors/skips. GreenMail 2.1.14 is test-only and absent from
+the runtime distribution. Controlled loopback TLS servers with an ephemeral localhost certificate verify real folder
+discovery, initial/incremental sync, remote flags/deletions, reopened SQLite cache and SMTP delivery including a
+leading-dot body. An independent Jakarta Mail client observes server state. Negative tests verify typed untrusted
+certificate and authentication errors, refused-connection cache retention, and no emitted engine log events.
+The large-message test failed before changing from partial-download to complete-message API and passes afterwards.
+The status privacy test likewise failed before replacing persisted raw errors with a generic marker.
+
+GreenMail does not support STARTTLS ([upstream issue](https://github.com/greenmail-mail-test/greenmail/issues/135)).
+The fixture therefore verifies that required STARTTLS rejects unsupported servers for both receiving and sending,
+with no delivered message; it does not establish a successful STARTTLS handshake. Successful server interoperability
+and phone networking remain open gates. Default production trust is unchanged; fixture trust is injected only in tests.
+
+Command: JDK 21 and Android SDK configured, `xvfb-run -a ./gradlew :app-ubuntu-touch:spotlessApply
+:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:spotlessCheck :app-ubuntu-touch:installDist
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Result: BUILD SUCCESSFUL; log `/tmp/thunderbird-live-engine-final.log` and module XML/HTML test reports.
+Android app/instrumentation checks were not run for these JVM-app-only changes. Existing shared Bolt checks and
+limitations above remain unchanged. Version 0.1.8 is a development version, not installed; FP4 remains on 0.1.7.
+
+Next acceptance work: cached mailbox UI and explicit sync/error states, persistent draft/outbox and compose/send,
+active cancellation and interrupted-operation recovery, successful STARTTLS against a supporting server, then the
+complete confined FP4 journey. A direct SMTP transport test is not evidence of an outbox or a usable mail app.

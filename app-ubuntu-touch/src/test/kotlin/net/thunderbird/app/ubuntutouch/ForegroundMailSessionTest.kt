@@ -1,0 +1,311 @@
+package net.thunderbird.app.ubuntutouch
+
+import assertk.assertThat
+import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
+import assertk.assertions.isInstanceOf
+import assertk.assertions.isNotNull
+import assertk.assertions.isTrue
+import com.fsck.k9.mail.AuthType
+import com.fsck.k9.mail.AuthenticationFailedException
+import com.fsck.k9.mail.CertificateValidationException
+import com.fsck.k9.mail.ConnectionSecurity
+import com.fsck.k9.mail.MissingCapabilityException
+import com.fsck.k9.mail.ServerSettings
+import com.fsck.k9.mail.internet.BinaryTempFileBody
+import com.fsck.k9.mail.internet.MessageExtractor
+import com.fsck.k9.mail.internet.MimeMessage
+import com.fsck.k9.mail.internet.MimeUtility
+import com.icegreen.greenmail.util.GreenMail
+import com.icegreen.greenmail.util.ServerSetup
+import java.nio.file.Files
+import java.nio.file.Path
+import java.security.KeyStore
+import java.util.Properties
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+import net.thunderbird.components.core.logging.DefaultLogger
+import net.thunderbird.components.core.logging.LogEvent
+import net.thunderbird.components.core.logging.LogLevel
+import net.thunderbird.components.core.logging.LogSink
+import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.feature.account.AccountIdFactory
+import org.junit.After
+import org.junit.AfterClass
+import org.junit.Before
+import org.junit.BeforeClass
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import jakarta.mail.Session as JakartaSession
+import jakarta.mail.internet.MimeMessage as JakartaMessage
+
+class ForegroundMailSessionTest {
+    @get:Rule val directory = TemporaryFolder()
+    private lateinit var database: MailDatabase
+    private lateinit var accounts: UtAccountManager
+    private lateinit var account: UtMailAccount
+    private var previousMimeDirectory: java.io.File? = null
+    private var logEvents = 0
+    private val logger = DefaultLogger(object : LogSink {
+        override val level: LogLevel = LogLevel.VERBOSE
+        override fun log(event: LogEvent) {
+            logEvents++
+        }
+    })
+
+    @Before
+    fun setupAccount() {
+        server.purgeEmailFromAllMailboxes()
+        previousMimeDirectory = BinaryTempFileBody.getTempDirectory()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        accounts = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+        account = UtMailAccount(
+            AccountIdFactory.create(),
+            "Controlled mailbox",
+            EMAIL,
+            settings("imap", server.imaps.port),
+            settings("smtp", server.smtps.port),
+            UUID.randomUUID().toString(),
+        )
+        accounts.createWithPasswords(account, AccountPasswords(PASSWORD, PASSWORD))
+    }
+
+    @After
+    fun closeDatabase() {
+        database.close()
+        BinaryTempFileBody.setTempDirectory(previousMimeDirectory)
+    }
+
+    @Test
+    fun `real IMAP discovers folders and persists initial incremental flags and deletion state`() {
+        deliver("First", "First controlled body")
+        val testSubject = factory()
+        testSubject.open(account.id).use { session ->
+            session.checkSettings()
+            session.refreshFolders()
+            session.sync("INBOX")
+        }
+        val storage = PersistentBackendStorage(database, account.id.toString())
+        val inbox = storage.getFolder("INBOX")
+        val firstUid = inbox.getMessageServerIds().single()
+        assertThat(inbox.readMessage(firstUid)?.subject).isEqualTo("First")
+        val firstBody = MimeUtility.findFirstPartByMimeType(inbox.readMessage(firstUid)!!, "text/plain")
+        assertThat(MessageExtractor.getTextFromPart(firstBody).trim()).isEqualTo("First controlled body")
+        assertThat(Flag.X_DOWNLOADED_FULL in inbox.getMessageFlags(firstUid)).isTrue()
+        deliver("Second", "Second controlled body")
+        testSubject.open(account.id).use { it.sync("INBOX") }
+        assertThat(inbox.getMessageServerIds().size).isEqualTo(2)
+        assertThat(inbox.getMessageServerIds().contains(firstUid)).isTrue()
+        withOracleInbox { folder ->
+            folder.messages.first { it.subject == "First" }.setFlag(jakarta.mail.Flags.Flag.SEEN, true)
+            folder.messages.first { it.subject == "Second" }.setFlag(jakarta.mail.Flags.Flag.DELETED, true)
+            folder.expunge()
+        }
+        testSubject.open(account.id).use { it.sync("INBOX") }
+        assertThat(inbox.getMessageServerIds()).isEqualTo(setOf(firstUid))
+        assertThat(Flag.SEEN in inbox.getMessageFlags(firstUid)).isTrue()
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        val reopened = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        assertThat(reopened.readMessage(firstUid)?.subject).isEqualTo("First")
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `real SMTP delivers expected message and dot-stuffed body without logging content`() {
+        val testSubject = factory()
+        val message = MimeMessage.parseMimeMessage(raw("Outgoing", "Hello\r\n.A leading dot").byteInputStream(), true)
+        testSubject.open(account.id).use { it.send(message) }
+        assertThat(server.waitForIncomingEmail(5000, 1)).isTrue()
+        val received = server.receivedMessages.single()
+        assertThat(received.subject).isEqualTo("Outgoing")
+        assertThat(received.content.toString().trim()).isEqualTo("Hello\r\n.A leading dot")
+        assertThat(received.allRecipients.single().toString()).isEqualTo(RECIPIENT)
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `unknown certificate and rejected credentials fail instead of creating successful mailbox state`() {
+        val testSubject = factory(trusted = false)
+        val certificateFailure = runCatching {
+            testSubject.open(account.id).use { it.checkSettings() }
+        }.exceptionOrNull()
+        assertThat(certificateFailure).isNotNull().isInstanceOf(CertificateValidationException::class.java)
+        accounts.replacePasswords(account.id, AccountPasswords("rejected-fixture", "rejected-fixture"))
+        val authenticated = factory()
+        val authenticationFailure = runCatching {
+            authenticated.open(account.id).use { it.checkSettings() }
+        }.exceptionOrNull()
+        assertThat(authenticationFailure).isNotNull().isInstanceOf(AuthenticationFailedException::class.java)
+        assertThat(PersistentBackendStorage(database, account.id.toString()).getFolderServerIds().isEmpty()).isTrue()
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `interrupted connection fails synchronization and retains the previous cache`() {
+        deliver("Cached", "Available offline")
+        val testSubject = factory()
+        testSubject.open(account.id).use {
+            it.refreshFolders()
+            it.sync("INBOX")
+        }
+        val folder = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        val uid = folder.getMessageServerIds().single()
+        val unavailablePort = java.net.ServerSocket(0).use { it.localPort }
+        accounts.updateSync(account.id) { it.copy(incoming = it.incoming.copy(port = unavailablePort)) }
+        assertThat(runCatching { testSubject.open(account.id).use { it.sync("INBOX") } }.isFailure).isTrue()
+        assertThat(folder.getMessageServerIds()).isEqualTo(setOf(uid))
+        assertThat(folder.readMessage(uid)?.subject).isEqualTo("Cached")
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `explicit body fetch completes a message beyond the automatic download limit`() {
+        val body = "Controlled large body\r\n".repeat(60000)
+        deliver("Large fixture", body)
+        val testSubject = factory()
+        testSubject.open(account.id).use {
+            it.refreshFolders()
+            it.sync("INBOX")
+        }
+        val folder = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        val uid = folder.getMessageServerIds().single()
+        assertThat(Flag.X_DOWNLOADED_PARTIAL in folder.getMessageFlags(uid)).isTrue()
+        testSubject.open(account.id).use { it.downloadMessage("INBOX", uid) }
+        assertThat(Flag.X_DOWNLOADED_FULL in folder.getMessageFlags(uid)).isTrue()
+        val part = MimeUtility.findFirstPartByMimeType(folder.readMessage(uid)!!, "text/plain")
+        assertThat(MessageExtractor.getTextFromPart(part).replace("\r\n", "\n").trim())
+            .isEqualTo(body.replace("\r\n", "\n").trim())
+    }
+
+    @Test
+    fun `required STARTTLS refuses servers without the capability for receiving and sending`() {
+        accounts.updateSync(account.id) {
+            it.copy(
+                incoming = it.incoming.copy(
+                    port = server.imap.port,
+                    connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED,
+                ),
+                outgoing = it.outgoing.copy(
+                    port = server.smtp.port,
+                    connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED,
+                ),
+            )
+        }
+        val testSubject = factory()
+        val receivingFailure = runCatching { testSubject.open(account.id).use { it.checkSettings() } }.exceptionOrNull()
+        assertThat(receivingFailure).isNotNull().isInstanceOf(MissingCapabilityException::class.java)
+        val message = MimeMessage.parseMimeMessage(raw("Must not send", "Requires encryption").byteInputStream(), true)
+        val sendingFailure = runCatching { testSubject.open(account.id).use { it.send(message) } }.exceptionOrNull()
+        assertThat(sendingFailure).isNotNull().isInstanceOf(MissingCapabilityException::class.java)
+        assertThat(server.receivedMessages.size).isEqualTo(0)
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    private fun factory(trusted: Boolean = true) = ForegroundMailSessionFactory(
+        accounts,
+        database,
+        if (trusted) JvmTrustedSocketFactory(systemTrustManager(trustedCertificates)) else JvmTrustedSocketFactory(),
+        logger,
+        directory.root.toPath().resolve("mime"),
+    )
+
+    private fun deliver(subject: String, body: String) {
+        val message =
+            JakartaMessage(JakartaSession.getInstance(Properties()), raw(subject, body, EMAIL).byteInputStream())
+        server.userManager.getUser("fixture").deliver(message)
+    }
+
+    private fun withOracleInbox(block: (jakarta.mail.Folder) -> Unit) {
+        val context = javax.net.ssl.SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf(systemTrustManager(trustedCertificates)), null)
+        }
+        val properties = Properties().apply {
+            put("mail.imaps.ssl.socketFactory", context.socketFactory)
+            put("mail.imaps.ssl.checkserveridentity", "true")
+        }
+        JakartaSession.getInstance(properties).getStore("imaps").use { store ->
+            store.connect("localhost", server.imaps.port, "fixture", PASSWORD)
+            store.getFolder("INBOX").use { folder ->
+                folder.open(jakarta.mail.Folder.READ_WRITE)
+                block(folder)
+            }
+        }
+    }
+
+    private fun settings(type: String, port: Int) = ServerSettings(
+        type,
+        "localhost",
+        port,
+        ConnectionSecurity.SSL_TLS_REQUIRED,
+        AuthType.PLAIN,
+        "fixture",
+        null,
+        null,
+    )
+
+    companion object {
+        private const val EMAIL = "fixture@example.invalid"
+        private const val RECIPIENT = "recipient@example.invalid"
+        private const val PASSWORD = "fixture-password"
+        private lateinit var material: Path
+        private lateinit var server: GreenMail
+        private lateinit var trustedCertificates: KeyStore
+        private val previousProperties = mutableMapOf<String, String?>()
+
+        @BeforeClass
+        @JvmStatic
+        fun startControlledServer() {
+            material = Files.createTempDirectory("mail-controlled-tls-")
+            val path = material.resolve("server.p12")
+            val process = ProcessBuilder(
+                "${System.getProperty("java.home")}/bin/keytool", "-genkeypair", "-alias", "server",
+                "-keyalg", "RSA", "-keysize", "2048", "-validity", "2", "-dname", "CN=localhost",
+                "-ext", "SAN=dns:localhost", "-storetype", "PKCS12", "-keystore", path.toString(),
+                "-storepass", PASSWORD, "-keypass", PASSWORD, "-noprompt",
+            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+            check(process.waitFor(30, TimeUnit.SECONDS) && process.exitValue() == 0)
+            val keys = KeyStore.getInstance("PKCS12").apply {
+                Files.newInputStream(path).use { load(it, PASSWORD.toCharArray()) }
+            }
+            trustedCertificates = KeyStore.getInstance(KeyStore.getDefaultType()).apply {
+                load(null, null)
+                setCertificateEntry("fixture", keys.getCertificate("server"))
+            }
+            mapOf(
+                "greenmail.tls.keystore.file" to path.toString(),
+                "greenmail.tls.keystore.password" to PASSWORD,
+            ).forEach { (key, value) ->
+                previousProperties[key] = System.getProperty(key)
+                System.setProperty(key, value)
+            }
+            server = GreenMail(
+                arrayOf(
+                    ServerSetup(0, "127.0.0.1", ServerSetup.PROTOCOL_IMAPS),
+                    ServerSetup(0, "127.0.0.1", ServerSetup.PROTOCOL_SMTPS),
+                    ServerSetup(0, "127.0.0.1", ServerSetup.PROTOCOL_IMAP),
+                    ServerSetup(0, "127.0.0.1", ServerSetup.PROTOCOL_SMTP),
+                ),
+            )
+            server.start()
+            server.setUser(EMAIL, "fixture", PASSWORD)
+            server.setUser(RECIPIENT, "recipient", PASSWORD)
+        }
+
+        @AfterClass
+        @JvmStatic
+        fun stopControlledServer() {
+            if (::server.isInitialized) server.stop()
+            previousProperties.forEach { (key, value) ->
+                if (value == null) System.clearProperty(key) else System.setProperty(key, value)
+            }
+            if (::material.isInitialized) material.toFile().deleteRecursively()
+        }
+
+        private fun raw(subject: String, body: String, recipient: String = RECIPIENT): String =
+            "From: $EMAIL\r\nTo: $recipient\r\nSubject: $subject\r\n" +
+                "Message-ID: <${UUID.randomUUID()}@example.invalid>\r\n" +
+                "Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n$body\r\n"
+    }
+}

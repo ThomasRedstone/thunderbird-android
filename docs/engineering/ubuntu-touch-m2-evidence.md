@@ -3121,3 +3121,20 @@ Five focused UI/private-wire tests plus detekt/spotless pass:
 with filters `*MessageSaveScreenTest` and `*DbusContentExportBrokerTest`. Full379
 suite predates the terminal status change; no full381 result is claimed.
 Permission decision q-jk4j remains pending. No policy, phone or OAuth changes.
+
+### Immutable 0.1.30 ARM64 artifact
+
+Candidate32 packages clean source `7ac2c5bb6ce2908c197a533a36ae4c2864b27fbe`;
+SOURCE-CHANGES.patch is empty. Artifact:
+`app-ubuntu-touch/build/ut-candidate-32/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.30_arm64.click`.
+Size147872398 bytes; SHA256
+`3c9f2b0993f9106dfa65b6f8a81960587c9141db2ac7508e230ce1475073d4de`.
+Click review passes; packaged launcher/JVM/AWT/Skiko ARM64 checks pass.
+Build session56589 exited0; log `/tmp/thunderbird-030-click.log`.
+Builder remains pinned3a08b52420bd76280d8323db951a306e428fb17ac5e4cd60f53903e049a68563,
+with verified candidate5 ARM64 runtime reuse. This is not cold-cache/CI reproducibility.
+
+The artifact retains accounts/networking policy only. It is **not deployed**;
+phone remains0.1.27. Outbound permission q-jk4j, confined receiver/native/physical
+acceptance and provider decision q-ar74 remain open. Preserve candidate32 unchanged;
+future production edits require version0.1.31 before its next package.

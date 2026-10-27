@@ -34,6 +34,22 @@ internal class AttachmentTarget private constructor(private val directory: Path,
     }
 
     companion object {
+        fun recover(root: Path, file: Path): AttachmentTarget {
+            require(root.isAbsolute && file.isAbsolute && root.normalize() == root && file.normalize() == file)
+            require(
+                file.parent.parent == root &&
+                    Regex("attachment-[A-Za-z0-9_-]{1,100}").matches(file.parent.fileName.toString()),
+            )
+            require(file.fileName.toString() == "message.eml")
+            check(Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS))
+            check(Files.isDirectory(file.parent, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(file))
+            check(
+                !Files.exists(file, LinkOption.NOFOLLOW_LINKS) || Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS),
+            )
+            check(file.parent.toRealPath().parent == root.toRealPath())
+            return AttachmentTarget(file.parent, file)
+        }
+
         fun create(root: Path, name: String): AttachmentTarget {
             val child = Path.of(name)
             require(!child.isAbsolute && child.nameCount == 1 && name != "." && name != "..")

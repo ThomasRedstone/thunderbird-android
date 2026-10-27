@@ -8,7 +8,13 @@ import net.thunderbird.feature.account.AccountId
 /** A consistent exact-byte cached .eml lease. The transfer owner must retain it until collection/finalization. */
 internal class CachedMessageExport(private val database: MailDatabase, private val exportRoot: Path) {
     @Suppress("TooGenericExceptionCaught") // Clean up this lease on any failure, preserving the cause.
-    fun prepare(account: AccountId, folder: String, uid: String, checkActive: () -> Unit = {}): PreparedAttachment {
+    fun prepare(
+        account: AccountId,
+        folder: String,
+        uid: String,
+        reserved: (Path) -> Unit = {},
+        checkActive: () -> Unit = {},
+    ): PreparedAttachment {
         checkActive()
         var target: AttachmentTarget? = null
         try {
@@ -23,6 +29,8 @@ internal class CachedMessageExport(private val database: MailDatabase, private v
                     uid,
                 ) { getLong(0) to getLong(1) }.singleOrNull() ?: error("Complete cached message required for export")
                 val owned = AttachmentTarget.create(exportRoot, "message.eml").also { target = it }
+                // The journal uses a separate atomic file, so its durable reservation survives SQLite rollback/crash.
+                reserved(owned.file)
                 owned.open().use { output ->
                     var offset = 0L
                     while (offset < snapshot.second) {

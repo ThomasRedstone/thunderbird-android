@@ -3211,3 +3211,52 @@ under27(enforce); production SQLite quick_checkok/schema10. No phone mutation or
 retain pre-upgrade SQLite backup, verify schema11 with the actual installed runtime,
 then test signatures across fresh JVMs and physical input/composition separately.
 Permission q-jk4j remains unanswered and the31 policy still only accounts/networking.
+
+### Installed 0.1.31 signature/migration native evidence
+
+FP4 upgraded27→31 through a scoped Phone Manager push. Package/driver remote hashes
+matched before install. Old mainPID245009 received WM_DELETE_WINDOW; its exact
+stopped27(enforce) owner was resumed by pidfd SIGCONT to process normal close, and
+exited before backup/install. No force termination or lifecycle exemption was used.
+Pre-upgrade private SQLite backup:
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/0.1.31-fnsirmwh`;
+backup quick_checkok/schema10. Upgrade log `/tmp/thunderbird-031-upgrade.log` exited0;
+installed31 symlink/clean6fe6def12b marker verified. Installed main JAR SHA256
+`83a0a1f27247590f289421dbfcc70947a44624f173106a075ebc0b4bc1f4f2cc`
+matches candidate33.
+
+A matching frozen driver has9 classes, SHA256
+`638d05be41758e91a28c8cf0c268d1d0baa9a9a68e86c11a33ed3b798005ebb2`, at
+`build/evidence/native-031/candidate-031-signature-probe.jar`.
+Its sources postdate the immutable package and change only test/probe code.
+Two focused host tests and detekt/spotless pass
+(`/tmp/thunderbird-031-native-driver-test.log`); this is not a full393-test run.
+Driver rejects wrong confinement, uses synthetic private SQLite, throws on every
+credential access/network send, validates its owned fixture paths and removes only
+known files. Reopen guards reject symlink and sibling directories.
+
+Actual installed runtime31(enforce) results:
+
+- Production migration10→11 plus quick_check: PASS
+  (`/tmp/thunderbird-031-production-migration.log`).
+- Private synthetic migration/editor multiline preferences save/account isolation/
+  actual ComposerViewModel draft insertion: PASS
+  (`/tmp/thunderbird-031-signature-prepare.log`).
+- Second JVM reopened signature settings and both original/composed draft snapshots:
+  PASS (`/tmp/thunderbird-031-signature-reopen.log`). Synthetic fixture cleanup was
+  independently checked; no signature-runtime directories remain.
+- Read-only production schema11/quick_check and installed JAR match: PASS.
+- MainPID386878 exists under31(enforce), stateT(stopped), with one owned main
+  window. The launch command printed Started then lost its registry connection
+  (exit255); record this anomaly rather than treating the wrapper as clean success.
+  Installer also warned about app-launch bus access/old profile-cache removal.
+
+Local phone-fleet commitb577816 pins the exact installed31 artifact/hash. Scoped
+manifest lint passes. Only the owned Mail demo block was committed through a
+separate index; unrelated working changes and staged state were preserved. The
+whole-fleet sync hook was disabled for this scoped commit; no fleet push/converge.
+
+Physical signature keyboard/focus/editor/rotation and actual provider delivery
+remain unaccepted. Native tests exercise model/storage/composition, not touch UI.
+Outbound content_exchange_source questionq-jk4j and OAuth registrationq-ar74 remain
+unanswered; no permission/OAuth change. Large production SignOn reads remain open.

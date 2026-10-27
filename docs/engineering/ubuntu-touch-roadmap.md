@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.27 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.31 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 369 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Installed 0.1.27 embeds clean `84f80558a8`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager 0.1.27 install verified; local fleet `e1adc10` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
+| Engineering | 391 full app tests plus 2 focused native-driver tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Source delivery | Installed 0.1.31 embeds clean `6fe6def12b`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager 0.1.31 install verified; local fleet `b577816` pins its exact artifact/hash | Physical foreground, launch-wrapper registry warning, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,8 +27,8 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.27 is installed on the FP4 with account
-setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.31 is installed on the FP4 with account
+setup, cached mailbox, composer/outbox and signature UI; confined signature settings/composition and fresh-JVM recovery pass. The user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined small-credential persistence and upgrade access pass through SignOn; larger payload reads time out and remain a release blocker. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
 for the initial scope, and [milestone 2 evidence](ubuntu-touch-m2-evidence.md) for current build/device results and gaps.
@@ -406,3 +406,12 @@ save/discard and lifecycle persistence/retry. Full391 host tests and quality che
 pass. Native schema11 migration, keyboard/editor/composition/restart and physical
 acceptance remain open. HTML signatures, configurable quote placement and multiple
 sender identities are still required; this does not complete the full identity gate.
+
+
+Installed0.1.31 native checkpoint: production schema10→11 and quick_check pass
+under31(enforce), with a verified private pre-upgrade backup. A synthetic private
+probe verifies signature editor save, account isolation, composer insertion and
+fresh-process recovery/cleanup. One owned main window exists under31(enforce), but
+the launch wrapper reported registry-connection loss after reporting Started;
+physical editor/input acceptance is not claimed. Source/artifact/JAR hashes match;
+local fleetb577816 pins31 without whole-fleet sync or push. See M2 evidence.

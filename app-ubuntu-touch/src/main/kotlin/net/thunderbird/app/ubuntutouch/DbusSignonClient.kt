@@ -6,6 +6,7 @@ import org.freedesktop.dbus.connections.impl.DBusConnection
 import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
 import org.freedesktop.dbus.exceptions.DBusException
 import org.freedesktop.dbus.exceptions.DBusExecutionException
+import org.freedesktop.dbus.interfaces.DBus
 import org.freedesktop.dbus.types.UInt32
 import org.freedesktop.dbus.types.Variant
 
@@ -13,7 +14,18 @@ internal class DbusSignonClient : SignonClient {
     private val connection: DBusConnection = checked {
         val builder = DBusConnectionBuilder.forSessionBus().withShared(false)
         builder.transportConfig().configureSasl().withSaslUid(UnixSystem().uid)
-        builder.build()
+        val connection = builder.build()
+        var activated = false
+        try {
+            // The UT accounts policy permits the daemon's unconfined peer label. Activate it before the first
+            // interface call so D-Bus can resolve that label even after the daemon's idle shutdown.
+            connection.getRemoteObject("org.freedesktop.DBus", "/org/freedesktop/DBus", DBus::class.java)
+                .StartServiceByName(SIGNON_SERVICE, UInt32(0))
+            activated = true
+            connection
+        } finally {
+            if (!activated) runCatching { connection.close() }
+        }
     }
     private val service: SignonService = connection.getRemoteObject(
         SIGNON_SERVICE,

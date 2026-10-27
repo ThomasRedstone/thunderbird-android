@@ -235,3 +235,28 @@ Verification so far:
 0.1.6 packaging and the enforcing-profile round trip are next. Physical secure input, upgrade identity access and
 daemon failure/prompt behaviour remain device gates. No encrypted-at-rest claim is inferred solely from using the
 system service. The phone is still on 0.1.5 until the new candidate is installed.
+
+## Cold-service activation fix and upgrade test in progress
+
+0.1.6 was built clean from `51d9dcb4fbe8d65dcbd5178649c889d8b8cda766`, passed Click review and ARM64 checks, and was
+installed after phone checksum verification. Package size: 146,491,952 bytes; SHA256:
+`9ad17fc054193f877a9bdcc96dc2acdf2efc3aecff394e9d8fc4177a38b72e45`. Its source-change patch is empty.
+
+The first enforcing-profile SignOn probe failed at `registerNewIdentity` before storing a secret. The policy file did
+contain the expected `accounts` rules, but the daemon had no bus owner. Those rules match the daemon's unconfined peer
+label; the cold first call was denied. Explicit `org.freedesktop.DBus.StartServiceByName` before the SignOn interface
+call fixes this without changing policy. Failed activation closes the connection and returns a sanitised failure.
+
+A prototype containing that fix ran under the installed **enforcing 0.1.6 profile**. The preflight reported no daemon
+owner, then indexed create/read/replace/delete and selective identity isolation passed. This prototype overlays the
+updated class for the test; it is not yet evidence that the installed 0.1.6 app contains the fix. Output:
+`app-ubuntu-touch/build/evidence/signon/confined-activation-result.txt`.
+
+The real account manager then created a synthetic account and protected credentials under that profile in
+`account-probe-016-activation`, a marked private test cache directory. That JVM exited. The fixture is retained for
+read/edit/password-replacement/removal by a separate JVM after the fixed 0.1.7 package is installed, checking identity
+access across an app upgrade as well as process restart. No production account or the real app database was touched.
+Preparation output: `app-ubuntu-touch/build/evidence/signon/account-prepare-016.txt`.
+
+All 37 app tests, detekt, spotlessCheck and installDist pass after the activation change. Packaging and installed-class
+confined verification for 0.1.7 are still required before closing `b-zxbi`. Physical input acceptance remains open.

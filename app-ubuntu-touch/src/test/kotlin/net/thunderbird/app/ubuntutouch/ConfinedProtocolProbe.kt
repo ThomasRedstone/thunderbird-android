@@ -30,6 +30,8 @@ object ConfinedProtocolProbe {
         check(repository.search(account, "INBOX", "CONTROLLED body", {}).size == 1)
         check(repository.search(account, "INBOX", "absent-search-term", {}).isEmpty())
         check(repository.search(account, "INBOX", "", {}).size == 1)
+        check(repository.searchAccount(account, "CONTROLLED body", {}).single().folder.id == "INBOX")
+        check(repository.searchAccounts(listOf(account, account), "CONTROLLED body", {}).single().account == account)
         println("Native offline cached subject/body search: PASS")
     }
 

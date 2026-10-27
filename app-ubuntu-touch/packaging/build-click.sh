@@ -26,7 +26,7 @@ docker run --rm --platform linux/arm64 --network none --cpus "${UT_BUILD_JOBS:-4
     --user "$(id -u):$(id -g)" -v "$STAGE/inputs:/inputs:ro" -v "$STAGE/image:/output" \
     "${runtime_mounts[@]}" "$UT_ARM_PACKAGER_IMAGE" /usr/lib/jvm/java-21-openjdk-arm64/bin/jpackage \
     --type app-image --name mail-demo --input /inputs --main-jar mail-demo.jar \
-    --main-class net.thunderbird.app.ubuntutouch.MainKt --dest /output --app-version 0.1.16 \
+    --main-class net.thunderbird.app.ubuntutouch.MainKt --dest /output --app-version 0.1.17 \
     "${runtime_options[@]}"
 mkdir "$STAGE/payload"
 cp -a "$STAGE/image/mail-demo" "$STAGE/payload/"

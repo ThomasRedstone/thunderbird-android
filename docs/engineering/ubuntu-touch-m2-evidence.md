@@ -949,3 +949,47 @@ old first-match selector and pass restored, with retained before XML at
 all response mode events/busy/partial controls, recipient/list/self/Bcc rules, threading bounds, composer Resume/edit
 persistence, schema7→8 preserving pending flags, and a real TLS SMTP reply after DB reopen. A separate Jakarta IMAP
 oracle verifies delivered In-Reply-To/References and quoted UTF-8 body. Final checks/native packaging follow below.
+
+
+### 0.1.14 package, native reply delivery and recovery
+
+Production `9c1cf6b8242e1fe94f542a7e03b79a2bc88bda0c` is committed/pushed and installed on FP4. Clean candidate 16 has
+empty SOURCE-CHANGES.patch and passes Click review plus ARM64 launcher/JVM/AWT/Skiko/SQLite checks, with the same pinned
+builder/runtime. Artifact: `app-ubuntu-touch/build/ut-candidate-16/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.14_arm64.click`,
+147193416 bytes, SHA-256 `0880f83966b8ec991b22a1e15089bc30aade07b440951954421639e73fb084dc`.
+
+Rsync completed with exit 0 before the exact phone checksum guard and Phone Manager installation (exit 0). The link
+was slow; TCP byte counters confirmed forward progress on the same process, which was not restarted. No database was
+present at standard/doubled application data paths; private backup handling remains available. Known unsigned-development/
+user-bus-hook/old-profile-cache warnings occurred. Independent installed current version/source/empty-patch/new-profile
+checks pass. Fleet scoped commit `5573cd0` pins this artifact, preserving unrelated dirty work without whole-fleet converge.
+
+Native probes use the installed bundled JVM and production JARs, plus 36 test-only classes under enforcing profile
+`mail-demo.thomasredstone_mail-demo_0.1.14`:
+
+- ConfinedComposerProbe passes schema3→8, Swing Main, draft/queue/history, Cc/Bcc and lifecycle checks. It resumes a saved
+  response, applies a Maliit body-edit event, flushes and verifies retained In-Reply-To/References and Unicode text.
+- ConfinedProtocolProbe rejects the unknown IMAP fixture certificate under default trust, then uses injected fixture
+  trust for required STARTTLS receiving/sending and protected SignOn account persistence. It replays queued read/star
+  reconciliation, creates a real reply from cached source MIME, verifies the quote/threading, edits the body and sends.
+  A second send call does not submit another message.
+- Host independently verifies exactly one intended SMTP message, Unicode/dot-stuffed body, a new Message-ID and the
+  expected In-Reply-To/References. A separate Jakarta IMAP oracle verifies source SEEN/FLAGGED state. Both upgrade counters pass.
+- Host exits 0 before a fresh phone JVM checks cached flags, protected credentials, body, SENT state and threading with
+  servers stopped. Account/identity/private-directory cleanup passes; independent SSH confirms absence.
+- Model-driven cancellation passes again under schema8; the independent stalled peer sees EOF with zero protocol/
+  credential bytes. Phone and host processes exit 0, with no fixture listener left running.
+
+All native prepare/server/restart/cleanup/composer/cancellation commands exit 0. Evidence is in
+`app-ubuntu-touch/build/evidence/responses/`, including the full 110-test XML, regression-before XML and `native-run-1/`.
+These checks do not verify physical keyboard/window/suspend or public provider flows. Native delivery exercises Reply;
+Reply-all and Forward text recipient/body behaviour are host tests. Attachment/HTML forwarding remains unfinished.
+
+110 app tests, detekt, installDist and spotlessCheck pass (`/tmp/thunderbird-response-final-checks.log`). A final focused
+8-test recipient/threading run plus quality checks passes after tightening List-Post preference and duplicate-parent
+ordering (`/tmp/thunderbird-response-thread-final.log`). Actual Xvfb composer close still preserves the exact typed subject.
+Exact full command: `./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt
+:app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck --no-configuration-cache
+-Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`, JDK21/Android SDK; the window probe uses the existing
+isolated synthetic Xvfb command. No shared Android source or dependencies changed; the JVM app has no Android lint/device
+task, and Android assembly/device suites were not rerun. Final documentation formatting is checked separately.

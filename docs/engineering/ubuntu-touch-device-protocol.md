@@ -201,3 +201,17 @@ connection and requires both SEEN and FLAGGED, alongside the existing independen
 before the two-argument fresh-JVM recovery probe. That probe also verifies cached flags and removes its protected account
 and private fixture; check absence over SSH. The complete flow passes on 0.1.13, with evidence in
 `build/evidence/flags/native-run-1/`. Physical UI/provider and broader authenticated interruption gates remain open.
+
+
+## Native reply threading
+
+On installed 0.1.14, add `-PutProtocolReply=reply` after the STARTTLS/flags host fixture properties. Its incoming fixture
+has a fixed Message-ID/References and Reply-To. Append `retain-for-restart starttls flags reply` to phone preparation
+arguments using the matching test-only probe JAR. The installed production factory creates a reply from cached MIME,
+checks its quote/threading, edits the body, queues and sends it. Repeated send is suppressed.
+
+Host stop now also requires a new reply Message-ID and exact In-Reply-To/References in the independently received SMTP
+message. Wait for host exit 0 before fresh-JVM recovery, which checks persisted threading as well as cached flags/body,
+protected credentials and SENT state, then cleans its fixture. This flow passes under 0.1.14 confinement; evidence is
+`build/evidence/responses/native-run-1/`. Native composer Resume/Maliit edit/flush and cancellation regressions also pass.
+This is not physical UI acceptance or complete attachment/HTML forwarding coverage.

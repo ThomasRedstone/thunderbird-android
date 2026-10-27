@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.13 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.14 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 96 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Offline flags/close recovery committed/pushed as `dafce5b207`; installed 0.1.13 embeds that clean source | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager install; fleet commit `f4e49d2` pins installed 0.1.13/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
+| Engineering | 110 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Source delivery | Response drafts/MIME safety committed/pushed as `9c1cf6b824`; installed 0.1.14 embeds that clean source | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager install; fleet commit `5573cd0` pins installed 0.1.14/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,7 +27,7 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.13 is installed on the FP4 with account
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.14 is installed on the FP4 with account
 setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
@@ -176,6 +176,11 @@ composer checks pass. Physical/provider delivery acceptance remains open.
 Read/unread and star controls with durable offline assignments, UID-validity guards and explicit folder-sync replay are
 implemented in 0.1.13. Host tests cover conflict/recovery and independent IMAP flags; confined phone reconciliation,
 server-side flag assertions and fresh-JVM recovery pass. Other message actions, bulk operations and background replay remain open.
+Reply/reply-all and explicit text-forward drafts are implemented in 0.1.14 for complete cached plain-text bodies. Actual
+reader→composer navigation, recipient/privacy and threading tests pass; native reply editing/delivery and fresh-JVM
+threading recovery pass. Full attachment/HTML forwarding, HTML-only responses, quote preferences and identities/signatures
+remain open; text forwarding does not complete the full forwarding requirement. Reader/reply body extraction now uses
+the engine's viewable-part classification so text attachments are not mistaken for the body.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

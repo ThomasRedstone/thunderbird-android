@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.13; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.14; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -121,3 +121,8 @@ to apply its pending assignments; UID-validity checks prevent replay onto reused
 confirmation. Normal close waits for local writes. Confined phone reconciliation and independent server IMAP flags pass,
 followed by cached flags/body/credentials/outbox recovery with servers stopped. Installed clean source is `dafce5b207`.
 Physical UI/provider, further message actions, bulk operations and background replay remain open.
+
+Development 0.1.14 adds saved Reply/Reply all and explicit Forward text drafts from complete cached plain-text messages.
+It opens the existing composer without sending, keeps In-Reply-To/References through edits and delivery, and avoids
+copying source Bcc or treating text attachments as the body. Installed source is `9c1cf6b824`; confined composer resume,
+threaded SMTP delivery and offline recovery pass. Attachment/HTML forwarding and HTML-only response handling remain open.

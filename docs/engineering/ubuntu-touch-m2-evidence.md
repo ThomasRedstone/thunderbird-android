@@ -3442,3 +3442,31 @@ No shared modules changed. Android device tests do not exercise this JVM applica
 No new Click or native/physical acceptance is claimed. Phone stays 0.1.31/schema11; development
 source remains 0.1.32/schema15. Large-message native performance, abrupt termination recovery,
 bulk operations and resolution of partial/unknown remote outcomes remain required.
+
+### Immutable 0.1.32 package and production migration (2026-10-27)
+
+Candidate `app-ubuntu-touch/build/ut-candidate-34/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.32_arm64.click`
+contains clean source `9d037c201a99d55f362fa5486252c6c562ec6c2d` with an empty source-changes patch.
+Size: 148091856 bytes. SHA256: `8d7f507b8aff37ace712acb175018cbd4d361abee37bbd14c8451a31c3834578`.
+Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite verification pass; build handle92983 exited0.
+Log: `/tmp/thunderbird-032-click.log`. The pinned builder and candidate5 verified runtime were reused;
+this does not establish cold-build or CI reproducibility. Preserve this artifact unchanged.
+
+The FP4's single owned 0.1.31 window received WM_DELETE_WINDOW; a guarded pidfd SIGCONT
+allowed its stopped process386878 to process normal close and exit. Upgrade verified the
+transferred package hash, absence of app processes and clean old/new source markers.
+Private schema11 backup: `/home/phablet/.cache/mail-demo.thomasredstone/upgrades/0.1.32-yvxl23n6`.
+Phone Manager installed32; the known user-bus and old-profile-cache removal warnings remain in
+`/tmp/thunderbird-032-upgrade.log`. They are not treated as clean launch evidence.
+
+The production migration probe passed under exact32 enforcing confinement: schema11→15 and
+SQLite quick_check. Log: `/tmp/thunderbird-032-production-migration.log`. Driver:
+`build/evidence/native-032/candidate-032-migration-probe.jar`, SHA256
+`7d85df7e41f4a1af424c937a2fee518b2dc28c9c54659691ba8dd16f19bae588`.
+This verifies actual native production storage initialization, not Move UI or real provider acceptance.
+Native move recovery, physical interaction and scoped fleet pin updates remain pending.
+
+The32 launcher returned0 and printed Started (`/tmp/thunderbird-032-launch.log`).
+Independent inspection found exact32 enforcing JVM PID478802 and one owned main window
+(`/tmp/thunderbird-032-window.log`). The process is T(stopped) while the phone is inactive.
+No focused/visible screenshot or touch acceptance is inferred from process/window existence.

@@ -18,6 +18,7 @@ internal data class MailContent(
     val body: String,
     val complete: Boolean,
     val plainText: Boolean = true,
+    val attachments: List<MailAttachmentInfo> = emptyList(),
 )
 
 /** Local reads never request credentials or initiate network activity. Blocking methods require an IO caller. */
@@ -81,11 +82,13 @@ internal class PersistentLiveMailRepository(
         val cached = storage(account).getFolder(folder)
         return cached.withCachedMessage(uid) { message ->
             val text = plainTextBody(message)
+            val complete = Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid)
             MailContent(
                 summary(account, folder, cached, uid, message, cached.getAllMessagesAndEffectiveDates()[uid]),
                 text ?: "No cached plain-text body. HTML viewing is not available yet.",
-                Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid),
+                complete,
                 text != null,
+                if (complete) attachmentParts(message).map(::attachmentInfo) else emptyList(),
             )
         }
     }

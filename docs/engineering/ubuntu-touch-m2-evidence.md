@@ -2262,3 +2262,36 @@ The package is not transferred or installed; latest verified phone version remai
 is retained and has not been overwritten. Choosing the next phone candidate must explicitly distinguish versions,
 back up the production database, verify the complete artifact hash and then use Phone Manager. Native 0.1.20 UI,
 preference persistence and provider authentication remain unverified.
+
+
+## Reader attachment metadata (0.1.21 development source)
+
+The actual mail reader now displays attachment count, sanitized filename and MIME type from complete cached MIME.
+Classification and display metadata are shared with `CachedAttachmentStore`, preserving its export/reference rules.
+The reader uses its existing parsed message and IO cache projection rather than reparsing or exporting files, and
+HTML-only messages can still list attachments. Incomplete messages show a complete-download prompt and do not expose
+provisional attachment metadata. Metadata diagnostic strings are redacted, and no remote resources are fetched.
+
+A real SQLite regression checks names/types, body preservation, distinct accounts sharing folder/UID, HTML-only
+messages, incomplete-cache suppression and MIME temporary-file cleanup with a locked credential store. Two rendered
+reader tests verify complete metadata and incomplete-message messaging. The existing decoding, fingerprint, lease,
+size-limit and filename-attack attachment tests also pass after extracting shared metadata helpers.
+Focused command: standard JDK21/SDK environment and Gradle flags, `:app-ubuntu-touch:spotlessApply
+:app-ubuntu-touch:test --tests '*CachedAttachmentStoreTest' --tests '*MailReaderAttachmentsTest'
+:app-ubuntu-touch:detekt :app-ubuntu-touch:spotlessCheck`.
+Log: `/tmp/thunderbird-attachment-reader-focused.log`.
+
+This completes reader metadata presentation only. Open/Save through Content Hub, crash-orphan cleanup, outgoing
+attachments, partial fetching, very large attachment counts and physical/native UI acceptance remain open. The reader
+explicitly labels Open/Save unavailable; no file-launch shortcut or permission expansion was introduced. No new
+library, mail schema, shared-engine or Android source changes. Source advances to 0.1.21 because immutable 0.1.20
+already exists. No 0.1.21 Click is built or installed yet; matching 0.1.20 drivers remain frozen.
+
+Final host verification: 298 app tests, zero failures/errors/skips; `detekt`, `installDist` and `spotlessCheck` pass.
+Full command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Log `/tmp/thunderbird-attachment-reader-full.log`; XML `app-ubuntu-touch/build/evidence/attachment-reader/`.
+Scoped docs formatting/checks pass. No Android device/instrumentation target exists for this JVM app; no shared source
+changed and previous Android assembly evidence is unchanged. Phone/native checks were not run. Frozen 0.1.20 probe
+SHA-256 was independently rechecked unchanged before source delivery.

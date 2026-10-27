@@ -263,6 +263,38 @@ class CachedAttachmentStoreTest {
         assertClean()
     }
 
+    @Test
+    fun `reader lists sanitized attachment metadata offline without mixing accounts or partial messages`() {
+        val raw = FakeCredentialStore().apply { locked = true }
+        val manager = UtAccountManager(AccountSettingsStorage(database), raw)
+        val logger = DefaultLogger(object : LogSink {
+            override val level = LogLevel.VERBOSE
+            override fun log(event: LogEvent) = error("Reader must not log attachment metadata")
+        })
+        val testSubject = PersistentLiveMailRepository(
+            database,
+            ForegroundMailSessionFactory(manager, database, JvmTrustedSocketFactory(), logger),
+        )
+        val content = testSubject.content(account, "INBOX", "1")
+        assertThat(content.body.trim()).isEqualTo("Body")
+        assertThat(content.attachments).isEqualTo(listOf(MailAttachmentInfo("café.bin", "application/octet-stream")))
+        assertThat(content.attachments.single().toString()).isEqualTo("MailAttachmentInfo(redacted)")
+        update(foreign, raw().replace("caf%C3%A9.bin", "foreign.bin"))
+        assertThat(testSubject.content(foreign, "INBOX", "1").attachments.single().displayName)
+            .isEqualTo("foreign.bin")
+        assertThat(testSubject.content(account, "INBOX", "1").attachments).isEqualTo(content.attachments)
+        update(account, raw().replace("text/plain", "text/html"))
+        val html = testSubject.content(account, "INBOX", "1")
+        assertThat(html.plainText).isEqualTo(false)
+        assertThat(html.attachments).isEqualTo(content.attachments)
+        val folder = PersistentBackendStorage(database, account.toString()).getFolder("INBOX")
+        database.execute("DELETE FROM flags WHERE folder=? AND flag='X_DOWNLOADED_FULL'", folder.id)
+        val partial = testSubject.content(account, "INBOX", "1")
+        assertThat(partial.complete).isEqualTo(false)
+        assertThat(partial.attachments).isEqualTo(emptyList())
+        assertClean()
+    }
+
     private fun assertClean() {
         assertThat(directory.root.resolve("mime").listFiles().orEmpty().toList()).isEqualTo(emptyList())
         if (Files.exists(exports)) Files.list(exports).use { assertThat(it.count()).isEqualTo(0L) }

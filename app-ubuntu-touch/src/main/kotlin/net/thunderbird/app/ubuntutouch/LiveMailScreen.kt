@@ -159,6 +159,7 @@ private fun MailReader(content: MailContent, accountName: String?, modifier: Mod
             accountName?.let { TextBodyLarge("Account: $it") }
             TextBodyLarge(content.summary.sender)
             TextBodyLarge(content.body)
+            MailReaderAttachments(content)
         }
     }
 }

@@ -3,7 +3,6 @@ package net.thunderbird.app.ubuntutouch
 import com.fsck.k9.mail.Body
 import com.fsck.k9.mail.Message
 import com.fsck.k9.mail.Part
-import com.fsck.k9.mail.internet.MessageExtractor
 import com.fsck.k9.mail.internet.MimeUtility
 import com.fsck.k9.mail.internet.RawDataBody
 import java.io.OutputStream
@@ -57,7 +56,7 @@ internal class CachedAttachmentStore(
         val raw = snapshot(account, folder, uid)
         val fingerprint = fingerprint(raw)
         return withParsedCachedMime(raw) { message ->
-            parts(message).mapIndexed { index, part ->
+            attachmentParts(message).mapIndexed { index, part ->
                 describe(AttachmentReference(account, folder, uid, fingerprint, index), part)
             }
         }
@@ -78,7 +77,7 @@ internal class CachedAttachmentStore(
         var target: AttachmentTarget? = null
         try {
             val result = withParsedCachedMime(raw) { message ->
-                val part = parts(message).getOrNull(reference.ordinal) ?: error("Attachment absent")
+                val part = attachmentParts(message).getOrNull(reference.ordinal) ?: error("Attachment absent")
                 val info = describe(reference, part)
                 checkActive()
                 val body = checkNotNull(part.body) { "Attachment body absent" }
@@ -118,16 +117,9 @@ internal class CachedAttachmentStore(
         maximumRawBytes,
     ) { getBlob(0) }.singleOrNull() ?: error("A complete cached message within the attachment size limit is required")
 
-    private fun parts(message: Message): List<Part> = mutableListOf<Part>().also {
-        MessageExtractor.findViewablesAndAttachments(message, null, it)
-    }
-
     private fun describe(reference: AttachmentReference, part: Part): CachedAttachment {
-        val name = MimeUtility.getHeaderParameter(part.disposition, "filename")
-            ?: MimeUtility.getHeaderParameter(part.contentType, "name")
-        val mime = part.mimeType?.lowercase(Locale.ROOT)?.takeIf { MIME_TYPE.matches(it) }
-            ?: "application/octet-stream"
-        return CachedAttachment(reference, safeAttachmentName(name), mime)
+        val info = attachmentInfo(part)
+        return CachedAttachment(reference, info.displayName, info.mimeType)
     }
 
     private fun exportBody(body: Body, output: OutputStream, checkActive: () -> Unit): Long {
@@ -146,7 +138,6 @@ internal class CachedAttachmentStore(
 
 private const val DEFAULT_RAW_LIMIT = 96L * 1024 * 1024
 private const val DEFAULT_DECODED_LIMIT = 64L * 1024 * 1024
-private val MIME_TYPE = Regex("[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+")
 private fun fingerprint(raw: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(raw).joinToString("") { "%02x".format(it) }
 

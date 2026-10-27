@@ -9,6 +9,7 @@ import com.fsck.k9.mail.ServerSettings
 import com.fsck.k9.mail.internet.MimeMessage
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -56,6 +57,7 @@ internal object SearchRuntimeFixture {
         val primary = account("Primary")
         val secondary = account("Secondary")
         MailDatabase(path).use { database -> seed(database, listOf(primary, secondary)) }
+        val before = bodyFiles(directory.resolve("mime"))
         MailDatabase(path).use { database ->
             val manager = UtAccountManager(AccountSettingsStorage(database), noSecrets)
             val sessions =
@@ -78,6 +80,11 @@ internal object SearchRuntimeFixture {
                 withContext(Dispatchers.Main) { model.close() }
             }
         }
+        check(bodyFiles(directory.resolve("mime")) == before) { "Cached MIME resources were not released" }
+    }
+
+    private fun bodyFiles(directory: Path): Set<Path> = Files.list(directory).use { paths ->
+        paths.filter { it.fileName.toString().startsWith("body") }.toList().toSet()
     }
 
     private suspend fun navigate(model: LiveMailViewModel, primary: UtMailAccount, secondary: UtMailAccount) {
@@ -114,9 +121,15 @@ internal object SearchRuntimeFixture {
             }
             val folder = storage.getFolder("INBOX")
             folder.setFolderExtraNumber("imapUidValidity", 42)
+            val text = Base64.getEncoder().encodeToString("Body ${account.displayName} λ".toByteArray())
             val raw = "From: sender@example.invalid\r\nSubject: Shared subject\r\n" +
-                "Message-ID: <${account.id}@example.invalid>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" +
-                "Body ${account.displayName} λ"
+                "Message-ID: <${account.id}@example.invalid>\r\n" +
+                "Content-Type: multipart/mixed; boundary=fixture\r\n\r\n" +
+                "--fixture\r\nContent-Type: text/plain; charset=utf-8\r\n" +
+                "Content-Transfer-Encoding: base64\r\n\r\n$text\r\n" +
+                "--fixture\r\nContent-Type: application/octet-stream\r\n" +
+                "Content-Disposition: attachment; filename=fixture.bin\r\n" +
+                "Content-Transfer-Encoding: base64\r\n\r\nAAECAwQF\r\n--fixture--\r\n"
             val message = MimeMessage.parseMimeMessage(raw.byteInputStream(), true).apply { uid = "1" }
             folder.saveMessage(message, MessageDownloadState.FULL)
         }

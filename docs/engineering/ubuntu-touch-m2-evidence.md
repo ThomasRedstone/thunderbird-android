@@ -1320,3 +1320,40 @@ A read-only device query finds `lomiri-content-hub`/`liblomiri-content-hub1` and
 CLI arguments, transfer acknowledgements, receiver lifetime and confinement policy remain unverified; invoking help
 produced no useful interface documentation. Do not invent a broker protocol or assume that launching a CLI completes
 Open/Save acceptance. No attachment sharing, new permission or system package change was performed.
+
+## Cached MIME resource ownership
+
+Bounded bug fix: repeated local mailbox projections must dispose newly parsed MIME temp bodies after returning detached
+summary/content/response data, on both success and failure. The initial real-SQLite regression performs three rounds
+of summaries, body reads, account search and reply-draft creation with a base64 text body and binary attachment. It
+fails before the fix: zero initial body files becomes 42 retained files. Before XML is retained in
+`build/evidence/mime-resources/before.xml` (`/tmp/thunderbird-mime-resources-before.log`). This confirms the earlier
+source-derived lifetime hypothesis for those local read paths.
+
+An app-local `withCachedMessage` scope owns only the fresh result of PersistentBackendFolder.readMessage. Its private
+owner walks multipart and nested message bodies iteratively, tracking Part identity, and removes BinaryTempFileBody
+files after consumers finish. Missing/already-consumed files are harmless. IO deletion failures are collected while
+other owned files are still released; AutoCloseable.use preserves the original projection/cancellation exception and
+suppresses cleanup failure. It never sweeps a directory or recursively removes an unexpected nonempty path.
+The callback contract requires detached data, not a Part/Body/stream. No shared engine ownership semantics changed.
+
+Mailbox summaries, content and ResponseDraftFactory.create now use that scope. Content derives its summary from the
+same parse rather than parsing the message twice. Stored MIME, external/caller-owned parses and transport/session
+resources are unchanged. These methods never return parsed parts beyond the scope.
+
+Tests prove no new retained files after the repeated read/search/reply journey; nested-message cleanup after a thrown
+projection or CancellationException; a separate caller-owned parse remaining readable (including decoded binary bytes);
+and preserving the primary exception while a deliberately nonempty temp-path directory causes cleanup failure and
+other files are still deleted. The runtime search fixture now contains base64 bodies/attachments and checks its temp
+file set before/after the cross-account reader/flag/reply journey. Host execution passes; native execution awaits the
+next package and must not use the new test fixture against old installed production code.
+
+All 137 app tests pass with zero failures/errors/skips, plus app detekt/installDist/spotlessCheck
+(`/tmp/thunderbird-mime-resources-full.log`); XML is retained under `build/evidence/mime-resources/`. No new dependencies,
+permissions or shared Android changes; Android assembly/device suites were not rerun. The JVM app has no Android
+lint/device task. Installed phone remains 0.1.17; this fix is not yet deployed.
+
+Exclusions remain required follow-ups: parser failures before a Message is returned, pre-existing orphan temp files,
+shared backend/SMTP transport ownership, cache retention/limits and long-session memory/disk soak. This local ownership
+fix does not complete storage or attachment acceptance. Attachment export/open/save through Content Hub and the full
+HTML/background/provider/security roadmap remain open.

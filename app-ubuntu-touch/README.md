@@ -144,3 +144,7 @@ including collisions between folders/accounts. Reading, local flags and reply cr
 Back restores the original account/folder/query/scope. Host and confined FP4 model/storage checks pass, with fresh-JVM
 offline search recovery after server shutdown. Installed clean source is `a938b0424e`; fleet pin is `41ac3db`.
 Physical UI/provider acceptance, server search, filters/indexing and a unified inbox remain required.
+
+A further source fix releases freshly parsed MIME temp files after cached listing, reading, search and response-draft
+creation, including failure/cancellation paths. It avoids the reader's duplicate parse and preserves caller-owned
+messages. The regression failed before the fix; all 137 app tests now pass. This fix is not yet installed on FP4.

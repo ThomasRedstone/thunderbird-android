@@ -1,5 +1,6 @@
 package net.thunderbird.app.ubuntutouch
 
+import com.fsck.k9.mail.Message
 import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.account.AccountId
 
@@ -69,20 +70,21 @@ internal class PersistentLiveMailRepository(
     override fun messages(account: AccountId, folder: String): List<MailSummary> {
         val cached = storage(account).getFolder(folder)
         return cached.getAllMessagesAndEffectiveDates().entries.sortedByDescending { it.value ?: 0L }.map { (uid, _) ->
-            summary(account, folder, cached, uid)
+            cached.withCachedMessage(uid) { message -> summary(account, folder, cached, uid, message) }
         }
     }
 
     override fun content(account: AccountId, folder: String, uid: String): MailContent {
         val cached = storage(account).getFolder(folder)
-        val message = checkNotNull(cached.readMessage(uid)) { "Message absent from cache" }
-        val text = plainTextBody(message)
-        return MailContent(
-            summary(account, folder, cached, uid),
-            text ?: "No cached plain-text body. HTML viewing is not available yet.",
-            Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid),
-            text != null,
-        )
+        return cached.withCachedMessage(uid) { message ->
+            val text = plainTextBody(message)
+            MailContent(
+                summary(account, folder, cached, uid, message),
+                text ?: "No cached plain-text body. HTML viewing is not available yet.",
+                Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid),
+                text != null,
+            )
+        }
     }
 
     override fun refresh(account: AccountId, folder: String?) = refresh(account, folder, MailOperation())
@@ -113,8 +115,13 @@ internal class PersistentLiveMailRepository(
 
     private fun storage(account: AccountId) = PersistentBackendStorage(database, account.toString())
 
-    private fun summary(account: AccountId, name: String, folder: PersistentBackendFolder, uid: String): MailSummary {
-        val message = checkNotNull(folder.readMessage(uid)) { "Message absent from cache" }
+    private fun summary(
+        account: AccountId,
+        name: String,
+        folder: PersistentBackendFolder,
+        uid: String,
+        message: Message,
+    ): MailSummary {
         val flags = actions.overlay(account, name, uid, folder.getMessageFlags(uid))
         return MailSummary(
             uid,

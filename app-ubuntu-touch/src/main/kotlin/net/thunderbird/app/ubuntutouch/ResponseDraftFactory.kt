@@ -27,9 +27,10 @@ internal class ResponseDraftFactory(private val database: MailDatabase) {
         check(accounts.any { it.id == account }) { "Account absent" }
         val cached = PersistentBackendStorage(database, account.toString()).getFolder(folder)
         check(Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid)) { "Download the complete message first" }
-        val message = checkNotNull(cached.readMessage(uid))
-        val text = checkNotNull(plainTextBody(message)) { "A plain-text body is required" }
-        val seed = seed(message, text, accounts.map { it.address }, mode)
+        val seed = cached.withCachedMessage(uid) { message ->
+            val text = checkNotNull(plainTextBody(message)) { "A plain-text body is required" }
+            seed(message, text, accounts.map { it.address }, mode)
+        }
         return OutgoingMailStore(database).create(account, seed).id
     }
 

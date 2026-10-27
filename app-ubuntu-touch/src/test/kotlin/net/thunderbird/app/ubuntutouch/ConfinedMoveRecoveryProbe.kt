@@ -22,14 +22,25 @@ object ConfinedMoveRecoveryProbe {
         check(Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000') == "$profile (enforce)")
         val parent = Path.of(System.getProperty("user.home"), ".cache", "mail-demo.thomasredstone", "probes")
         when (args[1]) {
-            "prepare" -> {
+            "prepare", "crash" -> {
                 require(args.size == 2)
                 val directory = Files.createTempDirectory(
                     parent,
                     "move-runtime-",
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")),
                 )
-                prepareFixture(directory)
+                prepareFixture(directory) { database ->
+                    if (args[1] == "crash") {
+                        database.transaction {
+                            database.execute("UPDATE move_payloads SET mime=?", "Uncommitted corruption".toByteArray())
+                            database.execute("UPDATE mail_moves SET state='COMPLETE'")
+                            println("FIXTURE_DIR=$directory")
+                            println("HALTING_WITH_OPEN_TRANSACTION")
+                            System.out.flush()
+                            Runtime.getRuntime().halt(CRASH_EXIT)
+                        }
+                    }
+                }
                 println("Enforcing move claim and retained binary snapshot: PASS")
                 println("FIXTURE_DIR=$directory")
             }
@@ -46,7 +57,7 @@ object ConfinedMoveRecoveryProbe {
         }
     }
 
-    internal fun prepareFixture(directory: Path) {
+    internal fun prepareFixture(directory: Path, beforeClose: (MailDatabase) -> Unit = {}) {
         MailDatabase(directory.resolve("mail.sqlite")).use { database ->
             val server = ServerSettings(
                 "imap",
@@ -94,6 +105,7 @@ object ConfinedMoveRecoveryProbe {
             check(claimed.state == MailMoveState.WORKING && claimed.attempt == 1L)
             storage.createFolderUpdater().use { it.deleteFolders(listOf("INBOX")) }
             check(MailMovePayloadStore(database).info(account.id, claimed.id)?.bytes == bytes().size.toLong())
+            beforeClose(database)
         }
     }
 
@@ -124,6 +136,8 @@ object ConfinedMoveRecoveryProbe {
             check(payloads.info(accountId(), recovered.id) != null)
         }
     }
+
+    private const val CRASH_EXIT = 77
 
     private fun accountId() = AccountIdFactory.of("00000000-0000-0000-0000-000000000001")
     private fun bytes() = ByteArray(SOURCE_PAGE_BYTES * 2 + 17) { (it * 31).toByte() }

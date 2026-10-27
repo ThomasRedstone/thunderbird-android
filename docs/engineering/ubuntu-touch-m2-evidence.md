@@ -3496,3 +3496,23 @@ and the standard JDK21/SDK/Gradle flags. No production source/package was change
 Local phone-fleet commit `bd04d29` pins exactly the installed32 artifact/hash and passes scoped
 `pm lint`. The temporary-index commit preserved unrelated manifest/worktree/index changes.
 No fleet sync, prune or push was performed.
+
+### Abrupt native JVM termination with an open Move transaction (2026-10-27)
+
+The test-only recovery driver now also supports `crash`. After committing the retained
+snapshot and deleting the live source cache, it begins another transaction, attempts to
+replace payload bytes and mark the move COMPLETE, then calls Runtime.halt(77) before
+commit, database close or shutdown hooks. The phone returned the expected77 with
+HALTING_WITH_OPEN_TRANSACTION in `/tmp/thunderbird-032-move-crash.log`. A fresh exact32
+enforcing JVM reopened the same database: quick_check passed, the original65553 binary
+bytes/date/flags survived, the move recovered UNKNOWN/uncertain/attempt1, and unconfirmed
+retry/cancellation/release and foreign-account access remained rejected. It cleaned its
+private fixture. `/tmp/thunderbird-032-move-crash-reopen.log` exited0.
+
+Driver: `build/evidence/native-032/candidate-032-move-crash-probe.jar`, 3 classes, SHA256
+`26c21651aed0d6edca4398884fa80e981b02e3d5f9359a14538f664f4d7988a8`.
+The original normal-close driver remains unchanged. Three host probe tests, detekt and
+spotlessCheck pass: `/tmp/thunderbird-032-move-crash-check.log`; the new test independently
+checks rollback of the attempted corruption. No production source/package changed. This
+proves recovery from abrupt JVM termination at this transaction boundary; it does not
+prove power-loss/fsync guarantees, every interruption point or real native IMAP submission.

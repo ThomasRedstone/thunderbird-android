@@ -418,3 +418,49 @@ Version 0.1.9 is development only. FP4 and fleet remain at 0.1.8/source `6958418
 Still required: composer/outbox UI, autosave and recovery, send/retry/uncertain-decision journeys, recipients/Cc/Bcc and
 identities, attachments, Sent-folder filing/reconciliation, cancellation, wire-level interruptions and full confined
 phone verification. These are continuing roadmap requirements, not exclusions from the final application.
+
+
+## Work package 2.4: composer and outbox UI
+
+Brief: connect the protected account manager and persistent outgoing store/sender to a foreground plain-text composer
+and recoverable outbox. Queueing must work offline, network sending must be explicit, and uncertain delivery must
+require a duplicate-risk decision. Preserve selection/preedit and multiline input with Bolt and Maliit.
+
+Implemented: `ComposerState`, `ComposerViewModel` and `ComposerScreen`, Koin bindings and Write navigation.
+The account-scoped draft list opens/newly creates drafts with To, subject and body editing. Autosave waits 400 ms after
+an edit; a mutex serialises writes. Newer edits cannot be overwritten by an older save response. Save draft and Back
+explicitly flush current input; failed saves keep the form/input open. Top-level navigation is disabled while dirty
+or busy. Queueing persists frozen MIME without network access; Send now makes a foreground attempt. Outbox details
+show queued, failed, SMTP-accepted and uncertain states. Uncertain retry requires a review/confirmation step, with an
+option to keep the uncertain record. SMTP acceptance is not labelled as final recipient delivery or Sent-folder filing.
+Maliit Enter inserts a newline in the body and dismisses input in header fields; hidden-text hints are reset normally.
+
+Verification: 63 app tests pass with zero failures/errors/skips; detekt, spotlessCheck and installDist pass using the
+scoped JDK 21/Xvfb command above. Log: `/tmp/thunderbird-composer-runtime-final.log`. Three new model tests cover
+latest-edit autosave, save-before-Back/reopen, queue-without-send, explicit sending, uncertain review/cancel/confirmation
+and failed-save input retention. Two Compose tests cover editable recipients, offline queue action and duplicate-risk
+confirmation controls. Existing real SMTP/store tests remain in the suite. Android/instrumented checks were not run:
+these changes are JVM-app-only; shared Bolt source and its recorded checks/limitations are unchanged.
+
+### Runtime dispatcher correction
+
+An actual standalone 420×800 software-rendered desktop journey exposed a missing Main dispatcher: after selecting an
+account, the default model scope could not launch and remained busy. Injected test scopes had hidden this issue.
+This also affects the previously installed account/mailbox models; their UI acceptance remains unproven.
+`e19062da14` adds the standard `kotlinx-coroutines-swing` artifact at the existing coroutines version and a production
+Main-dispatcher test without a test override. See the [official dispatcher documentation](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-swing/).
+The new test failed before the dependency was added (`/tmp/thunderbird-main-dispatcher-before.log`) and passes afterwards.
+
+The standalone application was then launched against a private temporary SQLite database created by the production
+schema adapter, with synthetic account/draft rows and no passwords. Actual application navigation opened the draft
+editor. A typed subject change was independently read back from SQLite as `Runtime autosave verified`, state DRAFT.
+The application log was empty after the fix. Inspected screenshots are retained under
+`app-ubuntu-touch/build/evidence/composer/desktop-{editor,autosave}.png`; the earlier busy-state screenshot/log is retained
+as failure evidence. No network server was contacted for this visual/input check.
+
+Remaining gates: actual confined phone networking, composer/secure-input acceptance and the full configure/sync/read/
+draft/send/offline-reopen journey. Autosave has a 400 ms uncommitted window and no lifecycle flush yet; unexpected
+termination during that window can lose the latest input. Draft deletion/discard, Cc/Bcc, attachments, reply/forward,
+identity/signature controls, typed error guidance, Sent-folder filing/reconciliation and active cancellation remain
+later requirements. Large drafts/outboxes still require measured layout/performance work. Version 0.1.9 has not yet
+been installed; FP4 remains on 0.1.8 until the next verified deployment.

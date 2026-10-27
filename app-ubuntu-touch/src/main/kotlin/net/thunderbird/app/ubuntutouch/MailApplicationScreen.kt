@@ -1,7 +1,10 @@
 package net.thunderbird.app.ubuntutouch
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -22,7 +25,7 @@ import kotlinx.coroutines.withContext
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 
-private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX }
+private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX, COMPOSE }
 
 @Composable
 internal fun MailApplicationScreen(
@@ -30,6 +33,7 @@ internal fun MailApplicationScreen(
     keyboard: MaliitKeyboard?,
     createAccounts: () -> AccountSetupViewModel,
     createMailbox: () -> LiveMailViewModel,
+    createComposer: () -> ComposerViewModel,
 ) {
     var destination by remember { mutableStateOf(MailDestination.DEMO) }
     when (destination) {
@@ -61,6 +65,14 @@ internal fun MailApplicationScreen(
             }
         }
 
+        MailDestination.COMPOSE -> {
+            val composer = loadOwnedMailModel(createComposer)
+            if (composer != null) {
+                val state by composer.state.collectAsState()
+                ComposerDestination(state, composer::event, keyboard) { destination = it }
+            }
+        }
+
         MailDestination.MAILBOX -> {
             val mailbox = loadOwnedMailModel(createMailbox)
             if (mailbox != null) {
@@ -84,19 +96,22 @@ internal fun MailApplicationScreen(
 
 @Composable
 private fun NavigationButtons(busy: Boolean, navigate: (MailDestination) -> Unit, keyboard: MaliitKeyboard?) {
-    MailDestination.entries.forEach { destination ->
-        ButtonText(
-            when (destination) {
-                MailDestination.DEMO -> "Demo mailbox"
-                MailDestination.ACCOUNTS -> "Accounts"
-                MailDestination.MAILBOX -> "Mailboxes"
-            },
-            {
-                keyboard?.focus(false)
-                navigate(destination)
-            },
-            enabled = !busy,
-        )
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        MailDestination.entries.forEach { destination ->
+            ButtonText(
+                when (destination) {
+                    MailDestination.DEMO -> "Demo mailbox"
+                    MailDestination.ACCOUNTS -> "Accounts"
+                    MailDestination.MAILBOX -> "Mailboxes"
+                    MailDestination.COMPOSE -> "Write"
+                },
+                {
+                    keyboard?.focus(false)
+                    navigate(destination)
+                },
+                enabled = !busy,
+            )
+        }
     }
 }
 
@@ -130,5 +145,23 @@ private fun Modifier.mailBack(enabled: Boolean, back: () -> Unit): Modifier = on
         true
     } else {
         false
+    }
+}
+
+@Composable
+private fun ComposerDestination(
+    state: ComposerState,
+    onEvent: (ComposerEvent) -> Unit,
+    keyboard: MaliitKeyboard?,
+    navigate: (MailDestination) -> Unit,
+) {
+    Column(
+        Modifier.fillMaxSize().mailBack(!state.busy) {
+            keyboard?.focus(false)
+            if (state.account == null) navigate(MailDestination.DEMO) else onEvent(ComposerEvent.Back)
+        },
+    ) {
+        NavigationButtons(state.busy || state.dirty, navigate, keyboard)
+        ComposerScreen(state, onEvent, keyboard)
     }
 }

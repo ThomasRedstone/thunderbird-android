@@ -68,7 +68,7 @@ internal fun AccountSetupScreen(
 private fun AccountList(state: AccountSetupState, onEvent: (AccountSetupEvent) -> Unit) {
     TextBodyLarge(
         "Manual IMAP/SMTP setup. Saved accounts can receive foreground mail from Mailboxes. " +
-            "Sending UI is not available yet.",
+            "Use Write for drafts, the outbox and explicit foreground sending.",
     )
     state.accounts.forEach { account ->
         TextBodyLarge(account.displayName)

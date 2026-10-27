@@ -4,8 +4,9 @@ An unofficial Compose Desktop preview using Thunderbird's JVM mail engine and Bo
 contains bundled samples. Accounts supports manual TLS IMAP/SMTP settings and protected credentials. Mailboxes opens
 cached folders/messages offline, discovers folders with Refresh, syncs a selected folder and reads plain-text mail.
 Partial messages offer an explicit full download. Networking is foreground-only. Persistent draft/outbox storage
-and guarded SMTP attempts are implemented but not yet connected to a composer/outbox screen. Composition UI,
-background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
+and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
+save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
+confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
 version is 0.1.9; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build

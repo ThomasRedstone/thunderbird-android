@@ -13,8 +13,8 @@ and a reproducible supported release.
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
 | Platform | 0.1.8 installed on FP4; 0.1.4 sizing/typing confirmed; SQLite/SignOn confinement checks pass | Physical secure-input UI, rotation and lifecycle checks |
-| Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Cached foreground mailbox UI and controlled TLS IMAP/SMTP engine tests; phone journey pending |
-| Engineering | 57 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
+| Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Cached mailbox and plain-text composer/outbox UI; controlled TLS protocol tests; phone journey pending |
+| Engineering | 63 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Mailbox UI committed/pushed as `6958418eac`; installed 0.1.8 embeds that clean source | Ongoing live-mail work and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `a07d3ad` pins installed 0.1.8/hash | Foreground journeys, recovery and lifecycle verification |
 
@@ -151,8 +151,8 @@ Acceptance: the complete flow works against a controlled test server on the devi
 test account. Verify rejected credentials, invalid certificates, interrupted sync and send failure recovery. Do not
 request or log production credentials to substitute for controlled tests. Measure package size, startup time and memory.
 This milestone is in progress. Storage, protected setup and controlled-server protocol integration are implemented;
-cached mailbox UI and persistent draft/outbox engine are implemented; composer/outbox UI, cancellation and
-the phone vertical slice remain incomplete.
+cached mailbox and composer/outbox UI are implemented; cancellation and the complete phone vertical slice remain
+incomplete.
 
 ## Milestone 3 Daily use in the foreground
 
@@ -265,6 +265,6 @@ regression checks for changed shared code. Test boundaries with meaningful cases
 platform contracts and user journeys. Validate the packaged application on real hardware; desktop execution alone
 does not cover Ubuntu Touch confinement or lifecycle behaviour.
 
-The immediate work is milestone 2: verify the cached mailbox UI on device, complete
-composition with persistent drafts/outbox, and verify receiving/sending on the phone. Keep outstanding source/package
+The immediate work is milestone 2: verify the cached mailbox and composer/outbox UI on device, complete
+cancellation and recovery gaps, and verify receiving/sending on the phone. Keep outstanding source/package
 alignment and physical checks visible as candidates advance; record concrete blockers and continue independent work.

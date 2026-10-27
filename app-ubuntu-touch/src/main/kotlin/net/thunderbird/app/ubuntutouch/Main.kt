@@ -77,20 +77,14 @@ fun main() {
                     Surface(Modifier.fillMaxSize()) {
                         val loaded = viewModel
                         if (loaded == null) {
-                            TextBodyLarge(
-                                text = if (failed) {
-                                    "Unable to load demo messages. Please reopen the app."
-                                } else {
-                                    "Loading demo messages…"
-                                },
-                                modifier = Modifier.padding(24.dp),
-                            )
+                            LoadingDemo(failed)
                         } else {
                             MailApplicationScreen(
                                 loaded,
                                 keyboard,
                                 createAccounts = { koin.get<AccountSetupViewModel>() },
                                 createMailbox = { koin.get<LiveMailViewModel>() },
+                                createComposer = { koin.get<ComposerViewModel>() },
                             )
                         }
                     }
@@ -114,6 +108,10 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single { ForegroundMailSessionFactory(get(), get(), JvmTrustedSocketFactory(), get()) }
             single<LiveMailRepository> { PersistentLiveMailRepository(get(), get()) }
             factory { LiveMailViewModel(get(), get()) }
+            single { OutgoingMailStore(get()) }
+            single<OutgoingTransport> { SessionOutgoingTransport(get()) }
+            single { OutgoingMailSender(get(), get()) }
+            factory { ComposerViewModel(get(), get(), get()) }
             single<Logger> { DefaultLogger(sink = ConsoleLogSink()) }
             single { MaliitKeyboard(get()) }
         },
@@ -137,4 +135,12 @@ private fun KeyboardWindowFocus(window: java.awt.Window, keyboard: MaliitKeyboar
             keyboard?.windowFocusChanged(false)
         }
     }
+}
+
+@Composable
+private fun LoadingDemo(failed: Boolean) {
+    TextBodyLarge(
+        text = if (failed) "Unable to load demo messages. Please reopen the app." else "Loading demo messages…",
+        modifier = Modifier.padding(24.dp),
+    )
 }

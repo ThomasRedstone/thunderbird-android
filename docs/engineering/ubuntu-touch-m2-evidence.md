@@ -2166,3 +2166,15 @@ At this checkpoint the last observed phone version is still 0.1.18. No installat
 expected old source and no running Mail demo profile, then makes a private quick_check-verified SQLite backup
 before Phone Manager installation. Future tests must use the matching 0.1.19 profile and driver, never the frozen
 0.1.18 driver. Actual setup UI focus/suspend and real provider acceptance remain open.
+
+The final remote size observation was 121420800 bytes. A subsequent SSH connection timed out and a Tailscale ping
+also timed out. The original SCP process still reports a live session; a separate connection timeout is not proof
+that the transfer ended. Partial deployment blocker b-nnxn records this gap with halted=false; other roadmap work
+can continue. Poll the existing transfer before any retry, and verify the complete hash before installation.
+No modem/OS/network configuration change was attempted.
+
+A host-only fixture JAR is also frozen as build/evidence/oauth-native-019/host-server-019.jar, SHA-256
+700328fd1d4eab0a0d28e6487fd76167e59a112a242e5863d8d492155b4b4507. On recovery, run it against candidate-21's
+immutable production lib/app JARs, not a later rebuilt installDist. Start a fresh bounded server output directory;
+the old endpoint is stopped and stale. The matching public certificate is already on the phone as
+probes/candidate-019-certificate.der. Preserve both frozen 0.1.18 and 0.1.19 test drivers as source advances.

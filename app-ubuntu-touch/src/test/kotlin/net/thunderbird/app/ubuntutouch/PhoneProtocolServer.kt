@@ -2,11 +2,14 @@ package net.thunderbird.app.ubuntutouch
 
 import com.icegreen.greenmail.util.GreenMail
 import com.icegreen.greenmail.util.ServerSetup
+import java.net.InetAddress
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.KeyStore
 import java.util.Properties
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
 import jakarta.mail.Session as JakartaSession
 import jakarta.mail.internet.MimeMessage as JakartaMessage
 
@@ -14,7 +17,9 @@ import jakarta.mail.internet.MimeMessage as JakartaMessage
 object PhoneProtocolServer {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size == 2)
+        require(args.size in 2..3)
+        val startTls = args.size == 3
+        if (startTls) require(args[2] == "starttls")
         val host = args[0]
         val output = Path.of(args[1]).toAbsolutePath()
         Files.createDirectories(output)
@@ -37,10 +42,35 @@ object PhoneProtocolServer {
             arrayOf(
                 ServerSetup(0, host, ServerSetup.PROTOCOL_IMAPS),
                 ServerSetup(0, host, ServerSetup.PROTOCOL_SMTPS),
+                ServerSetup(0, "127.0.0.1", ServerSetup.PROTOCOL_IMAP),
+                ServerSetup(0, "127.0.0.1", ServerSetup.PROTOCOL_SMTP),
             ),
         )
         try {
             server.start()
+            serve(server, store, host, output, startTls)
+        } finally {
+            server.stop()
+            check(material.toFile().deleteRecursively())
+        }
+    }
+
+    private fun serve(server: GreenMail, store: KeyStore, host: String, output: Path, startTls: Boolean) {
+        val managers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply {
+            init(store, PASSWORD.toCharArray())
+        }
+        val context = SSLContext.getInstance("TLS").apply { init(managers.keyManagers, null, null) }
+        val gateways = if (startTls) {
+            listOf(
+                StartTlsGateway(true, server.imap.port, context, InetAddress.getByName(host), true),
+                StartTlsGateway(false, server.smtp.port, context, InetAddress.getByName(host), true),
+            )
+        } else {
+            emptyList()
+        }
+        try {
+            val imapPort = gateways.getOrNull(0)?.port ?: server.imaps.port
+            val smtpPort = gateways.getOrNull(1)?.port ?: server.smtps.port
             server.setUser("fixture@example.invalid", "fixture", PASSWORD)
             server.setUser("recipient@example.invalid", "recipient", PASSWORD)
             val raw = "From: sender@example.invalid\r\nTo: fixture@example.invalid\r\n" +
@@ -49,7 +79,7 @@ object PhoneProtocolServer {
                 JakartaMessage(JakartaSession.getInstance(Properties()), raw.byteInputStream()),
             )
             Files.newBufferedWriter(output.resolve("endpoints.properties")).use {
-                it.write("host=$host\nimap=${server.imaps.port}\nsmtp=${server.smtps.port}\n")
+                it.write("host=$host\nimap=${imapPort}\nsmtp=${smtpPort}\n")
             }
             println("READY: controlled TLS IMAP/SMTP on $host")
             val deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(10)
@@ -62,9 +92,9 @@ object PhoneProtocolServer {
             println(
                 "Independent server observation: intended recipient, Unicode/dot-stuffed body and single delivery PASS",
             )
+            if (startTls) check(gateways.all { it.upgrades.get() >= 2 })
         } finally {
-            server.stop()
-            check(material.toFile().deleteRecursively())
+            gateways.forEach { it.close() }
         }
     }
 

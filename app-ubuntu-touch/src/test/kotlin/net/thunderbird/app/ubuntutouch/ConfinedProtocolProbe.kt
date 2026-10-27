@@ -20,7 +20,7 @@ import net.thunderbird.feature.account.AccountIdFactory
 object ConfinedProtocolProbe {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size in setOf(2, 5, 6))
+        require(args.size in setOf(2, 5, 6, 7))
         val label = Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000')
         check(label == "${args[0]} (enforce)")
         if (args.size == 2) verifyRestart(Path.of(args[1])) else prepare(args)
@@ -29,16 +29,22 @@ object ConfinedProtocolProbe {
     private fun parent() = Path.of(System.getProperty("user.home"), ".cache", "mail-demo.thomasredstone", "probes")
 
     private fun prepare(args: Array<String>) {
-        val retain = args.size == 6
+        val retain = args.size >= 6
         if (retain) require(args[5] == "retain-for-restart")
+        val security = if (args.size == 7) {
+            require(args[6] == "starttls")
+            ConnectionSecurity.STARTTLS_REQUIRED
+        } else {
+            ConnectionSecurity.SSL_TLS_REQUIRED
+        }
         Files.createDirectories(parent())
         val directory = Files.createTempDirectory(parent(), "protocol-runtime-")
         val account = UtMailAccount(
             AccountIdFactory.create(),
             "Controlled device mailbox",
             "fixture@example.invalid",
-            settings("imap", args[1], args[2].toInt()),
-            settings("smtp", args[1], args[3].toInt()),
+            settings("imap", args[1], args[2].toInt(), security),
+            settings("smtp", args[1], args[3].toInt(), security),
             UUID.randomUUID().toString(),
         )
         var prepared = false
@@ -168,11 +174,11 @@ object ConfinedProtocolProbe {
         SignonCredentialStore(SignonIdentityIndex(database)),
     )
 
-    private fun settings(type: String, host: String, port: Int) = ServerSettings(
+    private fun settings(type: String, host: String, port: Int, security: ConnectionSecurity) = ServerSettings(
         type,
         host,
         port,
-        ConnectionSecurity.SSL_TLS_REQUIRED,
+        security,
         AuthType.PLAIN,
         "fixture",
         null,

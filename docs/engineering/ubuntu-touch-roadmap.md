@@ -13,8 +13,8 @@ and a reproducible supported release.
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
 | Platform | 0.1.11 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
-| Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, successful STARTTLS, authenticated interruption coverage and daily-use features |
-| Engineering | 83 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
+| Engineering | 84 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Draft recovery committed/pushed as `57294380c1`; installed 0.1.11 embeds that clean source | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `183ea07` pins installed 0.1.11/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
@@ -152,7 +152,8 @@ Acceptance: the complete flow works against a controlled test server on the devi
 test account. Verify rejected credentials, invalid certificates, interrupted sync and send failure recovery. Do not
 request or log production credentials to substitute for controlled tests. Measure package size, startup time and memory.
 This milestone is in progress. Storage, protected setup and controlled-server protocol integration are implemented;
-cached mailbox/composer UI, Cancel controls and persistent send history are implemented; broader interruption
+cached mailbox/composer UI, Cancel controls and persistent send history are implemented; required STARTTLS succeeds
+on the confined phone with controlled fixtures; broader interruption
 coverage and the complete physical/provider vertical slice remain incomplete.
 
 ## Milestone 3 Daily use in the foreground

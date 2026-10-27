@@ -166,3 +166,24 @@ The complete controlled TLS/protected-account receive/send and fresh-JVM reopen 
 79 app tests/quality checks pass; prior 863 shared-mail tests/quality checks remain unchanged. Results are retained
 under `app-ubuntu-touch/build/evidence/cancel-ui/native/`. Physical UI, successful STARTTLS, provider and broader
 interruption/lifecycle gates remain open.
+
+
+## Successful required STARTTLS
+
+The host fixture now supports `-PutProtocolSecurity=starttls` on `:app-ubuntu-touch:phoneProtocolServer`. Supply
+`utProtocolHost` and a new absent `utProtocolOutput` as above. Its front ends bind the supplied test interface and forward
+to loopback-only plain GreenMail backends after a real TLS handshake. Pre-upgrade authentication is rejected.
+
+Build the probe JAR using only `ConfinedProtocolProbe*.class`, upload it with this run's generated `fixture.cer`, and use
+installed profile `mail-demo.thomasredstone_mail-demo_0.1.11` and the installed JVM/JAR classpath. Append
+`retain-for-restart starttls` after the certificate argument in the preparation command. This chooses
+STARTTLS_REQUIRED for both IMAP and SMTP without changing production settings or trust. The fixture still rejects the
+unknown certificate under default trust before using its injected test trust.
+
+After preparation exits 0, create `stop` in the host output directory and wait for the host process to exit 0, including
+its independent recipient/body/single-delivery assertions. Only then run the existing two-argument fresh-JVM command
+with the printed private fixture directory. Verify credential/account/directory cleanup independently over SSH.
+
+2026-10-27: this complete STARTTLS flow passes under 0.1.11 confinement, including fresh-JVM recovery after server
+teardown. Evidence is in `build/evidence/starttls/native-run-2/`. It uses installed production code without overlays;
+the phone remains 0.1.11. Physical UI/provider acceptance and broader interruption coverage remain open.

@@ -730,3 +730,47 @@ test-only JAR are retained under `app-ubuntu-touch/build/evidence/draft-lifecycl
 pins only this app's version/path/hash; unrelated dirty fleet work was preserved and no whole-fleet converge was run.
 Physical secure-input/foreground provider journey, suspend/rotation, successful STARTTLS and broader authenticated
 interruption checks remain open. The full daily-use/background/parity/release roadmap remains required.
+
+
+## Required STARTTLS: positive host and confined phone interoperability
+
+Bounded work item: verify successful IMAP/SMTP STARTTLS through the production ForegroundMailSessionFactory,
+including authentication only after upgrade, received body caching and SMTP delivery; preserve certificate validation,
+required-upgrade rejection and restart recovery. Exclusions: public provider acceptance, physical UI, authenticated
+interruption/blocked-write coverage, background delivery and unrelated mail features remain open.
+
+GreenMail's lack of STARTTLS support previously left only downgrade-rejection coverage. The test-only
+`StartTlsGateway` now supplies an unauthenticated greeting, requires the exact upgrade exchange, completes a real JSSE
+server handshake and then forwards to a loopback-only GreenMail backend. It never forwards client credentials/mail
+before TLS. Host fixture trust is scoped to injected test sessions; no production TLS settings or trust store changed.
+The gateway collects worker failures and joins/closes all owned listeners/sockets on teardown. The opt-in phone server
+can tolerate expected client-rejected handshakes for its negative certificate check; automated positive tests cannot.
+
+The automated integration test passes receiving a seeded UTF-8 body through IMAP STARTTLS into persistent storage,
+folder refresh/sync, SMTP STARTTLS sending and independent recipient/body assertions. It checks both protocols complete
+multiple upgrades. Existing required-STARTTLS downgrade rejection and socket cancellation tests remain in the full suite.
+No production code changed: this closes an evidence gap rather than claiming a newly implemented protocol.
+
+Native verification on installed 0.1.11/clean production `57294380c158ad0791ffa1e6853bb5e3235c6e89`:
+
+- Updated test-only ConfinedProtocolProbe selects STARTTLS_REQUIRED explicitly for both servers. Its JAR contains only
+  three probe classes and uses the installed production JARs and ARM64 bundled JVM under the enforcing app profile.
+- A disposable protected SignOn account rejects the unknown IMAP fixture certificate under default trust, then succeeds
+  with injected fixture trust. Settings, folder sync, cached body, queued SMTP acceptance and repeat-send suppression pass.
+- Host independently observes exactly one outgoing message, intended recipient, Unicode/dot-stuffed body and Message-ID.
+  Both upgraded protocol counters pass. Host process exits 0 before the restart probe begins.
+- A fresh phone JVM with servers stopped reopens protected credentials, cached body and SENT outbox state, then removes
+  its account, protected identity and private directory. Independent SSH confirms the fixture directory is absent.
+- Phone preparation, host server, fresh JVM and cleanup commands all exit 0. Results are retained under
+  `app-ubuntu-touch/build/evidence/starttls/native-run-2/`; the test-only JAR is in the parent directory.
+
+The first host launch failed before any phone connection because plain backend listeners were missing from its setup;
+that fixture omission was fixed before the successful run. No protocol or production changes were required. Physical
+provider journeys, authenticated IMAP interruption and blocked payload writes are still required; this does not prove them.
+84 app tests pass with zero failures/errors/skips; detekt and installDist pass. Exact command:
+`./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt
+:app-ubuntu-touch:installDist --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`,
+with JDK21 and configured Android SDK. Final focused integration/spotlessCheck also pass. Logs:
+`/tmp/thunderbird-starttls-final.log` and `/tmp/thunderbird-starttls-format.log`. No shared Android source changed; this JVM
+application has no Android lint/connected-test task, so no Android assembly/device suite was rerun for test-only work.
+No new phone package is required.

@@ -129,6 +129,7 @@ tasks.register<JavaExec>("phoneProtocolServer") {
     mainClass.set("net.thunderbird.app.ubuntutouch.PhoneProtocolServer")
     providers.gradleProperty("utProtocolHost").orNull?.let { args(it) }
     providers.gradleProperty("utProtocolOutput").orNull?.let { args(it) }
+    providers.gradleProperty("utProtocolSecurity").orNull?.let { args(it) }
 }
 
 // Opt-in actual window close regression: requires an isolated synthetic XDG_DATA_HOME and Xvfb.

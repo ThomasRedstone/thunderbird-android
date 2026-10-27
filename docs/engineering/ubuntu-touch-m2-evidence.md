@@ -1556,3 +1556,19 @@ Candidate host verification: all 169 app tests pass (zero failures/errors/skips)
 (/tmp/thunderbird-018-checks.log; XML build/evidence/oauth-browser/). JDK 21/SDK, app-scoped Gradle tasks with the
 standard no-configuration-cache/isolated-projects=false/max-workers=4 options. No dependencies, permissions or shared
 Android changes. Android assembly/device suites were not rerun; the JVM module has no Android lint/device task.
+
+
+### 0.1.18 artifact built; deployment pending
+
+Candidate 20 completed successfully with Click review and ARM64 launcher/JVM/AWT/Skiko checks:
+app-ubuntu-touch/build/ut-candidate-20/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.18_arm64.click.
+Size 147360976 bytes; SHA-256 8601068f17ebc5793897fbfaac1115955ea19d01c40dd709bbbb23274288ca47.
+It embeds source f18314918dca741bed2c3add7cbfaae25857752e with an empty SOURCE-CHANGES.patch.
+Build log: /tmp/thunderbird-018-click.log. The pinned builder image and verified candidate-5 runtime are the same
+as the previous candidate; this reused-runtime iteration is not a cold-build reproducibility result.
+
+A separate 57-class test-only JAR is uploaded as probes/candidate-018-probes.jar. It includes updated search/resource/
+attachment checks, protocol/composer drivers and ConfinedOAuthCallbackProbe, without replacement production classes.
+Do not execute it against installed 0.1.17. At this checkpoint the Click transfer is still running; no installation,
+native 0.1.18 test, browser callback result or fleet update is claimed. A prepared upgrade script checks the exact
+artifact hash, stops only the old app service and makes a private SQLite quick_check backup before Phone Manager install.

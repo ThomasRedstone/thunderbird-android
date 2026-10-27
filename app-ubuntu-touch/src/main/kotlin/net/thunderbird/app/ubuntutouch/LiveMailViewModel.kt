@@ -70,7 +70,8 @@ internal class LiveMailViewModel(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val sortPreferences: MailSortPreferences? = null,
 ) : AutoCloseable {
-    private var selectedSort = sortPreferences?.read() ?: MailSort.NEWEST
+    private val selectedSort = sortPreferences?.read() ?: MailSort.NEWEST
+    private val scopedSorts = java.util.concurrent.ConcurrentHashMap<MailSortContext, MailSort>()
     private val mutableState = MutableStateFlow(LiveMailState(manager.findAll(), sort = selectedSort))
     val state = mutableState.asStateFlow()
     private var activeOperation: MailOperation? = null
@@ -91,7 +92,7 @@ internal class LiveMailViewModel(
         }
         when (event) {
             is LiveMailEvent.Sort -> if (current.isMessageList()) {
-                selectedSort = event.sort
+                scopedSorts[checkNotNull(current.sortContext())] = event.sort
                 load(current.copy(sort = event.sort), action = event)
             }
 
@@ -295,7 +296,7 @@ internal class LiveMailViewModel(
         if (action is LiveMailEvent.Selection && action.action is MailSelectionAction.ApplyFlag) {
             repository.changeFlags(initial.selection.keys.toList(), action.action.flag, action.action.enabled)
         }
-        if (action is LiveMailEvent.Sort) sortPreferences?.save(action.sort)
+        if (action is LiveMailEvent.Sort) sortPreferences?.save(action.sort, initial.sortContext())
         if (action == LiveMailEvent.ConfirmDiscard) repository.discardFlags(account)
         if (network) repository.refresh(account, initial.folder?.id, checkNotNull(operation))
         if (download && uid != null) {
@@ -325,6 +326,9 @@ internal class LiveMailViewModel(
         val folder = initial.folder?.let { old -> folders.find { it.id == old.id } }
         return initial.copy(
             accounts = manager.findAll(),
+            sort = initial.sortContext()?.let { context ->
+                scopedSorts.getOrPut(context) { sortPreferences?.read(context) ?: selectedSort }
+            } ?: selectedSort,
             folders = folders,
             pendingActions = if (initial.searchScope == CachedSearchScope.ALL_ACCOUNTS) {
                 manager.findAll().sumOf { repository.pendingFlags(it.id) }

@@ -111,7 +111,7 @@ class MailSortViewModelTest {
                 backgroundScope,
                 MailSortPreferences(preferencePath),
             )
-            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.SUBJECT)
+            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.NEWEST)
             testSubject.event(LiveMailEvent.OpenAccount(id))
             idle(testSubject)
             testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
@@ -126,12 +126,16 @@ class MailSortViewModelTest {
             val account = account(manager)
             val repository = CachedRepository(account)
             val path = directory.root.toPath().resolve("mail-sort")
+            val context = MailSortContext(CachedSearchScope.FOLDER, account, repository.inbox.id)
+            MailSortPreferences(path).save(MailSort.NEWEST, context)
+            val scopedPath = directory.root.listFiles()!!.single { it.name.startsWith("mail-sort.") }.toPath()
             val testSubject = LiveMailViewModel(manager, repository, backgroundScope, MailSortPreferences(path))
             testSubject.event(LiveMailEvent.OpenAccount(account))
             idle(testSubject)
             testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
             idle(testSubject)
-            java.nio.file.Files.createDirectory(path)
+            java.nio.file.Files.delete(scopedPath)
+            java.nio.file.Files.createDirectory(scopedPath)
             testSubject.event(LiveMailEvent.Sort(MailSort.SUBJECT))
             val failed = idle(testSubject)
             assertThat(failed.messages.map { it.id }).isEqualTo(listOf("old", "new"))
@@ -139,11 +143,11 @@ class MailSortViewModelTest {
                 "Unable to save sort order. Your selection applies until this mailbox closes. Try again.",
             )
             assertThat(testSubject.flushForClose()).isEqualTo(false)
-            java.nio.file.Files.delete(path)
+            java.nio.file.Files.delete(scopedPath)
             testSubject.event(LiveMailEvent.Sort(MailSort.SUBJECT))
             idle(testSubject)
             assertThat(testSubject.flushForClose()).isEqualTo(true)
-            assertThat(MailSortPreferences(path).read()).isEqualTo(MailSort.SUBJECT)
+            assertThat(MailSortPreferences(path).read(context)).isEqualTo(MailSort.SUBJECT)
             assertThat(repository.networkCalls).isEqualTo(0)
         }
     }
@@ -224,6 +228,53 @@ class MailSortViewModelTest {
             assertThat(cancelled.pendingActions).isEqualTo(1)
             assertThat(repository.batchKeys.size).isEqualTo(1)
             assertThat(repository.syncAccounts).isEqualTo(listOf(account))
+        }
+    }
+
+    @Test
+    fun `folder account and unified sort choices remain independent during navigation`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("scopes.sqlite")).use { database ->
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val first = account(manager)
+            val second = account(manager)
+            val cached = CachedRepository(first)
+            val archive = MailFolder("Archive", "Archive")
+            val repository = object : LiveMailRepository by cached {
+                override fun folders(account: AccountId) = listOf(cached.inbox, archive)
+            }
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            suspend fun open(account: AccountId, folder: MailFolder) {
+                testSubject.event(LiveMailEvent.OpenAccount(account))
+                idle(testSubject)
+                testSubject.event(LiveMailEvent.OpenFolder(folder))
+                idle(testSubject)
+            }
+            open(first, cached.inbox)
+            testSubject.event(LiveMailEvent.Sort(MailSort.SUBJECT))
+            idle(testSubject)
+            open(first, archive)
+            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.NEWEST)
+            testSubject.event(LiveMailEvent.Sort(MailSort.OLDEST))
+            idle(testSubject)
+            open(second, cached.inbox)
+            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.NEWEST)
+            open(first, cached.inbox)
+            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.SUBJECT)
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ACCOUNT))
+            assertThat(idle(testSubject).sort).isEqualTo(MailSort.NEWEST)
+            testSubject.event(LiveMailEvent.Sort(MailSort.SENDER))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ALL_ACCOUNTS))
+            assertThat(idle(testSubject).sort).isEqualTo(MailSort.NEWEST)
+            testSubject.event(LiveMailEvent.Sort(MailSort.STARRED))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ACCOUNT))
+            assertThat(idle(testSubject).sort).isEqualTo(MailSort.SENDER)
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.FOLDER))
+            assertThat(idle(testSubject).sort).isEqualTo(MailSort.SUBJECT)
+            open(first, archive)
+            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.OLDEST)
+            assertThat(cached.networkCalls).isEqualTo(0)
         }
     }
 

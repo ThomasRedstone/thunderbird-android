@@ -57,6 +57,7 @@ internal sealed interface LiveMailEvent {
     data object DiscardPending : LiveMailEvent
     data object ConfirmDiscard : LiveMailEvent
     data object CancelDiscard : LiveMailEvent
+    data object SyncQueuedFlags : LiveMailEvent
     data object Refresh : LiveMailEvent
     data object Download : LiveMailEvent
     data object Cancel : LiveMailEvent
@@ -83,7 +84,7 @@ internal class LiveMailViewModel(
             return
         }
         if (current.busy ||
-            handleMailSelection(event, current, { mutableState.value = it }, { load(current, action = event) }) ||
+            handleQueuedMailAction(event, current, { mutableState.value = it }, { load(current, action = event) }) ||
             handleActions(event, current)
         ) {
             return
@@ -227,10 +228,11 @@ internal class LiveMailViewModel(
     ) {
         if (initial.account == null) return
         val searching = initial.query.isNotBlank() || initial.searchAllFolders
-        val operation = if (network || download || searching) MailOperation() else null
+        val transport = network || download || action == LiveMailEvent.SyncQueuedFlags
+        val operation = if (transport || searching) MailOperation() else null
         activeOperation = operation
         mutableState.value = initial.copy(busy = true, canCancel = operation != null, cancelling = false, notice = null)
-        if (action != null) localWriteFailed = false
+        if (action.isLocalMailWrite()) localWriteFailed = false
         val work = scope.launch {
             try {
                 val loaded = withContext(Dispatchers.IO) {
@@ -239,18 +241,12 @@ internal class LiveMailViewModel(
                 mutableState.value = loaded.copy(
                     canCancel = false,
                     cancelling = false,
-                    notice = if (operation?.cancellationRequested ==
-                        true
-                    ) {
-                        "Operation stopped. Cached mail is retained."
-                    } else {
-                        null
-                    },
+                    notice = foregroundMailNotice(operation, loaded, action),
                 )
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
-                if (action != null) localWriteFailed = true
+                if (action.isLocalMailWrite()) localWriteFailed = true
                 val retained =
                     withContext(Dispatchers.IO) {
                         if (operation?.cancellationRequested == true) {
@@ -273,7 +269,7 @@ internal class LiveMailViewModel(
                 if (activeOperation === operation) activeOperation = null
             }
         }
-        if (action != null) localWrite = work
+        if (action.isLocalMailWrite()) localWrite = work
     }
 
     private fun perform(
@@ -286,6 +282,7 @@ internal class LiveMailViewModel(
     ): LiveMailState {
         val account = checkNotNull(initial.account)
         operation?.ensureActive()
+        val replay = action.syncQueuedFlags(repository, initial, operation)
         if (action is LiveMailEvent.ChangeFlag && uid != null) {
             repository.changeFlag(
                 account,
@@ -318,7 +315,7 @@ internal class LiveMailViewModel(
         } else {
             initial
         }
-        val loaded = readCache(prepared, uid, operation)
+        val loaded = readCache(prepared, uid, operation).withFlagSyncResult(replay)
         return if (action is LiveMailEvent.Selection) loaded.copy(selection = MailSelection()) else loaded
     }
 

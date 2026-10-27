@@ -2369,3 +2369,37 @@ pairs. These existing native fixtures do not prove physical bulk-selection UI ac
 No 0.1.22 transfer or installation has started. Latest verified phone version remains 0.1.18; partial 0.1.19 is
 preserved. Do not run the old hardcoded 0.1.19 upgrade script against a newer package. Phone blocker b-nnxn and provider
 decision q-ar74 remain partial gaps. The full roadmap remains active with independent later work still available.
+
+
+## Foreground queued-flag synchronization (0.1.23 development source)
+
+The mailbox now offers **Sync queued changes** when local read/star assignments remain. It processes a snapshot of
+changed folders in the current account, or all configured accounts in unified scope. Duplicate account/folder targets
+run once. Each folder uses the existing trusted foreground session, UID-validity checks, acknowledgement identities
+and readback. A failed folder or account retains unacknowledged work while later independent folders continue; a
+remaining queue after refresh also counts as unresolved. The completion notice reports successful and unresolved
+folder counts without exposing server errors. No SMTP outbox submission is triggered by this action.
+
+The action runs on IO with an owned cancellable MailOperation even when the current view is not a search. Cancel
+closes the active owned transport and prevents starting another folder. Coroutine cancellation propagates unchanged.
+It follows foreground network-close behaviour rather than being registered as an uncancellable local-write flush.
+A zero-work race reports that nothing remains queued. This remains an explicit foreground action, not a background
+scheduler or lifecycle exemption.
+
+Tests exercise mixed failures across accounts/folders, duplicate targets, empty queues, pre-cancellation and transport/
+coroutine cancellation; actual controlled TLS IMAP flags replay after SQLite reopen now runs through this API.
+Mailbox tests check unified account scope, remaining queue/count/notice updates and cancellation of a blocked owned
+transport; rendered tests cover the action and its busy guard. Existing per-folder sync and offline queue tests remain
+in scope. No new dependencies, permissions, schema or shared Android changes. Source advances to 0.1.23 after the
+immutable 0.1.22 build. Native/physical/provider acceptance, background replay and large-mailbox performance remain open.
+
+A fresh bounded SSH check to the FP4 again timed out. No phone transfer or installation was started. Provider
+registration decision q-ar74 and phone blocker b-nnxn remain partial gaps; independent roadmap implementation continues.
+
+Verification: full 313 app tests, zero failures/errors/skips; `detekt`, `installDist` and `spotlessCheck` pass.
+Focused log `/tmp/thunderbird-flag-sync-focused.log`; full log `/tmp/thunderbird-flag-sync-full.log`; XML
+`app-ubuntu-touch/build/evidence/queued-flag-sync/`. Full command: JDK21/Android SDK environment, `./gradlew
+:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Scoped documentation checks pass. No Android lint or device target exists in this JVM app; Android/shared source was
+unchanged and prior shared-engine Android assembly evidence is unchanged. No native queued-sync test was run.

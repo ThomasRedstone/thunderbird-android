@@ -365,7 +365,8 @@ class ForegroundMailSessionTest {
         database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
         testSubject = PersistentLiveMailRepository(database, factory())
         assertThat(testSubject.pendingFlags(account.id)).isEqualTo(4)
-        testSubject.refresh(account.id, "INBOX")
+        val result = testSubject.syncQueuedFlags(listOf(account.id), MailOperation())
+        assertThat(result).isEqualTo(FlagSyncResult(1, 0))
         assertThat(testSubject.pendingFlags(account.id)).isEqualTo(0)
         withOracleInbox { remote ->
             assertThat(remote.messages.size).isEqualTo(2)

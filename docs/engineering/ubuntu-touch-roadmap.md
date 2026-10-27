@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.18 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 307 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 313 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth setup and mail-session integration is verified on host | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.18 install verified; fleet `9333240` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -220,6 +220,11 @@ queue updates and retry/close handling are covered by model/SQLite/rendered chec
 passes after database reopen. Unified counts cover all accounts and discard review is per account. Other bulk actions,
 server-wide selection, background replay and phone/physical/provider acceptance remain open. The 0.1.22 ARM64 Click
 is built and reviewed; installation remains pending.
+
+Explicit foreground queued-flag synchronization is implemented in 0.1.23 development source. It visits changed folders
+in the selected account or all configured accounts in unified scope, isolates folder failures, retains unresolved work,
+reports counts and supports owned-transport cancellation. Controlled IMAP replay after database reopen and mailbox/UI
+checks cover this path. Background scheduling, native/physical/provider acceptance and large-mailbox performance remain open.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

@@ -189,6 +189,41 @@ class MailSortViewModelTest {
             )
             assertThat(testSubject.flushForClose()).isEqualTo(true)
             assertThat(repository.networkCalls).isEqualTo(0)
+            testSubject.event(LiveMailEvent.SyncQueuedFlags)
+            val synced = idle(testSubject)
+            assertThat(repository.syncAccounts.toSet()).isEqualTo(setOf(first, second))
+            assertThat(synced.pendingActions).isEqualTo(0)
+            assertThat(synced.notice).isEqualTo(
+                "Synced 2 changed folders; 0 still need attention. Unsynced changes remain queued.",
+            )
+        }
+    }
+
+    @Test
+    fun `queued sync can cancel a blocked owned transport and retains queued flags`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("cancel-sync.sqlite")).use { database ->
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val account = account(manager)
+            val repository = CachedRepository(account).apply {
+                batchKeys = listOf(MailMessageKey(account, "INBOX", "old"))
+                blockSync = true
+            }
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(account))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.SyncQueuedFlags)
+            withContext(Dispatchers.Default) {
+                check(repository.syncEntered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            }
+            assertThat(testSubject.state.value.canCancel).isEqualTo(true)
+            testSubject.event(LiveMailEvent.Cancel)
+            val cancelled = idle(testSubject)
+            assertThat(cancelled.canCancel).isEqualTo(false)
+            assertThat(cancelled.pendingActions).isEqualTo(1)
+            assertThat(repository.batchKeys.size).isEqualTo(1)
+            assertThat(repository.syncAccounts).isEqualTo(listOf(account))
         }
     }
 
@@ -225,6 +260,26 @@ class MailSortViewModelTest {
 
 private class CachedRepository(private val first: AccountId) : LiveMailRepository {
     val inbox = MailFolder("INBOX", "Inbox")
+    var syncAccounts = emptyList<AccountId>()
+    var blockSync = false
+    val syncEntered = java.util.concurrent.CountDownLatch(1)
+    private val syncReleased = java.util.concurrent.CountDownLatch(1)
+    override fun syncQueuedFlags(accounts: List<AccountId>, operation: MailOperation): FlagSyncResult {
+        syncAccounts = accounts
+        if (blockSync) {
+            val resource = AutoCloseable { syncReleased.countDown() }
+            operation.register(resource)
+            try {
+                syncEntered.countDown()
+                check(syncReleased.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            } finally {
+                operation.release(resource)
+            }
+        }
+        operation.ensureActive()
+        batchKeys = batchKeys.filterNot { it.account in accounts }
+        return FlagSyncResult(accounts.size, 0)
+    }
     var discardCalls = 0
     override fun discardFlags(account: AccountId) {
         discardCalls++

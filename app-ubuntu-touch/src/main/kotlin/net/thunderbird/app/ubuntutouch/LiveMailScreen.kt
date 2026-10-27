@@ -112,6 +112,7 @@ private fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
     }
     state.notice?.let { TextBodyLarge(it) }
     if (state.pendingActions > 0) {
+        ButtonText("Sync queued changes", { onEvent(LiveMailEvent.SyncQueuedFlags) }, enabled = !state.busy)
         if (state.searchScope == CachedSearchScope.ALL_ACCOUNTS) {
             TextBodyLarge("Open an account to review or discard its local changes.")
         } else if (state.confirmDiscard) {

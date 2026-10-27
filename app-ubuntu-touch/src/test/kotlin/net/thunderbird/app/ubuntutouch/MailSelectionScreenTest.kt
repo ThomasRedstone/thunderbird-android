@@ -79,6 +79,28 @@ class MailSelectionScreenTest : ComposeUiTestHarness() {
         onNodeWithText("Review local changes").assertDoesNotExist()
     }
 
+    @Test
+    fun `queued change sync button requests foreground replay`() = runComposeTest {
+        val events = mutableListOf<LiveMailEvent>()
+        setContent {
+            ThunderbirdBoltTheme {
+                Surface { LiveMailScreen(state().copy(pendingActions = 1), onEvent = events::add) }
+            }
+        }
+        onNodeWithText("Sync queued changes").assertIsEnabled().performClick()
+        assertThat(events).isEqualTo(listOf(LiveMailEvent.SyncQueuedFlags))
+    }
+
+    @Test
+    fun `queued change sync button disables while operation is running`() = runComposeTest {
+        setContent {
+            ThunderbirdBoltTheme {
+                Surface { LiveMailScreen(state().copy(pendingActions = 1, busy = true), onEvent = {}) }
+            }
+        }
+        onNodeWithText("Sync queued changes").assertIsNotEnabled()
+    }
+
     private fun state() = LiveMailState(
         emptyList(),
         account,

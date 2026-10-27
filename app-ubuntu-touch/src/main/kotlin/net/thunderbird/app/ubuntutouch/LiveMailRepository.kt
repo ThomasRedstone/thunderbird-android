@@ -36,6 +36,9 @@ internal interface LiveMailRepository {
     fun discardFlags(account: AccountId) {
         error("Message actions are unavailable")
     }
+    fun syncQueuedFlags(accounts: List<AccountId>, operation: MailOperation): FlagSyncResult {
+        error("Queued sync is unavailable")
+    }
     fun pendingFlags(account: AccountId): Int = 0
     fun folders(account: AccountId): List<MailFolder>
     fun messages(account: AccountId, folder: String): List<MailSummary>
@@ -118,6 +121,16 @@ internal class PersistentLiveMailRepository(
             }
         }
     }
+
+    override fun syncQueuedFlags(accounts: List<AccountId>, operation: MailOperation): FlagSyncResult =
+        syncPendingFlagFolders(accounts, operation, { account -> actions.list(account).map { it.folder } }) {
+                account,
+                folder,
+                active,
+            ->
+            refresh(account, folder, active)
+            actions.list(account).none { it.folder == folder }
+        }
 
     override fun download(account: AccountId, folder: String, uid: String) =
         download(account, folder, uid, MailOperation())

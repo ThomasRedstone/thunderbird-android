@@ -67,15 +67,29 @@ internal fun LiveMailState.retainListedSelection(): LiveMailState = copy(
 internal fun LiveMailState.forMailEvent(event: LiveMailEvent): LiveMailState =
     if (event is LiveMailEvent.Selection) this else copy(selection = MailSelection())
 
-internal fun handleMailSelection(
+internal fun handleQueuedMailAction(
     event: LiveMailEvent,
     current: LiveMailState,
     publish: (LiveMailState) -> Unit,
     apply: () -> Unit,
 ): Boolean {
-    if (event !is LiveMailEvent.Selection) return false
+    if (event == LiveMailEvent.SyncQueuedFlags) {
+        apply()
+    } else if (event is LiveMailEvent.Selection) {
+        handleSelectionAction(event.action, current, publish, apply)
+    } else {
+        return false
+    }
+    return true
+}
+
+private fun handleSelectionAction(
+    action: MailSelectionAction,
+    current: LiveMailState,
+    publish: (LiveMailState) -> Unit,
+    apply: () -> Unit,
+) {
     if (current.folder != null && current.content == null) {
-        val action = event.action
         if (action is MailSelectionAction.ApplyFlag) {
             require(action.flag in setOf(Flag.SEEN, Flag.FLAGGED))
             val keys = current.selection.keys
@@ -84,7 +98,6 @@ internal fun handleMailSelection(
             publish(current.updateSelection(action))
         }
     }
-    return true
 }
 
 internal fun LiveMailState.isMessageList(): Boolean = folder != null && content == null

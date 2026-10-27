@@ -93,6 +93,36 @@ class OAuthEngineIntegrationTest {
         }
     }
 
+    @Test
+    fun `SMTP retries verified primary identity after stale token refresh when configured alias is rejected`() {
+        fixture(expectImap = false) { server, sockets, _, smtpPort ->
+            server.setUser(PRIMARY, PRIMARY, "fresh-access")
+            val store = OAuthTokenStore(FakeCredentialStore())
+            store.write(account, configuration, OAuthTokens("rejected-access", "refresh", 500000))
+            val calls = AtomicInteger()
+            val client = OAuthTokenClient(
+                OAuthTokenHttp { _, _ ->
+                    calls.incrementAndGet()
+                    OAuthHttpReply(
+                        200,
+                        "application/json",
+                        """
+                    {"access_token":"fresh-access","refresh_token":"rotated",
+                    "token_type":"Bearer","expires_in":3600}
+                        """.trimIndent().toByteArray(),
+                    )
+                },
+            ) { 0 }
+            val manager = OAuthTokenCoordinator(store, client) { 0 }
+            CoordinatedOAuth2TokenProvider(account, configuration, manager, setOf(PRIMARY)).use { provider ->
+                val outgoing = settings("smtp", smtpPort).copy(username = "alias@example.invalid")
+                SmtpTransport(outgoing, sockets, provider).checkSettings()
+            }
+            assertThat(calls.get()).isEqualTo(1)
+            assertThat(store.read(account, configuration)!!.refreshToken).isEqualTo("rotated")
+        }
+    }
+
     private fun fixture(
         expectImap: Boolean = true,
         checkMail: (GreenMail, CancellableSocketFactory, Int, Int) -> Unit,

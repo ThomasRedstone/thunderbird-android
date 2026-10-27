@@ -569,8 +569,7 @@ class SmtpTransport(
 
         if (negativeResponses.isNotEmpty()) {
             Log.w(TAG, "failed to authenticate with all discovered users.")
-            val (user, negativeResponse) = negativeResponses[username]?.let { username to it }
-                ?: negativeResponses.entries.first().toPair()
+            val negativeResponse = negativeResponses[username] ?: negativeResponses.values.first()
 
             logger.log("invalidating current token")
             oauthTokenProvider.invalidateToken()
@@ -580,7 +579,7 @@ class SmtpTransport(
             } else {
                 handleTemporaryOAuthFailure(
                     method = method,
-                    username = user,
+                    usernames = negativeResponses.keys.toSet(),
                     negativeResponseFromOldToken = negativeResponse,
                 )
             }
@@ -632,25 +631,19 @@ class SmtpTransport(
 
     private fun handleTemporaryOAuthFailure(
         method: OAuthMethod,
-        username: String,
+        usernames: Set<String>,
         negativeResponseFromOldToken: NegativeSmtpReplyException,
     ) {
-        // Token was invalid. We could avoid this double check if we had a reasonable chance of knowing if a token was
-        // invalid before use (e.g. due to expiry). But we don't. This is the intended behaviour per AccountManager.
+        // Retry every discovered identity with the refreshed token: an alias can fail even when the token is valid.
         Log.v(TAG, negativeResponseFromOldToken, "Authentication exception, re-trying with new token")
 
-        try {
-            attempOAuth(method, username)
-        } catch (negativeResponseFromNewToken: NegativeSmtpReplyException) {
-            if (negativeResponseFromNewToken.replyCode != SMTP_AUTHENTICATION_FAILURE_ERROR_CODE) {
-                throw negativeResponseFromNewToken
-            }
-
-            // Okay, we failed on a new token. Invalidate the token anyway but assume it's permanent.
-            Log.v(TAG, negativeResponseFromNewToken, "Authentication exception for new token, permanent error assumed")
-
+        val negativeResponses = authenticateUsers(usernames.toMutableSet(), method)
+        if (negativeResponses.isNotEmpty()) {
+            val failure = negativeResponses[username] ?: negativeResponses.values.first()
+            // Every identity failed with the new token. Invalidate it, but do not start another refresh wave.
+            Log.v(TAG, failure, "Authentication exception for new token, permanent error assumed")
             oauthTokenProvider!!.invalidateToken()
-            handlePermanentOAuthFailure(method, negativeResponseFromNewToken)
+            handlePermanentOAuthFailure(method, failure)
         }
     }
 

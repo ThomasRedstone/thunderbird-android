@@ -1774,8 +1774,7 @@ source are unchanged. These tests prove engine compatibility, not app account-se
 Still required: ForegroundMailSessionFactory currently supplies null token providers and UtMailAccount still limits
 authentication to PLAIN/CRAM_MD5. Their credential/authentication selection, MailOperation ownership, Koin composition,
 account setup/removal generation/journal integration, native acceptance and real provider registrations remain open.
-The combined alias-plus-rejected-token retry scenario is also untested: SMTP's existing temporary-failure path retries
-one selected username after refresh. It needs a dedicated regression before claiming complete Outlook alias recovery.
+The combined alias-plus-rejected-token retry scenario subsequently exposed a shared SMTP bug; see the regression and fix below.
 No upstream OAuth factory/configuration, dependency or permission was changed in this slice.
 
 
@@ -1792,5 +1791,49 @@ thread invalidated the newer thread's token, causing a second refresh (access-2 
 The source audit confirmed RealImapStore passes the same provider to its RealImapConnection instances. Weak-keyed
 per-thread issued references fix that failure without leaving ThreadLocal tokens on shared executor threads;
 provider close clears every reference. Before XML: build/evidence/oauth-provider/shared-thread-before.xml;
-log /tmp/thunderbird-oauth-provider-before.log. Fresh-token SMTP alias fallback passing does not close the separately
-listed alias-plus-refresh acceptance gap.
+log /tmp/thunderbird-oauth-provider-before.log. The later shared SMTP regression below closes the stale-token alias-retry gap, while real-provider identity and login acceptance remain open.
+
+
+### SMTP verified-identity retry after refresh
+
+The new STARTTLS integration regression reproduced a shared SMTP bug: a rejected cached token failed for both the
+typed alias and verified primary identity, then the refreshed token was tried only with the alias. Authentication
+failed even though the verified primary would accept the replacement. The regression failed before the fix with
+AuthenticationFailedException (build/evidence/smtp-alias/engine-before.xml;
+/tmp/thunderbird-smtp-alias-before.log). Three new protocol-module regressions also failed before the fix
+(build/evidence/smtp-alias/module-before.xml; /tmp/thunderbird-smtp-alias-module-before.log).
+
+SmtpTransport now retries the same discovered identity set with the refreshed token, stopping on success. If every
+identity rejects that token, it invalidates once more and reports permanent failure without another refresh wave.
+A non-authentication temporary response propagates without invalidating the replacement. The configured username
+remains preferred for failure reporting. This changes a private shared implementation only; no public interface,
+provider registration, scope or dependency changed.
+
+The STARTTLS test now authenticates the primary with exactly one refresh and persists the rotated refresh token.
+Module tests use a stateful fake provider plus scripted wire exchanges to verify primary recovery, all-identities
+failure without a third wave, and temporary failure preserving the new token. Existing SMTP tests still pass.
+All 216 UT app tests and 102 SMTP tests pass with zero failures/errors/skips, plus app detekt/installDist/spotlessCheck
+and SMTP lint/detekt/spotlessCheck (/tmp/thunderbird-smtp-alias-checks.log). XML is retained under
+build/evidence/smtp-alias/{app,smtp}/. Both Thunderbird and K-9 Mail FOSS debug Android consumer assemblies pass as well
+(/tmp/thunderbird-smtp-alias-android.log, 2316 tasks, 4m 8s). Android instrumentation was not run: this private shared
+JVM logic is covered by module/protocol/STARTTLS tests and consumer assemblies; real-device/provider journeys remain
+separate acceptance gates. No Android UI or permission changed.
+
+The change is source-only: installed 0.1.18 and its pinned f18314918d artifact do not contain this fix. Factory/UI
+OAuth wiring, native later-version acceptance, validated provider identity claims, configuration/registration and
+actual Gmail/Outlook login remain required. This resolves the measured alias-retry defect, not full Outlook acceptance.
+
+
+Shared-fix verification used JDK 21/Android SDK and these scoped tasks, all with
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4:
+
+```sh
+./gradlew :mail:protocols:smtp:test :mail:protocols:smtp:lint \
+  :mail:protocols:smtp:detekt :mail:protocols:smtp:spotlessCheck \
+  :app-ubuntu-touch:test :app-ubuntu-touch:detekt \
+  :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck
+./gradlew :app-thunderbird:assembleFossDebug :app-k9mail:assembleFossDebug
+```
+
+The raw check/Android/before-fix logs are retained under build/evidence/smtp-alias/ as well as the /tmp paths above.
+Both Android consumer builds completed before finalizing this change; no background build/server/probe remains running.

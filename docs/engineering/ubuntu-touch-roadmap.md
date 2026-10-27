@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.18 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 215 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 216 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth token storage/HTTPS source is committed separately | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.18 install verified; fleet `9333240` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 

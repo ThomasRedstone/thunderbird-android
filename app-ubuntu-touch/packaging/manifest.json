@@ -1,0 +1,15 @@
+{
+    "name": "mail-demo.thomasredstone",
+    "description": "Unofficial offline mail preview built from Thunderbird components",
+    "architecture": "arm64",
+    "title": "Mail demo",
+    "version": "0.1.4",
+    "maintainer": "Thomas Redstone <redders@gmail.com>",
+    "framework": "ubuntu-touch-24.04-1.x",
+    "hooks": {
+        "mail-demo": {
+            "apparmor": "mail-demo.apparmor",
+            "desktop": "mail-demo.desktop"
+        }
+    }
+}

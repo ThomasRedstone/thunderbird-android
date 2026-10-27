@@ -91,6 +91,7 @@ include(":benchmarks")
 
 include(
     ":app-common",
+    ":app-ubuntu-touch",
     ":app-composition",
 )
 

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Mail demo
+Comment=Offline mail preview
+Exec=./launch.sh
+Icon=mail-demo.svg
+Terminal=false
+Type=Application
+X-Ubuntu-Touch=true

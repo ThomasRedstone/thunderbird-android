@@ -1,0 +1,262 @@
+# Ubuntu Touch port roadmap
+
+Status: active roadmap for an unofficial port, updated 2026-10-27. This is not an upstream commitment.
+
+The goal is a fully featured, reliable mail application on Ubuntu Touch, reusing Thunderbird's Kotlin mail engine,
+shared Compose UI and design system. The implementation route is a Compose Desktop JVM application packaged as an ARM64
+Click, following the sibling `mobileapp` approach. The installed offline demo proves the platform path; it is not the
+mail application endpoint. Work continues through live mail, daily-use features, background delivery, feature parity
+and a reproducible supported release.
+
+## Current position and completion target
+
+| Area | Verified position | Remaining work |
+| --- | --- | --- |
+| Platform | 0.1.4 installed on FP4; user confirms correctly sized window and on-screen typing | Remaining input, rotation and lifecycle checks |
+| Mail | Bundled demo folders and messages only | All live-account flows, persistence, sync and sending |
+| Engineering | Eight tests, static checks, ARM64 package and Clickable review pass | Integration/provider/device suites and CI |
+| Source delivery | Changes exist locally on `feat/ubuntu-touch-demo` | Review, commits and push to the project remote |
+| Phone delivery | One-off Phone Manager install | Versioned fleet entry, upgrade and recovery workflow |
+
+The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
+multiple accounts and unified views, offline storage, folders and message operations, search and threading,
+plain-text/HTML reading and composition, attachments, drafts, authentication, encryption/signing, background delivery,
+notifications, accessibility and reliable upgrades. A feature checklist below turns this into release gates.
+Experimental features and Android-specific integrations must be assessed against the pinned source baseline rather
+than guessed. A feature is not removed from scope merely because its Android implementation cannot run on Linux.
+
+## Implementation evidence
+
+The first offline demo builds as an ARM64 Click and passes Clickable review. Version 0.1.4 is installed on the FP4;
+the user confirms correct full-screen sizing and working on-screen typing. See the
+[dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
+for the verified scope, build commands and remaining device acceptance. Live mail remains a later milestone.
+
+## Starting point
+
+The repository already has useful foundations:
+
+- The [KMP](../../build-plugin/src/main/kotlin/thunderbird.library.kmp.gradle.kts) and
+  [KMP Compose](../../build-plugin/src/main/kotlin/thunderbird.library.kmp.compose.gradle.kts) conventions configure
+  Android and JVM targets.
+- The mail protocol and backend modules include JVM implementations for IMAP and SMTP.
+- The [demo backend](../../backend/demo/README.md) provides offline folders and messages for an initial UI.
+- Newer features contain shared Compose code, but legacy application wiring and some feature implementations still
+  depend on Android. A JVM target on a module does not establish that a complete application can run on Linux.
+- The [database architecture](../architecture/database.md) describes Android/JVM desktop driver support and shared
+  repository boundaries. The port should assess and reuse that work before introducing persistence alternatives.
+
+Compose Desktop supports Linux ARM64; see the [platform compatibility documentation](https://kotlinlang.org/docs/multiplatform/compose-compatibility-and-versioning.html).
+Ubuntu Touch integration still requires device validation, especially Xwayland, input and confinement.
+
+The local reference implementation is `mobileapp/ubuntuTouchApp`, particularly `README.md`, `build-hybrid.sh`,
+`arm-packager.Dockerfile`, `coreapp-launch.sh` and `inventory-package.py`. Record its exact source commit when adapting
+it. Its packaging and launcher are useful precedents; its Bluetooth permissions and lifecycle changes are specific
+to that application and should not be copied into the mail client.
+
+## Checkpoint A Preserve the working implementation
+
+Before expanding the demo into live mail:
+
+- Review and commit the current app, packaging, tests and evidence on the feature branch; push it to the project remote.
+- Record source commit, package hash, installed version and test results together. Uncommitted local files are not a
+  completed source-delivery checkpoint.
+- Register the chosen preview in the phone-fleet manifest with matching version/path/hash after reviewing that entry.
+  Verify desired and installed state agree without converging unrelated applications.
+- Complete or explicitly retain the outstanding physical input and relaunch checks. Keep the installed working
+  preview available while developing the next candidate.
+
+Acceptance: source is recoverable from the remote, another checkout can locate the build instructions, and the
+preview's source/package/fleet/device versions can be traced to one another. This checkpoint is currently open.
+
+## Application structure
+
+The `app-ubuntu-touch` entry point uses Compose Desktop and Koin to assemble
+shared features with Linux platform implementations. Keep portable behaviour in existing common/JVM modules and put
+platform integration behind the relevant API contracts. Retain the existing design system and MVI conventions.
+
+Follow the [API and internal dependency rules](adr/0009-api-internal-split.md) and
+[white-label architecture](adr/0006-white-label-architecture.md). Before implementation, define how the new entry point
+fits the permitted composition modules; update the relevant architecture decision and build enforcement if needed.
+Do not route dependencies through legacy Android modules merely to reach a reusable implementation.
+
+Use JVM bytecode plus target-native JVM, AWT and Skiko libraries. Kotlin/Native is not required for this route.
+The initial target is Ubuntu Touch 24.04 ARM64, matching the reference packaging approach. Record a specific device
+and OS image for acceptance; other architectures and images remain separate targets.
+
+## Milestone 0 Dependency and integration audit
+
+Establish the smallest viable JVM application dependency graph before broad changes.
+
+- Trace the design system, navigation, message list, reader and demo backend through their JVM variants.
+- Identify missing platform implementations and Android dependencies, including transitive dependencies.
+- Assess shared storage, account configuration, credential handling and application composition.
+- Confirm compatible Kotlin, Compose, Gradle, JDK and ARM64 native dependency versions.
+- Record the target device/image, build host, package identifier and unofficial branding requirements.
+
+Acceptance: a dependency map and bounded list of required changes, with a selected shared screen that can be compiled
+and launched on desktop Linux. Decide whether the first mail flow can use existing shared features or needs focused
+portability work. Keep the scope limited to that flow.
+
+## Milestone 1 Installable offline demo
+
+Build the new application shell, reuse the existing design system, and wire the demo backend to folder and message
+views. Provide a basic reader using plain text initially if HTML would delay proving the application path.
+
+Adapt the reference hybrid packaging pipeline:
+
+1. Compile JVM bytecode on the native build host and stage the ARM64 runtime dependency set.
+2. Run ARM64 JDK `jpackage` in an isolated ARM64 container, using emulation only for target packaging when necessary.
+3. Verify the launcher, JVM, AWT and Skiko native libraries are ARM64; preserve dependency order and avoid JAR filename
+   collisions when staging.
+4. Bundle the app image and JRE in a Click with an app-specific desktop file, launcher and AppArmor manifest.
+5. Use app-writable data/cache paths and validate Xwayland display discovery under confinement.
+
+Acceptance: a clean build produces a Click that installs and launches on the named device, displays demo folders and
+messages, supports scrolling/back navigation and normal on-screen keyboard input, and relaunches after reboot.
+Run Clickable review and record unresolved findings. Preserve dependency notices and a build inventory.
+
+This milestone proves application delivery. It does not establish live-mail support or store eligibility.
+
+## Milestone 2 One account with foreground mail
+
+Deliver a useful vertical slice: configure one IMAP/SMTP test account, synchronise folders and messages, read mail,
+compose a plain-text message and send it while the application is active.
+
+- Reuse the JVM mail engine and existing repository contracts.
+- Integrate the shared database and attachment infrastructure where its JVM implementation is ready. Document any
+  remaining gap before adding an alternative store.
+- Implement Linux account settings and credential storage, including the available protected-storage mechanism.
+- Keep TLS verification and certificate-error behaviour intact. Never log credentials, addresses or message content.
+- Handle connection loss, cancellation and retries without duplicating sent messages.
+- Persist account and message state across restarts, with explicit account removal behaviour.
+
+Deliver this milestone as bounded work packages:
+
+| Package | Deliverable | Acceptance evidence |
+| --- | --- | --- |
+| 2.1 Mail contracts and storage | Reuse shared account/mail repository APIs and JVM database drivers; add only necessary Linux adapters | Persistent account-scoped folders/messages; schema and restart tests; no Android runtime dependencies |
+| 2.2 Account setup and secrets | Editable server settings, TLS configuration, protected credential storage and account removal | Controlled account can be configured, reopened and removed; unavailable secret storage fails clearly without a plaintext fallback |
+| 2.3 Foreground receiving | Folder discovery, initial/incremental IMAP sync, body fetch, cancellation and error state | Controlled-server assertions compare actual server state with cached state across reconnect and app restart |
+| 2.4 Composition and sending | Recipient/subject/body editor, persistent draft/outbox and SMTP delivery | Server receives intended message; offline queue survives restart; ambiguous SMTP outcomes do not trigger blind duplicate sends |
+| 2.5 Phone vertical slice | Package and deploy the complete single-account journey | On FP4: configure account, sync, read, draft, send, restart and read cached mail offline |
+
+Acceptance: the complete flow works against a controlled test server on the device, then an explicitly configured real
+test account. Verify rejected credentials, invalid certificates, interrupted sync and send failure recovery. Do not
+request or log production credentials to substitute for controlled tests. Measure package size, startup time and memory.
+This is the next implementation milestone; it has not started.
+
+## Milestone 3 Daily use in the foreground
+
+Expand from the vertical slice into the core mail experience:
+
+- Safe HTML rendering with an explicit external-content policy and suitable Linux rendering integration.
+- Attachment download/open/save through supported Ubuntu Touch file and content integration.
+- OAuth browser handoff and callback handling for selected providers, with provider registration requirements resolved.
+- Reply/reply-all/forward, quoting, signatures, sender identity, To/Cc/Bcc, autosaved drafts and a persistent outbox.
+- Read/unread, star/flag, archive, trash/delete, move/copy, multi-select and folder refresh/management as supported by
+  the upstream contracts. Reconcile offline changes after reconnect.
+- Multiple accounts, unified inbox and account-scoped views, with strict storage/identity isolation.
+- Local search, search within folders, server search where supported, sorting, threading and conversation navigation.
+- Account settings, sync limits, cache retention, identities, import/export and removal/data-retention behaviour.
+- Touch sizing, rotation, keyboard focus/selection, keyboard avoidance, links, accessibility and convergence behaviour.
+
+Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
+and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change
+is not an acceptance strategy.
+
+Acceptance: end-to-end journeys pass on the device, including HTML privacy, attachment handling, OAuth
+success/cancellation/expiry, draft recovery, queued operations, unified inbox/search and account switching/removal.
+Exercise large mailboxes, long/unbroken subjects, non-ASCII text, multipart messages and malformed fixtures.
+Search and security features are part of the completion checklist; they cannot be silently deferred out of the final product.
+
+## Milestone 4 Background sync and notifications
+
+Ubuntu Touch suspends applications outside the foreground or when locked; see
+[UBports app suspension guidance](https://github.com/ubports/docs.ubports.com/blob/master/userguide/dailyuse/location.rst).
+An open IMAP connection in the UI process alone cannot provide reliable background delivery.
+
+Compare supported push, permitted background execution and a separate synchronisation service against device policy,
+battery use and deployment requirements. Select a mechanism in a technical design before implementing it. A privileged
+companion or lifecycle exemption, if required, creates a distinct installation/support path that must be documented.
+
+Define reconnection, suspend/resume, reboot recovery, notification permissions, lock-screen privacy and duplicate
+suppression. If a separate process is selected, establish storage ownership and a narrow authenticated IPC contract;
+avoid concurrent unsynchronised writes to the mail database.
+
+Acceptance: controlled mail arrival tests pass while foregrounded, backgrounded and locked, after network changes,
+suspend/resume and reboot. Record delivery latency, missed/duplicate notifications and battery impact over a defined
+test period. Foreground-only builds remain clearly labelled until this gate passes.
+
+## Milestone 5 Feature parity and security completion
+
+Create a source-backed feature inventory against Thunderbird base
+`de8a03268415ce8e0c8b0327d3bbcb6b40a06a91`, updating it deliberately when rebasing. Map every user-visible capability
+to a reusable implementation, an Ubuntu Touch adapter and its tests. Mark each row implemented, failing, not started,
+experimental upstream or platform-specific, with evidence. Unresolved rows remain open work, not implicit exclusions.
+
+| Capability | Required completion gate |
+| --- | --- |
+| Accounts and protocols | IMAP/SMTP complete; assess and implement POP3 parity, and explicitly classify the baseline's JMAP/experimental capabilities |
+| Provider authentication | Supported provider matrix; password/app-password and applicable OAuth flows, refresh, expiry, revocation and cancellation verified |
+| Message reading | Plain text, sanitised HTML, remote-content controls, inline images, MIME/charset handling, safe link handling and raw-message inspection/export |
+| Composition | Reply/reply-all/forward, recipients, identities/signatures, attachments, drafts/outbox, send errors and supported HTML/plain-text modes |
+| Organisation | Unified inbox, folders, flags, bulk actions, sorting, threads/conversations and offline operation reconciliation |
+| Search | Cached search, folder/account/unified scope and supported server search with cancellation and large-mailbox behaviour |
+| Security and privacy | TLS validation, protected secrets, safe rendering, notification privacy and no secret/message-content logging |
+| Encryption and signing | Replace Android-only OpenPGP integration with a reviewed Linux-capable implementation; verify key management, signing/verification and encrypt/decrypt journeys |
+| Storage and migration | Retention, attachment/cache limits, corruption/error handling, backup/export/import and versioned migrations; never silently delete mail on an error |
+| Mobile usability | Maliit composition/deletion/selection, secure-field hints, blur/refocus, keyboard insets, touch/scroll/back, orientation, accessibility and supported external-display/input behaviour |
+| Background delivery | Agreed supported mechanism, reconnect/reboot recovery, outbox processing, notification actions and measured battery/latency |
+| Platform-specific integrations | Inventory Android widgets, shortcuts, sharing/contacts and any other baseline integrations; implement the UT equivalent or obtain an explicit scope decision |
+
+For OpenPGP, establish the key-provider and crypto-engine boundary before implementation. Android intents/services do
+not carry across to Linux, and the port must not substitute unreviewed cryptography. Use known test vectors and test
+keys for tamper, wrong-key, missing-key and signature-failure cases. Resolve any other baseline security integration
+through the same explicit inventory.
+
+Acceptance: the feature matrix is backed by passing automated checks and named device journeys. No required capability
+is marked not started or failing. Any experimental or platform-specific exclusion requires an explicit user scope
+decision and a documented consequence. A smaller release may be labelled a preview; it is not the fully featured endpoint.
+
+## Milestone 6 Reproducible builds and release readiness
+
+- Automate host compilation, target-native packaging, architecture checks and Click review in CI.
+- Pin the packaging base image and toolchain inputs; inventory dependencies, licences and required source materials.
+- Demonstrate a clean-cache build without personal credentials or private build artefacts.
+- Test fresh installation, upgrade from prior previews, database migration, rollback limitations and uninstall/data-retention behaviour.
+- Keep source, CI artifact, signed/distributed package, fleet declaration and installed version aligned; verify each release from a fresh checkout.
+- Run reliability/soak tests across large/multiple mailboxes, network transitions, disk pressure, interrupted writes and repeated suspend/resume.
+- Set and measure startup, memory, idle CPU, storage, delivery-latency and battery budgets on the supported device/image.
+- Publish supported device/image combinations, user documentation, known limitations and recovery instructions.
+- Resolve distribution naming, branding and store review requirements for an unofficial port.
+
+Acceptance: another developer can reproduce the documented build and installation. The milestone 5 feature matrix
+and device/soak gates pass, required distribution review is satisfied, and a real release can be installed and upgraded
+through the supported delivery path. A locally generated Click alone is not store approval or release completion.
+
+## Delivery order and verification
+
+The remaining route is **checkpoint A → milestone 2 → milestone 3 → milestone 4 → milestone 5 → milestone 6**.
+The audit and core demo path are demonstrated; outstanding milestone 1 device checks remain visible alongside the next
+work. Investigate background architecture during milestone 2 and security/provider integration during milestone 3 so
+late platform constraints do not force a rewrite. CI, source backup and dependency inventories start now rather than
+waiting until release.
+
+For each bounded work item, record the source paths and dependency boundary, behaviour, acceptance criteria, tests,
+exclusions, blocker/decision dependencies and final evidence. Completion requires implemented behaviour plus verified
+results, and the commit/package/deployment references appropriate to the item. Keep one active implementation item
+until it is completed or concretely blocked. Reporting the next milestone is not a substitute for doing authorised work.
+
+Date estimates require the live-mail/storage audit, HTML-rendering choice, provider registrations, OpenPGP integration
+choice and background-execution mechanism. These are planning risks with explicit investigation work, not permission
+to drop features. Re-estimate after each gate using measured results.
+
+For each implementation change, run the narrowest relevant Gradle build, tests and quality checks, plus Android
+regression checks for changed shared code. Test boundaries with meaningful cases: persistence/recovery, protocol errors,
+platform contracts and user journeys. Validate the packaged application on real hardware; desktop execution alone
+does not cover Ubuntu Touch confinement or lifecycle behaviour.
+
+The immediate work is checkpoint A followed by milestone 2. The first live-mail implementation item is 2.1: shared mail
+contracts and persistent JVM storage. Continue into account setup, receiving and sending until the phone vertical slice
+passes, recording any concrete blockers rather than treating the demo as the endpoint.

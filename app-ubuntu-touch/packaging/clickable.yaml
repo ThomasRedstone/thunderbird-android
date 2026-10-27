@@ -1,0 +1,12 @@
+clickable_minimum_required: 8.9.0
+builder: custom
+framework: ubuntu-touch-24.04-1.x
+build:
+  - chmod +x $ROOT/launch.sh $ROOT/mail-demo/bin/mail-demo
+install_root_data:
+  - manifest.json
+  - mail-demo.apparmor
+  - mail-demo.desktop
+  - mail-demo.svg
+  - launch.sh
+  - mail-demo

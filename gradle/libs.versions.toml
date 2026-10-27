@@ -64,6 +64,7 @@ buildconfig = "6.1.2"
 circleImageView = "3.1.0"
 clikt = "5.1.0"
 commonsIo = "2.22.0"
+dbusJava = "5.2.0"
 dependencyCheckPlugin = "0.65.0"
 dependencyGuardPlugin = "0.5.0"
 detektPlugin = "2.0.0-alpha.6"
@@ -233,6 +234,8 @@ assertk = { module = "com.willowtreeapps.assertk:assertk-jvm", version.ref = "as
 circleImageView = { module = "de.hdodenhof:circleimageview", version.ref = "circleImageView" }
 clikt = { module = "com.github.ajalt.clikt:clikt", version.ref = "clikt" }
 commons-io = { module = "commons-io:commons-io", version.ref = "commonsIo" }
+dbus-java-core = { module = "com.github.hypfvieh:dbus-java-core", version.ref = "dbusJava" }
+dbus-java-transport-junixsocket = { module = "com.github.hypfvieh:dbus-java-transport-junixsocket", version.ref = "dbusJava" }
 detekt-plugin-compose = { module = "io.nlopez.compose.rules:detekt", version.ref = "detektPluginCompose" }
 diff-utils = { module = "io.github.java-diff-utils:java-diff-utils", version.ref = "javaDiffUtils" }
 fastadapter = { module = "com.mikepenz:fastadapter", version.ref = "fastAdapter" }

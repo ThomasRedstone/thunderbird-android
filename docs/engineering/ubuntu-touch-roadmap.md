@@ -13,10 +13,10 @@ and a reproducible supported release.
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
 | Platform | 0.1.9 installed on FP4; 0.1.4 sizing/typing confirmed; SQLite/SignOn confinement checks pass; 0.1.9 dispatcher/draft recovery probe passes | Physical secure-input UI, rotation and lifecycle checks |
-| Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Cached mailbox and plain-text composer/outbox UI; controlled TLS protocol tests; phone journey pending |
-| Engineering | 63 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
+| Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Cached mailbox/composer UI; confined FP4 TLS IMAP/SMTP, protected credentials and fresh-JVM cache recovery pass |
+| Engineering | 63 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Provider/physical-UI suites, STARTTLS/cancellation, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Composer UI committed/pushed as `131b9b8012`; installed 0.1.9 embeds that clean source | Ongoing live-mail work and reproducible CI |
-| Phone delivery | Phone Manager install; fleet commit `62bc1a1` pins installed 0.1.9/hash | Foreground journeys, recovery and lifecycle verification |
+| Phone delivery | Phone Manager install; fleet commit `62bc1a1` pins installed 0.1.9/hash | Physical foreground journeys, cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -32,7 +32,8 @@ setup, cached mailbox and composer/outbox UI; the user previously confirmed full
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
 for the initial scope, and [milestone 2 evidence](ubuntu-touch-m2-evidence.md) for current build/device results and gaps.
-Controlled-server engine receiving/sending tests pass; the user-facing receiving/sending journey remains unfinished.
+Controlled-server receiving/sending and fresh-process recovery pass under phone confinement; the physical
+user-facing receiving/sending journey remains unfinished.
 
 ## Starting point
 

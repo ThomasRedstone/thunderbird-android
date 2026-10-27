@@ -497,3 +497,35 @@ unrelated changes preserved and no full-fleet convergence. Source is pushed on `
 Next gate: controlled real IMAP/SMTP through this installed enforcing profile, then the actual phone configure/sync/
 read/draft/send/offline-reopen journey. The physical unlock/input question remains unanswered; independent engine,
 recovery and later roadmap work can continue. No claim is made that milestone 2 or the full mail application is complete.
+
+
+## Work package 2.5: confined controlled receiving/sending and fresh-process recovery
+
+The installed 0.1.9 production engine now passes actual controlled TLS IMAP/SMTP networking under
+`mail-demo.thomasredstone_mail-demo_0.1.9 (enforce)`. `ConfinedProtocolProbe` verifies the profile itself and uses the
+installed JVM/JARs plus only its test classes. The host-only `PhoneProtocolServer` is a GreenMail fixture bound to the
+host's tailnet interface, with generated IP-SAN TLS material, dynamic ports and no mail forwarding.
+
+The phone creates a new private cache database and uniquely referenced real SignOn credential. It rejects the unknown
+fixture certificate through default production trust, then uses explicit fixture-only trust to check IMAP/SMTP
+settings, discover folders, sync/read the intended inbox body, queue frozen outgoing MIME and receive SMTP acceptance.
+A second send call on the same row makes no second attempt. The independent server observes exactly one expected
+outgoing message with the intended recipient and Unicode/leading-dot body. No production trust configuration changes,
+AppArmor exemptions, real provider accounts or raw mail/credential logging are involved.
+
+Two controlled runs pass. The second retains the marked fixture across process exit; the host then verifies delivery,
+stops both mail servers and exits 0. A separate new phone JVM reopens the same account/index, reads its protected
+credentials, cached body and SENT row with the servers stopped, then removes the disposable account/credential and
+fixture. Independent SSH confirms that fixture directory is absent. No real app database/account is touched.
+All phone and server processes exit 0. The host's temporary private-key material is removed during teardown.
+
+The [device protocol guide](ubuntu-touch-device-protocol.md) records the self-contained workflow, argument contracts,
+restart/cleanup obligations and evidence paths. After these test-only changes, all 63 app tests and detekt/spotlessCheck
+pass again (`/tmp/thunderbird-device-protocol-build.log`). Installed source/package/fleet references remain unchanged:
+0.1.9/source `131b9b8012`, package hash `2749e44b000c6d8ab9965bd97c0a95658c24e49f62d00add00373878d41b15c8`,
+fleet `62bc1a1`. No new production package is needed for test executables.
+
+This proves the headless controlled receive/send/restart chain on FP4, not the complete milestone-2 phone screen
+journey. Physical setup/input, an explicitly configured real test account, successful STARTTLS interoperability,
+active cancellation/interruption recovery and startup/memory measurement remain open. Later roadmap features remain
+required; the tested engine path does not establish daily-use or release completion.

@@ -121,3 +121,12 @@ tasks.register<JavaExec>("secretServiceProbe") {
     mainClass.set("net.thunderbird.app.ubuntutouch.SecretServiceProbe")
     providers.gradleProperty("utSecretProbeMode").orNull?.let { args(it) }
 }
+
+// Explicit controlled host server for the opt-in enforcing-profile device protocol probe.
+tasks.register<JavaExec>("phoneProtocolServer") {
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("net.thunderbird.app.ubuntutouch.PhoneProtocolServer")
+    providers.gradleProperty("utProtocolHost").orNull?.let { args(it) }
+    providers.gradleProperty("utProtocolOutput").orNull?.let { args(it) }
+}

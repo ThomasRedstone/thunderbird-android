@@ -92,3 +92,11 @@ See the [dependency audit](../docs/engineering/ubuntu-touch-dependency-audit.md)
 [roadmap](../docs/engineering/ubuntu-touch-roadmap.md) and [milestone evidence](../docs/engineering/ubuntu-touch-m1-evidence.md).
 A package build is not proof of on-device input, confinement, reboot behaviour or store approval. Device installation
 and system changes are separate actions; no phone deployment is included in this build workflow.
+
+
+## Controlled device protocol verification
+
+The opt-in [device protocol guide](../docs/engineering/ubuntu-touch-device-protocol.md) describes the disposable
+GreenMail host fixture and enforcing-profile phone probes. They verify the installed engine with protected SignOn
+credentials, TLS receive/send and fresh-JVM cached reopen after the mail servers stop. They do not replace physical
+screen/input acceptance or change production certificate trust.

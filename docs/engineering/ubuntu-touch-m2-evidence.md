@@ -1965,3 +1965,40 @@ Full log: /tmp/thunderbird-account-session-full.log; test XML: build/evidence/ac
 No shared engine or Android changes; prior shared SMTP and Android consumer checks remain applicable.
 Android instrumentation was not run for this JVM slice. Phone/fleet remain 0.1.18; no native or real-provider
 acceptance is claimed. Next package must bump to 0.1.19 in all three version locations.
+
+
+### OAuth account authorization orchestration (source only)
+
+OAuthAccountAuthorization connects approved provider configuration, an allocated loopback receiver, browser
+dispatch, validated callback/PKCE code exchange and the manager's journaled account creation/replacement. Each
+prepared attempt is single-use and returns only account identity and a pending-cleanup flag. It checks the account
+snapshot before browser dispatch and the manager checks it again when committing a replacement. Tokens, callback
+codes and verifiers are not put in observable setup state or SQLite. Token configuration binding already excludes
+the ephemeral redirect port; exchange uses the exact URI allocated for that attempt.
+
+An explicit cancellation phase prevents a cancelled attempt from starting its protected commit. Cancellation closes
+the listener even while browser dispatch is blocked and cancels pending callback/HTTPS work. The future setup model
+must call attempt.cancel() before cancelling its coroutine or leaving setup. Once the atomic transition to protected
+commit has occurred, cancel returns false: the journaled write runs non-cancellably and the UI must wait for its
+outcome. Scope disposal can still suppress delivery of that outcome, so a later setup must reload account state.
+Cancellation does not revoke provider-side credentials or undo an already started account commit.
+
+Fourteen tests use a real loopback receiver with controlled browser and token responses. They cover exact
+redirect/code/PKCE binding, protected persistence without database token/code leakage, denial, browser failure,
+timeout, cancellation before start/during callback/blocked dispatch/exchange, stale account changes, SQL failure
+cleanup, disallowed hosts, successful reauthorization and the protected-write cancellation boundary.
+
+All 256 app tests pass with zero failures/errors/skips, plus detekt/installDist/spotlessCheck.
+Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Logs: /tmp/thunderbird-oauth-authorization-{focused,full}.log; XML: build/evidence/oauth-authorization/.
+No shared engine or Android changes; prior SMTP/Android consumer verification remains applicable. Android
+instrumentation was not run for this JVM-only slice.
+
+This service is not yet wired into account setup UI or production DI. Dedicated OAuth editing is still needed; the
+password form currently fails closed for OAuth accounts rather than converting them. Production provider registry
+remains empty. Real Gmail/Microsoft registrations, required scopes, verified Microsoft identity, provider journeys
+and native focus/suspend/keyring acceptance remain open. No OAuth configuration factory, client registration,
+dependency or permission was changed. Installed phone/fleet remain 0.1.18; next package must bump all three version
+locations to 0.1.19, and schema-10 probes must not overwrite the frozen schema-9 installed-package driver.

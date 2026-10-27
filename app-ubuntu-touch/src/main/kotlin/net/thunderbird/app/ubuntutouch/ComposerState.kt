@@ -3,7 +3,15 @@ package net.thunderbird.app.ubuntutouch
 import androidx.compose.ui.text.input.TextFieldValue
 import net.thunderbird.feature.account.AccountId
 
-internal enum class ComposeField(val label: String) { TO("To"), SUBJECT("Subject"), BODY("Message") }
+internal enum class ComposeField(val label: String) {
+    TO(
+        "To",
+    ),
+    CC("Cc"),
+    BCC("Bcc"),
+    SUBJECT("Subject"),
+    BODY("Message"),
+}
 
 internal data class ComposerState(
     val accounts: List<UtMailAccount>,

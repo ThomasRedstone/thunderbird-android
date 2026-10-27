@@ -774,3 +774,28 @@ with JDK21 and configured Android SDK. Final focused integration/spotlessCheck a
 `/tmp/thunderbird-starttls-final.log` and `/tmp/thunderbird-starttls-format.log`. No shared Android source changed; this JVM
 application has no Android lint/connected-test task, so no Android assembly/device suite was rerun for test-only work.
 No new phone package is required.
+
+
+## Daily-use composition: To/Cc/Bcc
+
+Bounded work item: expose To/Cc/Bcc in the Bolt editor, preserve all fields through autosave/close/reopen and freeze them
+in queued messages. Deliver to the three recipient classes through the existing shared SMTP engine while stripping
+Bcc from transmitted headers. Allow a Bcc-only draft to queue. Preserve migration, retry-history and stable-MIME rules.
+Exclusions: reply/reply-all/forward, attachments, Sent filing, contacts/autocomplete, HTML composition and physical
+phone keyboard/provider acceptance remain separate requirements.
+
+Implementation adds schema 6 cc/bcc columns with empty defaults. Schema 5 queued MIME and uncertain-attempt history
+are preserved byte-for-byte; schema 4 history migration still requires duplicate review. Draft save validates length
+and CR/LF restrictions for all recipient headers, queue validates each list and requires at least one recipient across
+the lists. Queued private MIME retains Bcc for the SMTP envelope; the existing shared SmtpTransport gathers all envelope
+recipients and removes Bcc before DATA. The outbox details display Cc/Bcc locally. No recipient/content logging is added.
+
+Verification before packaging: 88 app tests pass, detekt and installDist pass. Tests cover schema5→6 preserving frozen
+MIME/risk, schema4→6 history, recipient restart persistence, Bcc-only queueing, injected/invalid Cc/Bcc rejection, Bolt
+editor actions, Maliit Bcc edits and immediate close flush of Cc/Bcc. A real TLS SMTP test independently opens each
+To/Cc/Bcc destination mailbox through Jakarta Mail and verifies delivery, visible To/Cc and absence of Bcc/blind address
+in every delivered header. The actual desktop app window-close probe still preserves the exact new subject with the
+two added editor fields. Logs: `/tmp/thunderbird-recipients-final.log`; final spotlessCheck follows.
+
+The candidate version is 0.1.12. Packaging/deployment/native schema6 acceptance is pending at this checkpoint; the phone
+still has 0.1.11/schema5 production. Existing schema6 test probes must not be run against the older installed package.

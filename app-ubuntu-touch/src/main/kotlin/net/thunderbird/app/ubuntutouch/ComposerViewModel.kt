@@ -158,6 +158,8 @@ internal class ComposerViewModel(
             current.fields.getValue(ComposeField.TO).text,
             current.fields.getValue(ComposeField.SUBJECT).text,
             current.fields.getValue(ComposeField.BODY).text,
+            cc = current.fields.getValue(ComposeField.CC).text,
+            bcc = current.fields.getValue(ComposeField.BCC).text,
         )
         return current.copy(selected = saved, items = store.list(account), dirty = false, notice = "Draft saved")
     }
@@ -171,6 +173,8 @@ internal class ComposerViewModel(
             fields = selected?.let {
                 mapOf(
                     ComposeField.TO to TextFieldValue(it.recipients),
+                    ComposeField.CC to TextFieldValue(it.cc),
+                    ComposeField.BCC to TextFieldValue(it.bcc),
                     ComposeField.SUBJECT to TextFieldValue(it.subject),
                     ComposeField.BODY to TextFieldValue(it.body),
                 )

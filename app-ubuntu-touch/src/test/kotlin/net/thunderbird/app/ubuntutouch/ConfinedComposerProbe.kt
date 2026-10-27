@@ -74,7 +74,7 @@ object ConfinedComposerProbe {
             database.execute("PRAGMA user_version=3")
         }
         val id = MailDatabase(path).use { database ->
-            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 5L)
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 6L)
             check(AccountSettingsStorage(database).all().single().id == account.id)
             check(SignonIdentityIndex(database).find("local-index-fixture") == 42L)
             val store = OutgoingMailStore(database)
@@ -113,6 +113,10 @@ object ConfinedComposerProbe {
                     model.event(ComposerEvent.New)
                     model.state.first { !it.busy }
                     model.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Immediate native close")))
+                    model.event(ComposerEvent.Change(ComposeField.CC, TextFieldValue("copy@example.invalid")))
+                    model.event(
+                        ComposerEvent.Keyboard(ComposeField.BCC, MaliitTextEdit.Commit("blind@example.invalid")),
+                    )
                     check(model.flushForClose())
                     model.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Invalid\r\nheader")))
                     check(!model.flushForClose())
@@ -123,6 +127,8 @@ object ConfinedComposerProbe {
                 }
                 val selected = checkNotNull(model.state.value.selected)
                 check(store.get(account.id, selected.id).subject == "Native background save")
+                check(store.get(account.id, selected.id).cc == "copy@example.invalid")
+                check(store.get(account.id, selected.id).bcc == "blind@example.invalid")
                 check(!model.state.value.dirty)
             } finally {
                 withContext(Dispatchers.Main) { model.close() }

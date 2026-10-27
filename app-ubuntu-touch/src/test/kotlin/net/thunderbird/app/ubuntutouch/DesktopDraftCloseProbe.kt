@@ -41,7 +41,7 @@ object DesktopDraftCloseProbe {
             click(350, 24) // Write
             click(100, 130) // Synthetic account
             click(140, 238) // Existing draft
-            click(170, 268) // Subject
+            click(170, 396) // Subject
             robot.keyPress(KeyEvent.VK_CONTROL)
             robot.keyPress(KeyEvent.VK_A)
             robot.keyRelease(KeyEvent.VK_A)

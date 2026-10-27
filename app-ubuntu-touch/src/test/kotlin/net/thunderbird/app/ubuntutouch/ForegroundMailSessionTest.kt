@@ -258,13 +258,44 @@ class ForegroundMailSessionTest {
         directory.root.toPath().resolve("mime"),
     )
 
+    @Test
+    fun `queued To Cc Bcc deliver to each mailbox without exposing blind recipients`() {
+        server.setUser("copy@example.invalid", "copy", PASSWORD)
+        server.setUser("blind@example.invalid", "blind", PASSWORD)
+        val store = OutgoingMailStore(database)
+        val draft = store.create(account.id)
+        store.save(
+            account.id,
+            draft.id,
+            RECIPIENT,
+            "Recipient privacy",
+            "Private fixture body",
+            cc = "Copy <copy@example.invalid>",
+            bcc = "Blind <blind@example.invalid>",
+        )
+        store.queue(account, draft.id)
+        val testSubject = OutgoingMailSender(store, SessionOutgoingTransport(factory()))
+        assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.SENT)
+        assertThat(server.waitForIncomingEmail(5000, 3)).isTrue()
+        for (user in listOf("recipient", "copy", "blind")) {
+            withOracleInbox(user) { folder ->
+                val message = folder.messages.single()
+                assertThat(message.subject).isEqualTo("Recipient privacy")
+                assertThat(message.getHeader("Bcc")).isEqualTo(null)
+                assertThat(message.getHeader("To").single()).isEqualTo(RECIPIENT)
+                assertThat(message.getHeader("Cc").single()).isEqualTo("Copy <copy@example.invalid>")
+                assertThat(message.allHeaders.toList().any { "blind@example.invalid" in it.value }).isFalse()
+            }
+        }
+    }
+
     private fun deliver(subject: String, body: String) {
         val message =
             JakartaMessage(JakartaSession.getInstance(Properties()), raw(subject, body, EMAIL).byteInputStream())
         server.userManager.getUser("fixture").deliver(message)
     }
 
-    private fun withOracleInbox(block: (jakarta.mail.Folder) -> Unit) {
+    private fun withOracleInbox(user: String = "fixture", block: (jakarta.mail.Folder) -> Unit) {
         val context = javax.net.ssl.SSLContext.getInstance("TLS").apply {
             init(null, arrayOf(systemTrustManager(trustedCertificates)), null)
         }
@@ -273,7 +304,7 @@ class ForegroundMailSessionTest {
             put("mail.imaps.ssl.checkserveridentity", "true")
         }
         JakartaSession.getInstance(properties).getStore("imaps").use { store ->
-            store.connect("localhost", server.imaps.port, "fixture", PASSWORD)
+            store.connect("localhost", server.imaps.port, user, PASSWORD)
             store.getFolder("INBOX").use { folder ->
                 folder.open(jakarta.mail.Folder.READ_WRITE)
                 block(folder)

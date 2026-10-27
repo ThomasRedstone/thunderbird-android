@@ -131,8 +131,12 @@ class ComposerViewModelTest {
             testSubject.state.first { !it.busy }
             val id = checkNotNull(testSubject.state.value.selected).id
             testSubject.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Immediate close")))
+            testSubject.event(ComposerEvent.Change(ComposeField.CC, TextFieldValue("copy@example.invalid")))
+            testSubject.event(ComposerEvent.Keyboard(ComposeField.BCC, MaliitTextEdit.Commit("blind@example.invalid")))
             assertThat(testSubject.flushForClose()).isTrue()
             assertThat(store.get(account, id).subject).isEqualTo("Immediate close")
+            assertThat(store.get(account, id).cc).isEqualTo("copy@example.invalid")
+            assertThat(store.get(account, id).bcc).isEqualTo("blind@example.invalid")
             testSubject.event(ComposerEvent.Change(ComposeField.SUBJECT, TextFieldValue("Invalid\r\nheader")))
             assertThat(testSubject.flushForClose()).isFalse()
             assertThat(testSubject.state.value.dirty).isTrue()

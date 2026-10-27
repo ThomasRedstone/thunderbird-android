@@ -18,6 +18,8 @@ internal data class OutgoingMail(
     val messageId: String,
     val state: OutgoingState,
     val hasUncertainAttempt: Boolean = false,
+    val cc: String = "",
+    val bcc: String = "",
 ) {
     override fun toString(): String = "OutgoingMail(id=$id, state=$state)"
 }
@@ -38,7 +40,7 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
     }
 
     fun list(account: AccountId): List<OutgoingMail> = database.query(
-        "SELECT id,recipients,subject,body,message_id,state,uncertain_attempt FROM outgoing " +
+        "SELECT id,recipients,subject,body,message_id,state,uncertain_attempt,cc,bcc FROM outgoing " +
             "WHERE account=? ORDER BY rowid DESC",
         account.toString(),
     ) {
@@ -50,22 +52,35 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
             getText(4),
             OutgoingState.valueOf(getText(5)),
             getLong(6) != 0L,
+            getText(7),
+            getText(8),
         )
     }
 
     fun get(account: AccountId, id: String): OutgoingMail = list(account).single { it.id == id }
 
-    fun save(account: AccountId, id: String, recipients: String, subject: String, body: String): OutgoingMail =
+    fun save(
+        account: AccountId,
+        id: String,
+        recipients: String,
+        subject: String,
+        body: String,
+        cc: String = "",
+        bcc: String = "",
+    ): OutgoingMail =
         database.transaction {
             check(get(account, id).state == OutgoingState.DRAFT) { "Only drafts can be edited" }
-            require(recipients.length <= MAX_HEADER_LENGTH && subject.length <= MAX_HEADER_LENGTH)
+            val headers = listOf(recipients, cc, bcc, subject)
+            require(headers.all { it.length <= MAX_HEADER_LENGTH })
             require(body.length <= MAX_BODY_LENGTH)
-            require(recipients.none { it in "\r\n" } && subject.none { it in "\r\n" }) { "Invalid header input" }
+            require(headers.all { header -> header.none { it in "\r\n" } }) { "Invalid header input" }
             database.execute(
-                "UPDATE outgoing SET recipients=?,subject=?,body=? WHERE account=? AND id=?",
+                "UPDATE outgoing SET recipients=?,subject=?,body=?,cc=?,bcc=? WHERE account=? AND id=?",
                 recipients,
                 subject,
                 body,
+                cc,
+                bcc,
                 account.toString(),
                 id,
             )
@@ -75,13 +90,21 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
     fun queue(account: UtMailAccount, id: String): OutgoingMail = database.transaction {
         val draft = get(account.id, id)
         check(draft.state == OutgoingState.DRAFT)
-        val recipients = Address.parse(draft.recipients)
-        require(recipients.isNotEmpty() && recipients.all { '@' in it.address && it.hostname?.isNotBlank() == true }) {
-            "Valid recipients are required"
-        }
+        val recipients = mapOf("To" to draft.recipients, "Cc" to draft.cc, "Bcc" to draft.bcc)
+            .mapValues { (_, text) ->
+                Address.parse(text).also { addresses ->
+                    require(text.isBlank() || addresses.isNotEmpty()) { "Valid recipients are required" }
+                    require(addresses.all { '@' in it.address && it.hostname?.isNotBlank() == true }) {
+                        "Valid recipients are required"
+                    }
+                }
+            }
+        require(recipients.values.any { it.isNotEmpty() }) { "At least one recipient is required" }
         val message = MimeMessage().apply {
             setFrom(Address(account.address))
-            setHeader("To", recipients.joinToString(", ") { it.toEncodedString() })
+            recipients.forEach { (header, addresses) ->
+                if (addresses.isNotEmpty()) setHeader(header, addresses.joinToString(", ") { it.toEncodedString() })
+            }
             subject = draft.subject
             messageId = draft.messageId
             setSentDate(Date(), false)

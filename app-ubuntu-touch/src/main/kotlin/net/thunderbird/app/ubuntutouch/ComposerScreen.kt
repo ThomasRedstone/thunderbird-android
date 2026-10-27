@@ -101,6 +101,8 @@ private fun OutgoingDetails(state: ComposerState, onEvent: (ComposerEvent) -> Un
     val item = checkNotNull(state.selected)
     TextTitleLarge(outgoingLabel(item.state))
     TextBodyLarge("To: ${item.recipients}")
+    if (item.cc.isNotBlank()) TextBodyLarge("Cc: ${item.cc}")
+    if (item.bcc.isNotBlank()) TextBodyLarge("Bcc: ${item.bcc}")
     TextTitleLarge(item.subject.ifBlank { "(No subject)" })
     TextBodyLarge(item.body)
     if (item.hasUncertainAttempt && item.state in setOf(OutgoingState.QUEUED, OutgoingState.FAILED)) {

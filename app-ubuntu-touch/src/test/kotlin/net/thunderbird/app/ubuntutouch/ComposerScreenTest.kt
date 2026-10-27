@@ -53,6 +53,10 @@ class ComposerScreenTest : ComposeUiTestHarness() {
         setContent { ThunderbirdBoltTheme { ComposerScreen(state, { event = it }, null) } }
         onNodeWithText("To").performTextInput("recipient@example.invalid")
         assertThat((event as ComposerEvent.Change).field).isEqualTo(ComposeField.TO)
+        onNodeWithText("Cc").performTextInput("copy@example.invalid")
+        assertThat((event as ComposerEvent.Change).field).isEqualTo(ComposeField.CC)
+        onNodeWithText("Bcc").performTextInput("blind@example.invalid")
+        assertThat((event as ComposerEvent.Change).field).isEqualTo(ComposeField.BCC)
         onNodeWithText("Queue message").performClick()
         assertThat(event).isEqualTo(ComposerEvent.Queue)
         onNodeWithText("Send now").assertDoesNotExist()

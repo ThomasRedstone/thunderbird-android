@@ -174,7 +174,7 @@ class OutgoingMailStoreTest {
             assertThat(OutgoingMailStore(database).list(accountId)).isEqualTo(emptyList())
             assertThat(SignonIdentityIndex(database).find("fixture")).isEqualTo(42L)
             assertThat(AccountSettingsStorage(database).all().single().id).isEqualTo(accountId)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(5L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(6L)
         }
     }
 
@@ -222,6 +222,8 @@ class OutgoingMailStoreTest {
             val account = account(database)
             val store = OutgoingMailStore(database)
             val draft = queued(store, account)
+            database.execute("ALTER TABLE outgoing DROP COLUMN cc")
+            database.execute("ALTER TABLE outgoing DROP COLUMN bcc")
             database.execute("ALTER TABLE outgoing DROP COLUMN uncertain_attempt")
             database.execute("PRAGMA user_version=4")
             account.id to draft.id
@@ -233,6 +235,94 @@ class OutgoingMailStoreTest {
             assertThat(restored.hasUncertainAttempt).isTrue()
             assertThat(store.claim(account, id)).isEqualTo(null)
             assertThat(checkNotNull(store.claim(account, id, acknowledgeDuplicateRisk = true)).isNotEmpty()).isTrue()
+        }
+    }
+
+    @Test
+    fun `recipient fields survive restart and Bcc-only drafts can queue`() {
+        val path = directory.root.toPath().resolve("recipients.sqlite")
+        val reference = MailDatabase(path).use { database ->
+            val account = account(database)
+            val testSubject = OutgoingMailStore(database)
+            val draft = testSubject.create(account.id)
+            testSubject.save(account.id, draft.id, "", "Blind only", "Body λ", bcc = "Blind <blind@example.invalid>")
+            account.id to draft.id
+        }
+        MailDatabase(path).use { database ->
+            val (accountId, id) = reference
+            val account = UtAccountManager(
+                AccountSettingsStorage(database),
+                FakeCredentialStore(),
+            ).findById(accountId)!!
+            val testSubject = OutgoingMailStore(database)
+            assertThat(testSubject.get(accountId, id).bcc).isEqualTo("Blind <blind@example.invalid>")
+            testSubject.queue(account, id)
+            val mime = MimeMessage.parseMimeMessage(checkNotNull(testSubject.claim(accountId, id)).inputStream(), true)
+            assertThat(mime.getHeader("Bcc").single()).isEqualTo("Blind <blind@example.invalid>")
+            assertThat(mime.getHeader("To").isEmpty()).isTrue()
+        }
+    }
+
+    @Test
+    fun `schema five upgrade preserves frozen MIME and uncertainty with empty added recipients`() {
+        val path = directory.root.toPath().resolve("upgrade.sqlite")
+        val reference = MailDatabase(path).use { database ->
+            val account = account(database)
+            val store = OutgoingMailStore(database)
+            val draft = queued(store, account)
+            database.execute("UPDATE outgoing SET uncertain_attempt=1 WHERE id=?", draft.id)
+            val mime = database.query("SELECT mime FROM outgoing WHERE id=?", draft.id) { getBlob(0) }.single()
+            database.execute("ALTER TABLE outgoing DROP COLUMN cc")
+            database.execute("ALTER TABLE outgoing DROP COLUMN bcc")
+            database.execute("PRAGMA user_version=5")
+            Triple(account.id, draft.id, mime)
+        }
+        MailDatabase(path).use { database ->
+            val testSubject = OutgoingMailStore(database)
+            val (account, id, mime) = reference
+            val restored = testSubject.get(account, id)
+            assertThat(restored.cc).isEqualTo("")
+            assertThat(restored.bcc).isEqualTo("")
+            assertThat(restored.hasUncertainAttempt).isTrue()
+            assertThat(restored.state).isEqualTo(OutgoingState.QUEUED)
+            assertThat(testSubject.claim(account, id)).isEqualTo(null)
+            assertThat(checkNotNull(testSubject.claim(account, id, true)).contentEquals(mime)).isTrue()
+        }
+    }
+
+    @Test
+    fun `Cc and Bcc reject injected headers and invalid recipients without queueing`() {
+        MailDatabase(directory.root.toPath().resolve("invalid.sqlite")).use { database ->
+            val account = account(database)
+            val testSubject = OutgoingMailStore(database)
+            val draft = testSubject.create(account.id)
+            for (blind in listOf(false, true)) {
+                val injected = "copy@example.invalid\r\nInjected: yes"
+                assertThat(
+                    runCatching {
+                        testSubject.save(
+                            account.id,
+                            draft.id,
+                            "",
+                            "Subject",
+                            "Body",
+                            cc = if (blind) "" else injected,
+                            bcc = if (blind) injected else "",
+                        )
+                    }.isFailure,
+                ).isTrue()
+                testSubject.save(
+                    account.id,
+                    draft.id,
+                    "",
+                    "Subject",
+                    "Body",
+                    cc = if (blind) "" else "invalid",
+                    bcc = if (blind) "invalid" else "",
+                )
+                assertThat(runCatching { testSubject.queue(account, draft.id) }.isFailure).isTrue()
+                assertThat(testSubject.get(account.id, draft.id).state).isEqualTo(OutgoingState.DRAFT)
+            }
         }
     }
 

@@ -23,8 +23,8 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class OAuthTokenCoordinatorTest {
-    private val account = AccountIdFactory.create()
-    private val other = AccountIdFactory.create()
+    private val account = OAuthGrant(AccountIdFactory.create())
+    private val other = OAuthGrant(AccountIdFactory.create())
     private val configuration = OAuthConfiguration(
         "synthetic",
         listOf("read", "send"),
@@ -274,7 +274,31 @@ class OAuthTokenCoordinatorTest {
         assertThat(calls.get()).isEqualTo(2)
     }
 
-    private fun expired(id: net.thunderbird.feature.account.AccountId) {
+    @Test
+    fun `late refresh for old generation cannot overwrite replacement grant of same account`() = runBlocking {
+        expired(account)
+        val replacement = OAuthGrant(account.accountId)
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val testSubject = coordinator { _, _ ->
+            entered.complete(Unit)
+            release.await()
+            success(calls.incrementAndGet())
+        }
+        val earlier = async { testSubject.token(account, configuration) }
+        entered.await()
+        withTimeout(2000) {
+            testSubject.storeGrant(replacement, configuration, OAuthTokens("new-access", "new-refresh", 500000))
+        }
+        assertThat(withTimeout(2000) { testSubject.token(replacement, configuration) }).isEqualTo("new-access")
+        release.complete(Unit)
+        assertThat(earlier.await()).isEqualTo("access-1")
+        assertThat(store.read(replacement, configuration)!!.refreshToken).isEqualTo("new-refresh")
+        testSubject.delete(account)
+        assertThat(testSubject.token(replacement, configuration)).isEqualTo("new-access")
+    }
+
+    private fun expired(id: OAuthGrant) {
         store.write(id, configuration, OAuthTokens("old-access", "old-refresh", 0))
     }
 

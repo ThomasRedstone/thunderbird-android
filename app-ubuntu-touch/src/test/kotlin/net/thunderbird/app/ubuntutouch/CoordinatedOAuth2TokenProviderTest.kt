@@ -17,7 +17,7 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class CoordinatedOAuth2TokenProviderTest {
-    private val account = AccountIdFactory.create()
+    private val account = OAuthGrant(AccountIdFactory.create())
     private val configuration = OAuthConfiguration(
         "synthetic",
         listOf("mail"),
@@ -250,6 +250,23 @@ class CoordinatedOAuth2TokenProviderTest {
                 reject.countDown()
                 testSubject.close()
                 earlier.handle { _, _ -> Unit }.get(2, TimeUnit.SECONDS)
+            }
+        }
+    }
+
+    @Test
+    fun `equal access text in another generation cannot be invalidated by old provider`() {
+        val replacement = OAuthGrant(account.accountId)
+        store.write(account, configuration, OAuthTokens("same-access", "old-refresh", 500000))
+        store.write(replacement, configuration, OAuthTokens("same-access", "new-refresh", 500000))
+        provider().use { earlier ->
+            CoordinatedOAuth2TokenProvider(replacement, configuration, coordinator).use { current ->
+                assertThat(earlier.getToken(1000)).isEqualTo("same-access")
+                assertThat(current.getToken(1000)).isEqualTo("same-access")
+                earlier.invalidateToken()
+                assertThat(current.getToken(1000)).isEqualTo("same-access")
+                assertThat(store.read(replacement, configuration)!!.refreshToken).isEqualTo("new-refresh")
+                assertThat(calls.get()).isEqualTo(0)
             }
         }
     }

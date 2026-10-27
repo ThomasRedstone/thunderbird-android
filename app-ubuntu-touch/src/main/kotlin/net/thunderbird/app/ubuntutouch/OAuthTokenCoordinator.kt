@@ -6,7 +6,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import net.thunderbird.core.common.oauth.OAuthConfiguration
-import net.thunderbird.feature.account.AccountId
 
 /** Share one coordinator across mail operations. No background scope or persistent plaintext cache is created. */
 internal class OAuthTokenCoordinator(
@@ -15,12 +14,12 @@ internal class OAuthTokenCoordinator(
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
     private val registryLock = Any()
-    private val entries = mutableMapOf<AccountId, Entry>()
+    private val entries = mutableMapOf<OAuthGrant, Entry>()
 
-    suspend fun token(account: AccountId, configuration: OAuthConfiguration): String = withAccount(account) { entry ->
+    suspend fun token(grant: OAuthGrant, configuration: OAuthConfiguration): String = withGrant(grant) { entry ->
         val snapshot = configuration.snapshot()
-        persistPending(account, snapshot, entry)
-        val current = store.read(account, snapshot) ?: throw OAuthTokenException(OAuthTokenFailure.REAUTH_REQUIRED)
+        persistPending(grant, snapshot, entry)
+        val current = store.read(grant, snapshot) ?: throw OAuthTokenException(OAuthTokenFailure.REAUTH_REQUIRED)
         val now = nowMillis()
         require(now >= 0) { "Invalid OAuth clock" }
         if (current.expiresAtMillis - now > EXPIRY_MARGIN_MILLIS) {
@@ -29,74 +28,74 @@ internal class OAuthTokenCoordinator(
             val replacement = try {
                 client.refresh(snapshot, current)
             } catch (failure: OAuthTokenException) {
-                if (failure.reason == OAuthTokenFailure.REAUTH_REQUIRED) store.delete(account)
+                if (failure.reason == OAuthTokenFailure.REAUTH_REQUIRED) store.delete(grant)
                 throw failure
             }
             entry.pending = Pending(snapshot, replacement)
-            persistPending(account, snapshot, entry)
+            persistPending(grant, snapshot, entry)
             if (replacement.expiresAtMillis <= nowMillis()) throw OAuthTokenException(OAuthTokenFailure.UNAVAILABLE)
             replacement.accessToken
         }
     }
 
-    /** The caller must already have validated its account-setup generation and authorization result. */
+    /** The caller must already have validated its grant-setup generation and authorization result. */
     suspend fun storeGrant(
-        account: AccountId,
+        grant: OAuthGrant,
         configuration: OAuthConfiguration,
         tokens: OAuthTokens,
-    ) = withAccount(account) { entry ->
+    ) = withGrant(grant) { entry ->
         val snapshot = configuration.snapshot()
         entry.pending = Pending(snapshot, tokens)
-        persistPending(account, snapshot, entry)
+        persistPending(grant, snapshot, entry)
     }
 
     /** Reject only the actual issued token; a delayed failure must not invalidate a newer concurrent refresh. */
     suspend fun invalidate(
-        account: AccountId,
+        grant: OAuthGrant,
         configuration: OAuthConfiguration,
         rejectedAccessToken: String,
-    ) = withAccount(account) { entry ->
+    ) = withGrant(grant) { entry ->
         val snapshot = configuration.snapshot()
-        persistPending(account, snapshot, entry)
-        val current = store.read(account, snapshot)
+        persistPending(grant, snapshot, entry)
+        val current = store.read(grant, snapshot)
         if (current?.accessToken == rejectedAccessToken) {
             entry.pending = Pending(snapshot, OAuthTokens(current.accessToken, current.refreshToken, 0))
-            persistPending(account, snapshot, entry)
+            persistPending(grant, snapshot, entry)
         }
     }
 
     /** Account removal must call this as part of its credential cleanup; no remote revocation is implied. */
-    suspend fun delete(account: AccountId) = withAccount(account) { entry ->
+    suspend fun delete(grant: OAuthGrant) = withGrant(grant) { entry ->
         withContext(NonCancellable) {
-            store.delete(account)
+            store.delete(grant)
             entry.pending = null
         }
     }
 
-    private suspend fun persistPending(account: AccountId, configuration: OAuthConfiguration, entry: Entry) {
+    private suspend fun persistPending(grant: OAuthGrant, configuration: OAuthConfiguration, entry: Entry) {
         val pending = entry.pending ?: return
         if (!pending.matches(configuration)) throw OAuthTokenStorageException()
         // Once a rotated credential is observed, finish its protected write despite caller cancellation.
         // On service failure retain it for a write retry, never return it or refresh the old credential again.
         withContext(NonCancellable) {
-            store.write(account, pending.configuration, pending.tokens)
+            store.write(grant, pending.configuration, pending.tokens)
             entry.pending = null
         }
     }
 
-    private suspend fun <T> withAccount(account: AccountId, operation: suspend (Entry) -> T): T = withContext(
+    private suspend fun <T> withGrant(grant: OAuthGrant, operation: suspend (Entry) -> T): T = withContext(
         Dispatchers.IO,
     ) {
         val entry = synchronized(registryLock) {
-            entries.getOrPut(account, ::Entry).also { it.users++ }
+            entries.getOrPut(grant, ::Entry).also { it.users++ }
         }
         try {
             entry.mutex.withLock { operation(entry) }
         } finally {
             synchronized(registryLock) {
                 entry.users--
-                // Waiters retain references before locking, preventing two live mutexes for the same account.
-                if (entry.users == 0 && entry.pending == null) entries.remove(account)
+                // Waiters retain references before locking, preventing two live mutexes for the same grant.
+                if (entry.users == 0 && entry.pending == null) entries.remove(grant)
             }
         }
     }

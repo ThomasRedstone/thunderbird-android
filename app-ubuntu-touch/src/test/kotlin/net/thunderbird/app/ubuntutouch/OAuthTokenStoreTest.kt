@@ -9,8 +9,8 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class OAuthTokenStoreTest {
-    private val account = AccountIdFactory.create()
-    private val other = AccountIdFactory.create()
+    private val account = OAuthGrant(AccountIdFactory.create())
+    private val other = OAuthGrant(AccountIdFactory.create())
     private val configuration = OAuthConfiguration(
         "synthetic-client",
         listOf("read", "send"),
@@ -40,7 +40,7 @@ class OAuthTokenStoreTest {
         val testSubject = OAuthTokenStore(credentials)
         testSubject.write(account, configuration, tokens)
         assertThat(testSubject.read(other, configuration)).isNull()
-        credentials.values["ut-oauth-v1:$other"] = credentials.values.getValue("ut-oauth-v1:$account").copyOf()
+        credentials.values[other.credentialKey] = credentials.values.getValue(account.credentialKey).copyOf()
         assertInvalid { testSubject.read(other, configuration) }
         assertThat(testSubject.read(account, configuration)!!.accessToken).isEqualTo(tokens.accessToken)
     }
@@ -77,13 +77,14 @@ class OAuthTokenStoreTest {
         val credentials = RecordingCredentials()
         val testSubject = OAuthTokenStore(credentials)
         testSubject.write(account, configuration, tokens)
-        val key = "ut-oauth-v1:$account"
+        val key = account.credentialKey
         val valid = credentials.values.getValue(key).copyOf()
         val refreshMarker = 4 + 32 + 2 + tokens.accessToken.length
         val invalid = listOf(
             valid.copyOf(3),
             valid.copyOf(valid.size - 1),
-            valid.copyOf().also { it[3] = 2 },
+            valid.copyOf().also { it[3] = 0 },
+            valid.copyOf().also { it[3] = 1 },
             valid + byteArrayOf(1),
             valid.copyOf().also { it[refreshMarker] = 2 },
             ByteArray(40001),
@@ -139,6 +140,23 @@ class OAuthTokenStoreTest {
             assertThat(failure is IllegalArgumentException).isTrue()
             assertThat(failure!!.message in setOf("Invalid OAuth token", "Invalid OAuth expiry")).isTrue()
         }
+    }
+
+    @Test
+    fun `generations of same account isolate values deletion and copied payloads`() {
+        val credentials = RecordingCredentials()
+        val testSubject = OAuthTokenStore(credentials)
+        val replacement = OAuthGrant(account.accountId)
+        testSubject.write(account, configuration, tokens)
+        testSubject.write(replacement, configuration, OAuthTokens("new-access", "new-refresh", 0))
+        assertThat(testSubject.read(account, configuration)!!.accessToken).isEqualTo(tokens.accessToken)
+        assertThat(testSubject.read(replacement, configuration)!!.accessToken).isEqualTo("new-access")
+        val oldPayload = credentials.values.getValue(account.credentialKey).copyOf()
+        testSubject.delete(account)
+        assertThat(testSubject.read(account, configuration)).isNull()
+        assertThat(testSubject.read(replacement, configuration)!!.refreshToken).isEqualTo("new-refresh")
+        credentials.values[replacement.credentialKey] = oldPayload
+        assertInvalid { testSubject.read(replacement, configuration) }
     }
 
     private fun assertInvalid(read: () -> OAuthTokens?) {

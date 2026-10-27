@@ -1837,3 +1837,37 @@ Shared-fix verification used JDK 21/Android SDK and these scoped tasks, all with
 
 The raw check/Android/before-fix logs are retained under build/evidence/smtp-alias/ as well as the /tmp paths above.
 Both Android consumer builds completed before finalizing this change; no background build/server/probe remains running.
+
+
+### OAuth grant generations before account-manager wiring
+
+OAuthGrant now separates a stable account ID from a particular authorization's protected credential reference.
+Each new grant gets a random UUID generation in an account-bound ut-oauth-v2 key. Restoring a reference validates
+its exact account prefix, bounded length and canonical generation UUID; it cannot target a legacy password key or
+another account's key. Its string representation is redacted.
+
+Token store, coordinator and engine bridge now take that explicit grant reference. The protected envelope's binding
+includes both account ID and credential key, so copying a payload to another generation of the same account fails.
+Coordinator locks and pending writes are keyed by grant, allowing a replacement to proceed while an older generation's
+network request is still in flight. The old result writes only its own key; late invalidation cannot affect a replacement,
+even if both contain identical access-token text. Deleting one generation leaves the other intact.
+
+The token envelope is version 2. Version 1 was host-only prototype code and was never included in installed 0.1.18;
+there is no deployed token-store migration to perform. Old envelope versions fail closed. Password encoding, existing
+account SQL schema and the phone's installed credentials are unchanged.
+
+Five new tests cover generation creation/restoration and malformed/cross-account/password references; same-account
+store/deletion/copy isolation; replacement progress while an older refresh is pending; and engine invalidation with
+identical token text in different generations. Existing OAuth tests now use explicit generation references.
+This is preparation for ownership integration, not its completion: an old result can still write its old key when
+using the raw CredentialStore. Account-manager current-generation/mode checks must fence protected access under the
+same lock as replacement/deletion, so deleted/retired keys cannot be recreated. Creation/replacement cleanup journaling,
+provider-host allowlisting, session cancellation and setup-generation validation remain required before UI enablement.
+No provider registration, configuration factory, dependency or permission changed in this slice.
+
+
+All 221 host app tests pass with zero failures/errors/skips, plus detekt/installDist/spotlessCheck
+(/tmp/thunderbird-oauth-grant-full.log; XML build/evidence/oauth-grant/). App-scoped tasks used JDK 21/SDK and the
+standard no-configuration-cache/isolated-projects=false/max-workers=4 options. No shared engine/Android code changed;
+the prior SMTP/Android consumer checks remain applicable. Android instrumentation was not run for this JVM change.
+Installed phone/fleet remain verified 0.1.18/f18314918d; a later package must use a new version for these grant APIs.

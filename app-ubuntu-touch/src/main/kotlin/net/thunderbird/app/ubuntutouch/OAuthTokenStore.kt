@@ -7,7 +7,6 @@ import java.io.DataOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 import net.thunderbird.core.common.oauth.OAuthConfiguration
-import net.thunderbird.feature.account.AccountId
 
 internal class OAuthTokens(val accessToken: String, val refreshToken: String?, val expiresAtMillis: Long) {
     init {
@@ -20,37 +19,36 @@ internal class OAuthTokens(val accessToken: String, val refreshToken: String?, v
 
 /** Opaque token data goes only to the protected service, never to the mail database. Not yet wired to setup/removal. */
 internal class OAuthTokenStore(private val credentials: CredentialStore) {
-    fun read(account: AccountId, configuration: OAuthConfiguration): OAuthTokens? {
-        val encoded = credentials.read(key(account)) ?: return null
+    fun read(grant: OAuthGrant, configuration: OAuthConfiguration): OAuthTokens? {
+        val encoded = credentials.read(grant.credentialKey) ?: return null
         return try {
-            decode(encoded, binding(account, configuration))
+            decode(encoded, binding(grant, configuration))
         } finally {
             encoded.fill(0)
         }
     }
 
-    fun write(account: AccountId, configuration: OAuthConfiguration, tokens: OAuthTokens) {
-        val encoded = encode(binding(account, configuration), tokens)
+    fun write(grant: OAuthGrant, configuration: OAuthConfiguration, tokens: OAuthTokens) {
+        val encoded = encode(binding(grant, configuration), tokens)
         try {
-            credentials.write(key(account), encoded)
+            credentials.write(grant.credentialKey, encoded)
         } finally {
             encoded.fill(0)
         }
     }
 
-    fun delete(account: AccountId) = credentials.delete(key(account))
-
-    private fun key(account: AccountId): String = "ut-oauth-v1:$account"
+    fun delete(grant: OAuthGrant) = credentials.delete(grant.credentialKey)
 }
 
 internal class OAuthTokenStorageException : IOException(
     "Stored OAuth state is invalid or belongs to another configuration",
 )
 
-private fun binding(account: AccountId, configuration: OAuthConfiguration): ByteArray {
+private fun binding(grant: OAuthGrant, configuration: OAuthConfiguration): ByteArray {
     val fields =
         listOf(
-            account.toString(),
+            grant.accountId.toString(),
+            grant.credentialKey,
             configuration.clientId,
             configuration.authorizationEndpoint,
             configuration.tokenEndpoint,
@@ -64,7 +62,8 @@ private fun binding(account: AccountId, configuration: OAuthConfiguration): Byte
     }
     val buffer = ByteArrayOutputStream()
     val output = DataOutputStream(buffer)
-    output.writeUTF(account.toString())
+    output.writeUTF(grant.accountId.toString())
+    output.writeUTF(grant.credentialKey)
     output.writeUTF(configuration.clientId)
     output.writeUTF(configuration.authorizationEndpoint)
     output.writeUTF(configuration.tokenEndpoint)
@@ -123,7 +122,7 @@ private class SecretBuffer : ByteArrayOutputStream() {
     }
 }
 
-private const val TOKEN_FORMAT_VERSION = 1
+private const val TOKEN_FORMAT_VERSION = 2
 private const val BINDING_BYTES = 32
 private const val MAX_TOKEN_CHARACTERS = 16_384
 private const val MAX_ENCODED_BYTES = 40_000

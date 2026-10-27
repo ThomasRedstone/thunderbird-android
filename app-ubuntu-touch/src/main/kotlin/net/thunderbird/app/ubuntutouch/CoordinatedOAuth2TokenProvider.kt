@@ -16,11 +16,10 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import net.thunderbird.core.common.oauth.OAuthConfiguration
-import net.thunderbird.feature.account.AccountId
 
 /** For the engine's blocking authentication calls. Share the coordinator across all protocol/store providers. */
 internal class CoordinatedOAuth2TokenProvider(
-    private val account: AccountId,
+    private val grant: OAuthGrant,
     configuration: OAuthConfiguration,
     private val coordinator: OAuthTokenCoordinator,
     verifiedUsernames: Set<String> = emptySet(),
@@ -43,13 +42,13 @@ internal class CoordinatedOAuth2TokenProvider(
     override val usernames: Set<String> get() = alternatives.toSet()
 
     override fun getToken(timeoutMillis: Long): String = blocking(timeoutMillis) {
-        coordinator.token(account, configuration).also { issuedTokens[Thread.currentThread()] = it }
+        coordinator.token(grant, configuration).also { issuedTokens[Thread.currentThread()] = it }
     }
 
     override fun invalidateToken() {
         blocking(MAX_TIMEOUT_MILLIS) {
             issuedTokens[Thread.currentThread()]?.let { rejected ->
-                coordinator.invalidate(account, configuration, rejected)
+                coordinator.invalidate(grant, configuration, rejected)
                 issuedTokens.remove(Thread.currentThread())
             }
         }

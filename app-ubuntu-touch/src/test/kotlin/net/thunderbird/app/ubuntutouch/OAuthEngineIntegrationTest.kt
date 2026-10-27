@@ -26,7 +26,7 @@ import org.junit.rules.TemporaryFolder
 
 class OAuthEngineIntegrationTest {
     @get:Rule val directory = TemporaryFolder()
-    private val account = AccountIdFactory.create()
+    private val account = OAuthGrant(AccountIdFactory.create())
     private val configuration = OAuthConfiguration(
         "synthetic",
         listOf("mail"),

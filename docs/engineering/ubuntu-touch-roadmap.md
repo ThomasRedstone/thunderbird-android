@@ -222,7 +222,9 @@ test period. Foreground-only builds remain clearly labelled until this gate pass
 
 ## Milestone 5 Feature parity and security completion
 
-Create a source-backed feature inventory against Thunderbird base
+The [reviewed feature inventory](ubuntu-touch-feature-inventory.md) maps current gaps to verified baseline source
+anchors and adapter/test work. It remains incomplete until individual legacy commands/settings and all required
+capabilities have coverage. Continue the source-backed feature inventory against Thunderbird base
 `de8a03268415ce8e0c8b0327d3bbcb6b40a06a91`, updating it deliberately when rebasing. Map every user-visible capability
 to a reusable implementation, an Ubuntu Touch adapter and its tests. Mark each row implemented, failing, not started,
 experimental upstream or platform-specific, with evidence. Unresolved rows remain open work, not implicit exclusions.

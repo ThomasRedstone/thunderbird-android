@@ -2350,3 +2350,22 @@ Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/An
 Log `/tmp/thunderbird-bulk-full-final.log`; XML `app-ubuntu-touch/build/evidence/mail-bulk-flags/after/`.
 Scoped docs checks pass. This JVM app has no Android lint or instrumentation task; shared Android sources were
 unchanged, so prior shared-engine Android assembly evidence remains applicable. Native 0.1.22 checks have not run.
+
+
+### Verified 0.1.22 ARM64 package
+
+Candidate24 built from clean `d9eea90a34e144a4a5b588769c6ba9931fcaa6f0`; embedded SOURCE-CHANGES is empty.
+Artifact: `app-ubuntu-touch/build/ut-candidate-24/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.22_arm64.click`.
+Size 147643952 bytes; SHA-256 `d1f1971053917f64986b1e2f1113c8300459dd02157534805eae8350af20abf1`.
+Click review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-022-click.log`). The same pinned builder
+and verified candidate5 ARM runtime were reused, so this is not a cold reproducibility result.
+
+Frozen matching drivers: `build/evidence/oauth-native-022/candidate-022-probes.jar` (62 classes),
+SHA-256 `728cd4ca4da57ef3119cebf2f8d9d35ee7a1ce820b586eb06038267f7baa9c95`;
+`host-server-022.jar` (2 classes), SHA-256 `6b44994cad1a65bb087d7b874ec6e65e54f07bc84ba4c6e343b01ad0775be0e5`.
+LiveMailState ABI changed; use this driver with 0.1.22 production classes, preserving older matching driver/package
+pairs. These existing native fixtures do not prove physical bulk-selection UI acceptance.
+
+No 0.1.22 transfer or installation has started. Latest verified phone version remains 0.1.18; partial 0.1.19 is
+preserved. Do not run the old hardcoded 0.1.19 upgrade script against a newer package. Phone blocker b-nnxn and provider
+decision q-ar74 remain partial gaps. The full roadmap remains active with independent later work still available.

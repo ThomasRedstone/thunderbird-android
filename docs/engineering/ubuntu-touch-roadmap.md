@@ -218,7 +218,8 @@ Cached multi-select and bulk read/unread/star/unstar are implemented in 0.1.22 d
 account and unified cached results. Full account/folder/UID identities, a visible 1000-selection bound, atomic offline
 queue updates and retry/close handling are covered by model/SQLite/rendered checks; controlled TLS IMAP reconciliation
 passes after database reopen. Unified counts cover all accounts and discard review is per account. Other bulk actions,
-server-wide selection, background replay and phone/physical/provider acceptance remain open.
+server-wide selection, background replay and phone/physical/provider acceptance remain open. The 0.1.22 ARM64 Click
+is built and reviewed; installation remains pending.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

@@ -1274,3 +1274,49 @@ A read-only XGetImage capture of only the identified 0.1.16 Mail window (verifie
 window and renders its navigation/folder list. This follows the earlier diagnostic resume, so it does not establish
 normal focus/suspension behaviour. It is an app-window capture, not a Mir foreground screenshot, and does not complete
 physical input, secure keyboard or live-mail UI acceptance. No display policy/permission change was made.
+
+## Installed 0.1.17: confined account/unified search
+
+The advancing transfer completed successfully without restarting. Phone checksum matched the candidate hash above
+before stopping only the old 0.1.16 app service. A private pre-upgrade SQLite backup passed quick_check (schema 9), then
+Phone Manager installed 0.1.17. Expected development-signature/user-bus/old-profile-cache warnings occurred; independent
+checks confirm current 0.1.17, embedded `a938b0424efadb2c9753ef80e58ee4b11fd5992f`, empty source patch and the new profile.
+Fleet scoped commit `41ac3db` pins candidate 19/version/hash, preserving unrelated dirty work without whole-fleet
+convergence or fleet push. Logs: `/tmp/thunderbird-transfer-017.log` and `/tmp/thunderbird-install-017.log`.
+
+Installed production JARs/JVM plus the matching 52-class test-only JAR pass under the enforcing 0.1.17 profile:
+
+- ConfinedSearchProbe reopens real SQLite with two accounts sharing INBOX/UID 1. Reading, pending flag ownership and
+  saved reply ownership target only the selected secondary account; Back restores the primary account and search.
+  The failing-on-access CredentialStore confirms the local journey requires no secrets. Fixture cleanup passes.
+- ConfinedComposerProbe passes schema3→9, Swing Main, drafts/queue/history, response editing and close/Sent settings.
+- ConfinedProtocolProbe passes default unknown-certificate rejection, controlled required STARTTLS receiving/sending,
+  protected SignOn persistence, queued read/star reconciliation, reply threading, automatic Sent filing and repeated
+  send/copy suppression. Cached search includes account scope and deduplicated account enumeration.
+- Independent host recipient/owner Sent mailboxes assert exactly one matching delivery/copy, body/threading and Sent
+  SEEN before body fetch. Source SEEN/FLAGGED and both TLS-upgrade counters pass. Host exits 0 after server shutdown.
+- Only then a fresh phone JVM verifies protected credentials, cached body/flags, SENT/SAVED/threading and local search
+  with no servers. Phone exits 0; independent SSH confirms the protocol fixture is absent and no search-runtime fixture remains.
+
+All prepare/server/restart/cleanup/composer/search commands exit 0. Logs: `/tmp/thunderbird-017-native-search.log`,
+`/tmp/thunderbird-017-native-composer.log`, `/tmp/thunderbird-017-phone.log`, `/tmp/thunderbird-017-server.log` and
+`/tmp/thunderbird-017-restart.log`; controlled host output is `build/evidence/unified-search/native-run-1/`.
+Physical UI/provider, normal focus/suspend, native authenticated interruption, server search, filters, indexed/paged
+large-mailbox search and the remaining full-app milestones remain open. No normal-launch acceptance is inferred from
+the earlier targeted 0.1.16 window capture or this model/protocol verification.
+
+### Attachment integration trace for the next work item
+
+The engine's MessageExtractor.findViewablesAndAttachments supplies non-viewable parts with MIME classification.
+Legacy AttachmentInfoExtractor requires Android Context/Uri/LocalPart and is not directly portable. Shared
+`feature:mail:message:api` contains attachment value types, but adding its adapter still needs a bounded dependency review.
+Use MimeUtility.decodeBody for transfer decoding; raw Body.getInputStream must not be treated as decoded bytes.
+BinaryTempFileBody explicitly has one-use/disposal semantics, and some decoder closes intentionally retain its temp
+file. Repeated cache projections therefore need a resource-lifetime regression before attachment export is added;
+this is a source-derived follow-up, not yet a proven fixed leak.
+
+A read-only device query finds `lomiri-content-hub`/`liblomiri-content-hub1` and its Qt6 library at 2.2.3, plus
+`/usr/bin/lomiri-content-hub-send` owned by that package. The old non-Lomiri package names are not evidence of absence.
+CLI arguments, transfer acknowledgements, receiver lifetime and confinement policy remain unverified; invoking help
+produced no useful interface documentation. Do not invent a broker protocol or assume that launching a CLI completes
+Open/Save acceptance. No attachment sharing, new permission or system package change was performed.

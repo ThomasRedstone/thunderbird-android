@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.16; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.17; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -136,14 +136,11 @@ Physical/provider acceptance, native/provider APPEND-response-loss fixtures and 
 Development 0.1.16 adds offline cached folder search across sender, subject and viewable plain text. Words are matched
 literally, case-insensitively, across these fields. Search/Clear preserve the query while opening messages; leaving the
 folder resets it. HTML and attachment bodies are not searched. Account-wide/server search and large-mailbox indexing
-remain required. Installed FP4 source is `b24e4b3054`; confined search and fresh-process recovery with servers stopped pass.
-Fleet scoped commit `c0f73ef` pins the matching artifact. Physical/provider journeys remain open.
+remain required. Version 0.1.16 used source `b24e4b3054`; confined search and fresh-process recovery with servers stopped pass.
+Its fleet scoped commit is `c0f73ef`. Physical/provider journeys remain open.
 
-The next source increment adds an All folders in account search scope. Results show their folder and preserve
-account/folder/UID identity when reading or changing flags, including duplicate UIDs in separate folders. Back restores
-the original search. Host storage/model/UI checks pass; this scope is not yet installed on FP4. Unified/server search
-and performance work remain required.
-
-Source now also adds All accounts cached search, with account/folder labels, account-safe result reading and local
-flag/reply actions, and Back restoring the original search account. This is host-tested; native/physical acceptance
-for these new scopes is pending. Server search, filters/indexing and a unified inbox remain required.
+Development 0.1.17 adds This account and All accounts cached search scopes. Rows retain account/folder/UID identity,
+including collisions between folders/accounts. Reading, local flags and reply creation use the selected account;
+Back restores the original account/folder/query/scope. Host and confined FP4 model/storage checks pass, with fresh-JVM
+offline search recovery after server shutdown. Installed clean source is `a938b0424e`; fleet pin is `41ac3db`.
+Physical UI/provider acceptance, server search, filters/indexing and a unified inbox remain required.

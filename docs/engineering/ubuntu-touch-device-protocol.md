@@ -238,3 +238,17 @@ argument is needed. After stopping the host and requiring its final independent 
 recovery probe repeats search with the servers absent. Both phases pass under the 0.1.16 enforcing profile.
 This checks the local repository/model boundary; the physical Search field, Maliit keyboard and result navigation
 still need the device UI journey. Account/unified/server scopes and large-mailbox performance remain open.
+
+## Account-safe unified search on 0.1.17
+
+Use the matching test-only `candidate-017-probes.jar` (52 classes) with installed production JVM/app JARs and profile
+`mail-demo.thomasredstone_mail-demo_0.1.17`. `ConfinedSearchProbe` takes that profile as its only argument. It refuses a
+non-enforcing profile, creates a new private fixture, seeds two synthetic SQL accounts with the same INBOX/UID and
+reopens the database. It verifies selected-account reading, flag ownership, reply-draft ownership and Back restoring
+the origin. Its CredentialStore fails on any access, so this offline test cannot silently depend on credentials.
+It does not replace SignOn setup/authentication coverage. It removes its private fixture on completion.
+
+This passes on FP4. Composer checks also pass. The existing controlled protocol/restart fixture additionally checks
+account-wide and deduplicated multi-account enumeration; require host independent mailbox assertions/exit 0 before
+fresh-process offline verification. These pass on 0.1.17, followed by independent private-fixture cleanup checks.
+Actual cross-account SMTP/provider and physical scope-control/keyboard journeys remain open.

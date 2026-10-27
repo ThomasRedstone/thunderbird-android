@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.16 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.17 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
 | Engineering | 133 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Cached search committed/pushed as `b24e4b3054`; installed 0.1.16 embeds that clean source | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager install; fleet commit `c0f73ef` pins installed 0.1.16/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
+| Source delivery | Unified search committed/pushed as `a938b0424e`; installed 0.1.17 embeds that clean source | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager install; fleet commit `41ac3db` pins installed 0.1.17/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,7 +27,7 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.16 is installed on the FP4 with account
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.17 is installed on the FP4 with account
 setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
@@ -196,9 +196,10 @@ and cached viewable plain text; offline storage/model/UI tests pass. It excludes
 Confined native search and fresh-process recovery after server shutdown pass. Account/unified scopes, server search,
 filters, HTML indexing and large-mailbox indexing/pagination/cancellation performance remain required; this slice does not complete the search gate.
 
-Account-wide cached search is now implemented in source and host-tested, with contextual account/folder/UID results,
-reader/action routing and Back restoring the original search. It is not yet deployed. Unified-account cached search is also implemented in source with account-safe reader/flag/reply routing and host tests.
-Both new scopes await phone acceptance. Server search, filters, HTML indexing and large-mailbox performance remain required.
+Account-wide and unified-account cached search are deployed in 0.1.17, with contextual account/folder/UID results,
+reader/flag/reply routing and Back restoring the original search account/folder. Confined model and reopened SQLite
+checks pass, as does fresh-process offline search after server shutdown. Physical UI acceptance for these scopes,
+server search, filters, HTML indexing and large-mailbox performance remain required.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

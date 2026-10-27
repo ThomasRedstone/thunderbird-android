@@ -2423,3 +2423,47 @@ No transfer or installation of 0.1.23 was attempted. Latest verified phone versi
 is retained. The old upgrade script is hardcoded to 0.1.19; adapt and validate the selected newer version, source/hash
 and database backup before using Phone Manager. Phone b-nnxn and OAuth registration decision q-ar74 remain partial
 gaps. Provider scope/identity validation code gates also remain required independently of registration approval.
+
+
+## OAuth granted scopes and permission gates (0.1.24 development source)
+
+The token client now retains exact case-sensitive scope sets, rejects malformed/duplicate-key scope responses and
+applies bounded syntax/count/size validation. Initial exchange uses an explicit returned scope, or the requested set
+when omitted. It separately tracks the original grant and current access-token scopes: refresh omission inherits the
+original grant, not a previously narrowed access token. Unknown legacy grants stay unknown. This follows
+[RFC 6749 sections 3.3, 5.1 and 6](https://www.rfc-editor.org/rfc/rfc6749.html#section-3.3); access and identity tokens
+remain opaque and no JWT claims are trusted.
+
+Protected token format v3 appends current/original scope metadata, with backward reading of v2 as unknown scopes.
+No SQL migration or plaintext scope store was introduced. Scope sets are immutable snapshots; up to 64 entries,
+512 ASCII characters each and 3072 aggregate scope characters per set keep both maximum 16 KiB tokens plus metadata
+within the existing 40000-byte protected envelope. Invalid stored counts, duplicates and syntax fail closed. Legacy
+v2 tokens cannot satisfy a configured minimum until scope metadata is established; old app versions cannot read v3,
+so rollback may require reauthorization. Protected-state downgrade/native migration acceptance remains open.
+
+Provider specifications can declare required access scopes separately from requested consent/helper scopes. Policy
+must be explicitly chosen and verified for each real provider before enablement; the default empty policy in existing
+synthetic fixtures is not a real-provider acceptance result. Real Google/Microsoft policies, canonical scope spelling,
+identity validation and registrations are still unresolved; the production registry remains empty.
+
+Create/replace validates the required scopes before journaling or changing protected credentials, preserving an old
+account/grant if permission checks fail. Both protocol providers pass an immutable policy snapshot to the shared
+coordinator. Fresh cached access must meet that policy. After refresh, rotated secrets are persisted before checking
+access permissions; an insufficient token is denied without discarding its replacement refresh token. Invalidation
+preserves scope metadata. Caller mutation during a suspended refresh cannot weaken the check.
+
+Tests cover explicit/omitted/narrowed scopes, original-grant inheritance, case sensitivity, invalid JSON/type/syntax/
+escaped duplicate keys and response-byte clearing, v2 read/v3 rewrite, immutable snapshots, maximum protected payload,
+malformed stored metadata, pre-commit rejection, cached denial, post-rotation denial and recovery, policy mutation and
+both actual IMAP/SMTP token-provider bindings. No real provider registration, client ID, permission, dependency or
+shared Android source was changed. Source advances to 0.1.24 after immutable 0.1.23. Real-provider/phone acceptance and
+verified identity binding remain required; scope checking alone does not complete either provider flow.
+
+Verification: full 324 app tests, zero failures/errors/skips; `detekt`, `installDist` and `spotlessCheck` pass.
+Focused log `/tmp/thunderbird-oauth-scopes-focused.log`; full log `/tmp/thunderbird-oauth-scopes-full.log`; XML
+`app-ubuntu-touch/build/evidence/oauth-scopes/`. Command: JDK21/SDK environment, `./gradlew
+:app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist
+:app-ubuntu-touch:spotlessCheck --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Scoped documentation checks pass. No Android lint/instrumentation target exists for this JVM app; shared Android
+source is unchanged and prior shared-engine Android assembly evidence remains applicable. Native protected-format
+migration, real provider flows and physical permission/error handling were not tested.

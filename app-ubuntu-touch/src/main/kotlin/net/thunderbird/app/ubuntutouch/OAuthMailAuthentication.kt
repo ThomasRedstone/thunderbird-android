@@ -10,9 +10,14 @@ internal class OAuthMailAuthentication(
 ) {
     fun credentials(account: UtMailAccount, resources: MailSessionResources): MailSessionAuthentication {
         val configuration = providers.configurationFor(account)
+        val required = providers.requiredScopesFor(account)
         val grant = OAuthGrant(account.id, account.credentialKey)
-        val incoming = resources.own(CoordinatedOAuth2TokenProvider(grant, configuration, coordinator))
-        val outgoing = resources.own(CoordinatedOAuth2TokenProvider(grant, configuration, coordinator))
+        val incoming = resources.own(
+            CoordinatedOAuth2TokenProvider(grant, configuration, coordinator, requiredScopes = required),
+        )
+        val outgoing = resources.own(
+            CoordinatedOAuth2TokenProvider(grant, configuration, coordinator, requiredScopes = required),
+        )
         return MailSessionAuthentication(account.incoming, account.outgoing, incoming, outgoing)
     }
 }

@@ -21,6 +21,76 @@ class OAuthTokenStoreTest {
     private val tokens = OAuthTokens("private-access", "private-refresh", 123456789L)
 
     @Test
+    fun `maximum tokens and bounded scope metadata fit the protected payload limit`() {
+        val scopes = (0..5).map { "a".repeat(511) + it }.toSet()
+        val scoped = OAuthTokens("a".repeat(16384), "r".repeat(16384), 1, scopes)
+        val credentials = RecordingCredentials()
+        val testSubject = OAuthTokenStore(credentials)
+        testSubject.write(account, configuration, scoped)
+        assertThat(credentials.values.getValue(account.credentialKey).size <= 40000).isTrue()
+        assertThat(testSubject.read(account, configuration)!!.scopes).isEqualTo(scopes)
+    }
+
+    @Test
+    fun `invalid scope counts duplicate entries and invalid syntax fail closed in protected metadata`() {
+        val credentials = RecordingCredentials()
+        val testSubject = OAuthTokenStore(credentials)
+        testSubject.write(account, configuration, tokens)
+        val encoded = credentials.values.getValue(account.credentialKey)
+        val prefix = encoded.copyOf(encoded.size - 8)
+        val invalid = listOf<Pair<Int, List<String>>>(
+            -2 to emptyList(),
+            65 to emptyList(),
+            1 to listOf(""),
+            2 to listOf("read", "read"),
+            1 to listOf("read send"),
+        )
+        invalid.forEach { (count, entries) ->
+            val bytes = java.io.ByteArrayOutputStream()
+            java.io.DataOutputStream(bytes).use {
+                it.write(prefix)
+                it.writeInt(count)
+                entries.forEach(it::writeUTF)
+                it.writeInt(-1)
+            }
+            credentials.values[account.credentialKey] = bytes.toByteArray()
+            assertInvalid { testSubject.read(account, configuration) }
+        }
+    }
+
+    @Test
+    fun `granted scope metadata snapshots input and survives protected reopen separately from original grant`() {
+        val mutable = mutableSetOf("read")
+        val scoped = OAuthTokens("access", "refresh", 1, mutable, setOf("read", "send"))
+        mutable += "send"
+        assertThat(scoped.scopes).isEqualTo(setOf("read"))
+        val testSubject = OAuthTokenStore(RecordingCredentials())
+        testSubject.write(account, configuration, scoped)
+        val reopened = testSubject.read(account, configuration)!!
+        assertThat(reopened.scopes).isEqualTo(setOf("read"))
+        assertThat(reopened.grantScopes).isEqualTo(setOf("read", "send"))
+        assertThat(runCatching { reopened.requireScopes(setOf("Read")) }.isFailure).isTrue()
+        reopened.requireScopes(setOf("read"))
+    }
+
+    @Test
+    fun `legacy v2 state remains readable with explicitly unknown scopes instead of inventing permissions`() {
+        val credentials = RecordingCredentials()
+        val testSubject = OAuthTokenStore(credentials)
+        testSubject.write(account, configuration, tokens)
+        val v3 = credentials.values.getValue(account.credentialKey)
+        credentials.values[account.credentialKey] = v3.copyOf(v3.size - 8).also { it[3] = 2 }
+        val legacy = testSubject.read(account, configuration)!!
+        assertThat(legacy.refreshToken).isEqualTo(tokens.refreshToken)
+        assertThat(legacy.scopes).isNull()
+        assertThat(legacy.grantScopes).isNull()
+        val failure = runCatching { legacy.requireScopes(setOf("read")) }.exceptionOrNull() as OAuthTokenException
+        assertThat(failure.reason).isEqualTo(OAuthTokenFailure.INSUFFICIENT_SCOPE)
+        testSubject.write(account, configuration, legacy)
+        assertThat(credentials.values.getValue(account.credentialKey)[3]).isEqualTo(3.toByte())
+    }
+
+    @Test
     fun `protected state reopens through a new store and transient arrays are cleared`() {
         val credentials = RecordingCredentials()
         val testSubject = OAuthTokenStore(credentials)

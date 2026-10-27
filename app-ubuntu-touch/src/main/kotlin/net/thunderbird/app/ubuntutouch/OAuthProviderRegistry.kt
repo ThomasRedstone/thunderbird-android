@@ -27,12 +27,15 @@ internal data class OAuthProviderSpec(
     val incoming: OAuthMailServer,
     val outgoing: OAuthMailServer,
     val displayName: String = id,
+    val requiredScopes: Set<String> = emptySet(),
 ) {
     init {
         require(
             displayName.isNotBlank() && displayName.length <= MAX_PROVIDER_NAME &&
                 displayName.none { it.isISOControl() },
         )
+        require(requiredScopes.isEmpty() || validOAuthScopes(requiredScopes))
+        require(configuration.scopes.containsAll(requiredScopes))
         require(PROVIDER_ID.matches(id)) { "Invalid OAuth provider ID" }
         require(configuration.clientId.isNotBlank() && configuration.clientId.length <= MAX_CLIENT_ID)
         require(configuration.scopes.size in 1..MAX_SCOPES && configuration.scopes.all(::validScope))
@@ -43,7 +46,10 @@ internal data class OAuthProviderSpec(
 
 internal class OAuthProviderRegistry(specs: List<OAuthProviderSpec> = emptyList()) {
     private val providers = specs.associate { spec ->
-        spec.id to spec.copy(configuration = spec.configuration.copy(scopes = spec.configuration.scopes.toList()))
+        spec.id to spec.copy(
+            configuration = spec.configuration.copy(scopes = spec.configuration.scopes.toList()),
+            requiredScopes = spec.requiredScopes.toSet(),
+        )
     }
 
     init {
@@ -64,6 +70,11 @@ internal class OAuthProviderRegistry(specs: List<OAuthProviderSpec> = emptyList(
             grant.credentialKey,
             provider.id,
         )
+    }
+
+    fun requiredScopesFor(account: UtMailAccount): Set<String> {
+        configurationFor(account)
+        return providers.getValue(checkNotNull(account.oauthProviderId)).requiredScopes.toSet()
     }
 
     fun configurationFor(account: UtMailAccount): OAuthConfiguration {

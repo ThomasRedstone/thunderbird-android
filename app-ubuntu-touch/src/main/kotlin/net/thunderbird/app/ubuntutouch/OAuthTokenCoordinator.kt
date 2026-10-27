@@ -16,13 +16,19 @@ internal class OAuthTokenCoordinator(
     private val registryLock = Any()
     private val entries = mutableMapOf<OAuthGrant, Entry>()
 
-    suspend fun token(grant: OAuthGrant, configuration: OAuthConfiguration): String = withGrant(grant) { entry ->
+    suspend fun token(
+        grant: OAuthGrant,
+        configuration: OAuthConfiguration,
+        requiredScopes: Set<String> = emptySet(),
+    ): String = withGrant(grant) { entry ->
         val snapshot = configuration.snapshot()
+        val required = requiredScopes.toSet()
         persistPending(grant, snapshot, entry)
         val current = store.read(grant, snapshot) ?: throw OAuthTokenException(OAuthTokenFailure.REAUTH_REQUIRED)
         val now = nowMillis()
         require(now >= 0) { "Invalid OAuth clock" }
         if (current.expiresAtMillis - now > EXPIRY_MARGIN_MILLIS) {
+            current.requireScopes(required)
             current.accessToken
         } else {
             val replacement = try {
@@ -34,6 +40,7 @@ internal class OAuthTokenCoordinator(
             entry.pending = Pending(snapshot, replacement)
             persistPending(grant, snapshot, entry)
             if (replacement.expiresAtMillis <= nowMillis()) throw OAuthTokenException(OAuthTokenFailure.UNAVAILABLE)
+            replacement.requireScopes(required)
             replacement.accessToken
         }
     }
@@ -59,7 +66,11 @@ internal class OAuthTokenCoordinator(
         persistPending(grant, snapshot, entry)
         val current = store.read(grant, snapshot)
         if (current?.accessToken == rejectedAccessToken) {
-            entry.pending = Pending(snapshot, OAuthTokens(current.accessToken, current.refreshToken, 0))
+            entry.pending =
+                Pending(
+                    snapshot,
+                    OAuthTokens(current.accessToken, current.refreshToken, 0, current.scopes, current.grantScopes),
+                )
             persistPending(grant, snapshot, entry)
         }
     }

@@ -8,16 +8,26 @@ import java.io.IOException
 import java.security.MessageDigest
 import net.thunderbird.core.common.oauth.OAuthConfiguration
 
-internal class OAuthTokens(val accessToken: String, val refreshToken: String?, val expiresAtMillis: Long) {
+internal class OAuthTokens(
+    val accessToken: String,
+    val refreshToken: String?,
+    val expiresAtMillis: Long,
+    scopes: Set<String>? = null,
+    grantScopes: Set<String>? = scopes,
+) {
+    val scopes: Set<String>? = scopes?.let { java.util.Collections.unmodifiableSet(it.toSet()) }
+    val grantScopes: Set<String>? = grantScopes?.let { java.util.Collections.unmodifiableSet(it.toSet()) }
     init {
         require(validToken(accessToken) && (refreshToken == null || validToken(refreshToken))) { "Invalid OAuth token" }
+        require(scopes == null || validOAuthScopes(scopes)) { "Invalid OAuth scopes" }
+        require(grantScopes == null || validOAuthScopes(grantScopes)) { "Invalid OAuth grant scopes" }
         require(expiresAtMillis >= 0) { "Invalid OAuth expiry" }
     }
 
     override fun toString(): String = "OAuthTokens(redacted)"
 }
 
-/** Opaque token data goes only to the protected service, never to the mail database. Not yet wired to setup/removal. */
+/** Opaque tokens and scope metadata stay in the protected service, never in the mail database. */
 internal class OAuthTokenStore(private val credentials: CredentialStore) {
     fun read(grant: OAuthGrant, configuration: OAuthConfiguration): OAuthTokens? {
         val encoded = credentials.read(grant.credentialKey) ?: return null
@@ -82,6 +92,8 @@ private fun encode(binding: ByteArray, tokens: OAuthTokens): ByteArray = SecretB
     output.writeBoolean(tokens.refreshToken != null)
     tokens.refreshToken?.let(output::writeUTF)
     output.writeLong(tokens.expiresAtMillis)
+    output.writeOAuthScopes(tokens.scopes)
+    output.writeOAuthScopes(tokens.grantScopes)
     output.flush()
     buffer.toByteArray()
 }
@@ -90,7 +102,8 @@ private fun decode(encoded: ByteArray, expectedBinding: ByteArray): OAuthTokens 
     requireStored(encoded.size <= MAX_ENCODED_BYTES)
     try {
         val input = DataInputStream(ByteArrayInputStream(encoded))
-        requireStored(input.readInt() == TOKEN_FORMAT_VERSION)
+        val version = input.readInt()
+        requireStored(version in LEGACY_TOKEN_FORMAT_VERSION..TOKEN_FORMAT_VERSION)
         val actualBinding = ByteArray(BINDING_BYTES)
         input.readFully(actualBinding)
         requireStored(MessageDigest.isEqual(expectedBinding, actualBinding))
@@ -99,8 +112,10 @@ private fun decode(encoded: ByteArray, expectedBinding: ByteArray): OAuthTokens 
         requireStored(hasRefresh in 0..1)
         val refresh = if (hasRefresh == 1) input.readUTF() else null
         val expires = input.readLong()
+        val scopes = if (version == TOKEN_FORMAT_VERSION) input.readOAuthScopes() else null
+        val grantScopes = if (version == TOKEN_FORMAT_VERSION) input.readOAuthScopes() else null
         requireStored(input.available() == 0)
-        return OAuthTokens(access, refresh, expires)
+        return OAuthTokens(access, refresh, expires, scopes, grantScopes)
     } catch (_: IOException) {
         throw OAuthTokenStorageException()
     } catch (_: IllegalArgumentException) {
@@ -122,7 +137,8 @@ private class SecretBuffer : ByteArrayOutputStream() {
     }
 }
 
-private const val TOKEN_FORMAT_VERSION = 2
+private const val LEGACY_TOKEN_FORMAT_VERSION = 2
+private const val TOKEN_FORMAT_VERSION = 3
 private const val BINDING_BYTES = 32
 private const val MAX_TOKEN_CHARACTERS = 16_384
 private const val MAX_ENCODED_BYTES = 40_000

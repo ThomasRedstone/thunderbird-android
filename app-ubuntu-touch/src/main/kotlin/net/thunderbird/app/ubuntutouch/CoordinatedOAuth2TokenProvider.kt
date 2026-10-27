@@ -23,8 +23,10 @@ internal class CoordinatedOAuth2TokenProvider(
     configuration: OAuthConfiguration,
     private val coordinator: OAuthTokenCoordinator,
     verifiedUsernames: Set<String> = emptySet(),
+    requiredScopes: Set<String> = emptySet(),
 ) : OAuth2TokenProvider, AutoCloseable {
     private val configuration = configuration.copy(scopes = configuration.scopes.toList())
+    private val requiredScopes = requiredScopes.toSet()
     private val alternatives = verifiedUsernames.toSet()
     private val lifecycle = SupervisorJob()
     private val lock = ReentrantLock()
@@ -42,7 +44,7 @@ internal class CoordinatedOAuth2TokenProvider(
     override val usernames: Set<String> get() = alternatives.toSet()
 
     override fun getToken(timeoutMillis: Long): String = blocking(timeoutMillis) {
-        coordinator.token(grant, configuration).also { issuedTokens[Thread.currentThread()] = it }
+        coordinator.token(grant, configuration, requiredScopes).also { issuedTokens[Thread.currentThread()] = it }
     }
 
     override fun invalidateToken() {

@@ -174,6 +174,7 @@ internal class UtAccountManager(
         check(findById(account.id) == null) { "Account already exists" }
         require(findAll().none { it.credentialKey == account.credentialKey })
         val configuration = oauthProviders.configurationFor(account)
+        tokens.requireScopes(oauthProviders.requiredScopesFor(account))
         storage.scheduleCredentialCleanup(account.credentialKey)
         OAuthTokenStore(credentials).write(OAuthGrant(account.id, account.credentialKey), configuration, tokens)
         createSync(account)
@@ -190,6 +191,7 @@ internal class UtAccountManager(
         check(findById(expected.id) == expected) { "Account changed during authorization" }
         require(findAll().none { it.credentialKey == replacement.credentialKey })
         val configuration = oauthProviders.configurationFor(replacement)
+        tokens.requireScopes(oauthProviders.requiredScopesFor(replacement))
         storage.scheduleCredentialCleanup(replacement.credentialKey)
         OAuthTokenStore(credentials).write(OAuthGrant(replacement.id, replacement.credentialKey), configuration, tokens)
         storage.scheduleCredentialCleanup(expected.credentialKey)

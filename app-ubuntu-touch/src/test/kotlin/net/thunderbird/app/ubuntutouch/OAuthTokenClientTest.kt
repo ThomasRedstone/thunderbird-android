@@ -28,6 +28,50 @@ class OAuthTokenClientTest {
     """.trimIndent()
 
     @Test
+    fun `scope response and omitted refresh preserve original grant`() = runBlocking {
+        var response = success.dropLast(1) + ",\"scope\":\"read send\"}"
+        val testSubject = OAuthTokenClient(
+            OAuthTokenHttp { _, _ ->
+                OAuthHttpReply(200, "application/json", response.toByteArray())
+            },
+        ) { 0 }
+        val initial = testSubject.exchange(configuration, authorization)
+        assertThat(initial.scopes).isEqualTo(setOf("read", "send"))
+        assertThat(initial.grantScopes).isEqualTo(setOf("read", "send"))
+        response = success.dropLast(1) + ",\"scope\":\"read\"}"
+        val narrowed = testSubject.refresh(configuration, initial)
+        assertThat(narrowed.scopes).isEqualTo(setOf("read"))
+        assertThat(narrowed.grantScopes).isEqualTo(initial.grantScopes)
+        response = success
+        assertThat(testSubject.refresh(configuration, narrowed).scopes).isEqualTo(initial.grantScopes)
+        assertThat(testSubject.exchange(configuration, authorization).scopes).isEqualTo(setOf("mail"))
+        val legacy = OAuthTokens("access", "refresh", 0)
+        assertThat(testSubject.refresh(configuration, legacy).scopes).isNull()
+    }
+
+    @Test
+    fun `malformed scope and duplicate escaped scope keys are rejected and response bytes cleared`() = runBlocking {
+        val fields = listOf(
+            "\"scope\":\"\"",
+            "\"scope\":\"read  send\"",
+            "\"scope\":\"read\\tsend\"",
+            "\"scope\":null",
+            "\"scope\":[\"read\"]",
+            "\"scope\":\"read\\\"send\"",
+            "\"scope\":\"read\",\"sc\\u006fpe\":\"send\"",
+            "\"scope\":\"" + "a".repeat(3073) + "\"",
+        )
+        for (field in fields) {
+            val bytes = (success.dropLast(1) + "," + field + "}").toByteArray()
+            val testSubject =
+                OAuthTokenClient(OAuthTokenHttp { _, _ -> OAuthHttpReply(200, "application/json", bytes) })
+            val failure = runCatching { testSubject.exchange(configuration, authorization) }.exceptionOrNull()
+            assertThat((failure as OAuthTokenException).reason).isEqualTo(OAuthTokenFailure.INVALID_RESPONSE)
+            assertThat(bytes.all { it == 0.toByte() }).isTrue()
+        }
+    }
+
+    @Test
     fun `exchange posts code PKCE client and exact redirect then clears response bytes`() = runBlocking {
         var now = 1000L
         var sent: Map<String, String>? = null

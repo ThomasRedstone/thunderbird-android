@@ -38,6 +38,85 @@ class OAuthTokenCoordinatorTest {
     private var now = 1000L
 
     @Test
+    fun `caller mutation during refresh cannot weaken the required scope gate`() = runBlocking {
+        store.write(account, configuration, OAuthTokens("expired", "refresh", 0, setOf("read", "send")))
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val required = mutableSetOf("send")
+        val testSubject = OAuthTokenCoordinator(
+            store,
+            OAuthTokenClient(
+                OAuthTokenHttp { _, _ ->
+                    entered.complete(Unit)
+                    release.await()
+                    OAuthHttpReply(
+                        200,
+                        "application/json",
+                        """{"access_token":"read-only","token_type":"Bearer",
+                "expires_in":3600,"scope":"read"}""".toByteArray(),
+                    )
+                },
+            ) { now },
+        ) { now }
+        val request = async { runCatching { testSubject.token(account, configuration, required) } }
+        entered.await()
+        required.clear()
+        release.complete(Unit)
+        val failure = request.await().exceptionOrNull() as OAuthTokenException
+        assertThat(failure.reason).isEqualTo(OAuthTokenFailure.INSUFFICIENT_SCOPE)
+    }
+
+    @Test
+    fun `insufficient refresh saves rotation and invalidation preserves grant scopes`() = runBlocking {
+        store.write(
+            account,
+            configuration,
+            OAuthTokens(
+                "expired",
+                "old-refresh",
+                0,
+                setOf("read", "send"),
+            ),
+        )
+        var response = """{"access_token":"narrowed","refresh_token":"rotated","token_type":"Bearer",
+            "expires_in":3600,"scope":"read"}"""
+        val testSubject = OAuthTokenCoordinator(
+            store,
+            OAuthTokenClient(
+                OAuthTokenHttp { _, parameters ->
+                    calls.incrementAndGet()
+                    if (calls.get() > 1) assertThat(parameters["refresh_token"]).isEqualTo("rotated")
+                    OAuthHttpReply(200, "application/json", response.toByteArray())
+                },
+            ) { now },
+        ) { now }
+        val failure = runCatching { testSubject.token(account, configuration, setOf("send")) }
+            .exceptionOrNull() as OAuthTokenException
+        assertThat(failure.reason).isEqualTo(OAuthTokenFailure.INSUFFICIENT_SCOPE)
+        val saved = store.read(account, configuration)!!
+        assertThat(saved.refreshToken).isEqualTo("rotated")
+        assertThat(saved.scopes).isEqualTo(setOf("read"))
+        assertThat(saved.grantScopes).isEqualTo(setOf("read", "send"))
+        testSubject.invalidate(account, configuration, "narrowed")
+        assertThat(store.read(account, configuration)!!.grantScopes).isEqualTo(saved.grantScopes)
+        response = """{"access_token":"restored","token_type":"Bearer","expires_in":3600}"""
+        assertThat(testSubject.token(account, configuration, setOf("send"))).isEqualTo("restored")
+    }
+
+    @Test
+    fun `cached unknown or insufficient scopes never authenticate or trigger a refresh`() = runBlocking {
+        val testSubject = coordinator()
+        listOf(null, setOf("read"), setOf("Send")).forEach { scopes ->
+            store.write(account, configuration, OAuthTokens("fresh", "refresh", now + 60001, scopes))
+            val failure = runCatching { testSubject.token(account, configuration, setOf("send")) }
+                .exceptionOrNull() as OAuthTokenException
+            assertThat(failure.reason).isEqualTo(OAuthTokenFailure.INSUFFICIENT_SCOPE)
+        }
+        assertThat(calls.get()).isEqualTo(0)
+        assertThat(store.read(account, configuration)!!.refreshToken).isEqualTo("refresh")
+    }
+
+    @Test
     fun `fresh stored token is reused but exact safety margin triggers refresh`() = runBlocking {
         val testSubject = coordinator()
         store.write(account, configuration, OAuthTokens("fresh", "refresh", now + 60001))

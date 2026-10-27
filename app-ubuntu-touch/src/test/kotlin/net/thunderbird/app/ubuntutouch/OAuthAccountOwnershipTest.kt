@@ -47,6 +47,43 @@ class OAuthAccountOwnershipTest {
     private val tokens = OAuthTokens("private-access-value", "private-refresh-value", 500000)
 
     @Test
+    fun `required scope gate rejects creation and replacement before changing account or protected credentials`() {
+        val strict = OAuthProviderRegistry(
+            listOf(
+                OAuthProviderSpec(
+                    "controlled",
+                    configuration,
+                    OAuthMailServer("imap.example.invalid", 993, ConnectionSecurity.SSL_TLS_REQUIRED),
+                    OAuthMailServer("smtp.example.invalid", 587, ConnectionSecurity.STARTTLS_REQUIRED),
+                    requiredScopes = setOf("mail"),
+                ),
+            ),
+        )
+        MailDatabase(path).use { database ->
+            val testSubject = UtAccountManager(AccountSettingsStorage(database), credentials, strict)
+            val account = account()
+            assertThat(runCatching { testSubject.createWithOAuth(account, tokens) }.isFailure).isTrue()
+            assertThat(testSubject.findAll()).isEqualTo(emptyList())
+            assertThat(credentials.read(account.credentialKey)).isNull()
+            val accepted = OAuthTokens("access", "refresh", 500000, setOf("mail"))
+            testSubject.createWithOAuth(account, accepted)
+            val replacement = account.copy(credentialKey = OAuthGrant(account.id).credentialKey)
+            assertThat(
+                runCatching {
+                    testSubject.replaceWithOAuth(account, replacement, tokens)
+                }.isFailure,
+            ).isTrue()
+            assertThat(testSubject.findById(account.id)).isEqualTo(account)
+            assertThat(credentials.read(replacement.credentialKey)).isNull()
+            assertThat(
+                OAuthTokenStore(ManagedOAuthCredentialStore(testSubject))
+                    .read(grant(account), configuration)!!.refreshToken,
+            ).isEqualTo("refresh")
+            assertThat(database.query("SELECT key FROM credential_cleanup") { getText(0) }).isEqualTo(emptyList())
+        }
+    }
+
+    @Test
     fun `OAuth metadata reopens while tokens remain only in protected storage`() {
         val account = account()
         MailDatabase(path).use { database -> manager(database).createWithOAuth(account, tokens) }

@@ -15,7 +15,13 @@ import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.json.Json
 import net.thunderbird.core.common.oauth.OAuthConfiguration
 
-internal enum class OAuthTokenFailure { REAUTH_REQUIRED, CONFIGURATION, UNAVAILABLE, INVALID_RESPONSE }
+internal enum class OAuthTokenFailure {
+    REAUTH_REQUIRED,
+    CONFIGURATION,
+    UNAVAILABLE,
+    INVALID_RESPONSE,
+    INSUFFICIENT_SCOPE,
+}
 internal class OAuthTokenException(val reason: OAuthTokenFailure) : IOException("OAuth token request: ${reason.name}")
 
 /** Public-client code/PKCE and refresh grants. No registration, embedded client secret or identity-token parsing. */
@@ -42,6 +48,8 @@ internal class OAuthTokenClient(
                 "redirect_uri" to authorization.redirectUri,
             ),
             null,
+            configuration.scopes.toSet(),
+            true,
         )
     }
 
@@ -51,6 +59,8 @@ internal class OAuthTokenClient(
             configuration,
             mapOf("grant_type" to "refresh_token", "client_id" to configuration.clientId, "refresh_token" to refresh),
             refresh,
+            previous.grantScopes,
+            false,
         )
     }
 
@@ -58,6 +68,8 @@ internal class OAuthTokenClient(
         configuration: OAuthConfiguration,
         parameters: Map<String, String>,
         previousRefresh: String?,
+        grantScopes: Set<String>?,
+        initialGrant: Boolean,
     ): OAuthTokens {
         val endpoint = URI(configuration.tokenEndpoint)
         requireTokenEndpoint(endpoint)
@@ -74,14 +86,20 @@ internal class OAuthTokenClient(
             throw OAuthTokenException(OAuthTokenFailure.UNAVAILABLE)
         }
         return try {
-            decodeTokenReply(reply, started, previousRefresh)
+            decodeTokenReply(reply, started, previousRefresh, grantScopes, initialGrant)
         } finally {
             reply.body.fill(0)
         }
     }
 }
 
-private fun decodeTokenReply(reply: OAuthHttpReply, started: Long, previousRefresh: String?): OAuthTokens {
+private fun decodeTokenReply(
+    reply: OAuthHttpReply,
+    started: Long,
+    previousRefresh: String?,
+    grantScopes: Set<String>?,
+    initialGrant: Boolean,
+): OAuthTokens {
     if (reply.status == RATE_LIMITED ||
         reply.status in SERVER_ERRORS
     ) {
@@ -101,7 +119,14 @@ private fun decodeTokenReply(reply: OAuthHttpReply, started: Long, previousRefre
         val seconds = requireNotNull(wire.expiresIn)
         require(seconds in 1..MAX_EXPIRY_SECONDS)
         val expires = Math.addExact(started, Math.multiplyExact(seconds, MILLIS_PER_SECOND))
-        return OAuthTokens(requireNotNull(wire.access), wire.refresh ?: previousRefresh, expires)
+        val granted = wire.scope?.let(::parseOAuthScopes) ?: grantScopes
+        return OAuthTokens(
+            requireNotNull(wire.access),
+            wire.refresh ?: previousRefresh,
+            expires,
+            granted,
+            if (initialGrant) granted else grantScopes,
+        )
     } catch (_: SerializationException) {
         invalidTokenResponse()
     } catch (_: IllegalArgumentException) {
@@ -131,6 +156,7 @@ private class TokenReply {
     var tokenType: String? = null
     var expiresIn: Long? = null
     var error: String? = null
+    var scope: String? = null
 }
 
 /** Decode known fields explicitly so duplicate (including escaped) keys cannot silently overwrite tokens. */
@@ -141,6 +167,7 @@ private object TokenReplySerializer : KSerializer<TokenReply> {
         element<String>("token_type", isOptional = true)
         element<Long>("expires_in", isOptional = true)
         element<String>("error", isOptional = true)
+        element<String>("scope", isOptional = true)
     }
     override fun serialize(encoder: Encoder, value: TokenReply): Unit = throw SerializationException("Decode only")
 
@@ -158,6 +185,7 @@ private object TokenReplySerializer : KSerializer<TokenReply> {
                 TYPE -> result.tokenType = decodeStringElement(descriptor, index)
                 EXPIRY -> result.expiresIn = decodeLongElement(descriptor, index)
                 ERROR -> result.error = decodeStringElement(descriptor, index)
+                SCOPE -> result.scope = decodeStringElement(descriptor, index)
             }
         }
         result
@@ -184,6 +212,7 @@ private const val REFRESH = 1
 private const val TYPE = 2
 private const val EXPIRY = 3
 private const val ERROR = 4
+private const val SCOPE = 5
 
 private fun invalidTokenResponse(): Nothing = throw OAuthTokenException(OAuthTokenFailure.INVALID_RESPONSE)
 

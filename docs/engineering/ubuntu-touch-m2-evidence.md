@@ -799,3 +799,34 @@ two added editor fields. Logs: `/tmp/thunderbird-recipients-final.log`; final sp
 
 The candidate version is 0.1.12. Packaging/deployment/native schema6 acceptance is pending at this checkpoint; the phone
 still has 0.1.11/schema5 production. Existing schema6 test probes must not be run against the older installed package.
+
+
+### 0.1.12 package and native recipient persistence
+
+Production `3892a38fed732b401af0ece30dc11381c0d75c94` is committed/pushed and packaged as clean candidate 13, with
+empty SOURCE-CHANGES.patch. Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks pass using the same pinned
+builder/runtime. Artifact: `app-ubuntu-touch/build/ut-candidate-13/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.12_arm64.click`,
+147127442 bytes, SHA-256 `f9695164c35d600aa07431b43251f9b3a098e1294bd8ce0399c81b3cc9727dba`.
+
+Rsync exited 0 before phone-side exact checksum guard and Phone Manager installation (exit 0). No existing database
+was present at the two checked application data paths; the guarded install retains private backup logic if one exists.
+Known development-signature/user-bus-hook/old-profile-cache warnings occurred. Independent installed current symlink,
+embedded source, empty patch and new profile checks pass.
+
+Expanded ConfinedComposerProbe uses installed production JARs/bundled JVM plus test-only classes under
+`mail-demo.thomasredstone_mail-demo_0.1.12 (enforce)`. Native schema3→6, SQLite draft/queue/uncertainty and Swing Main
+checks pass. Its model flush saves Cc and Maliit Bcc commit values, verifies both persisted values, preserves input on
+invalid save, and saves on background immediately. Its private fixture is removed. This is model event injection,
+not physical Maliit keyboard acceptance. Native SMTP recipient/privacy delivery was not exercised in this checkpoint;
+the real TLS host test provides that proof. Previous native STARTTLS evidence remains scoped to 0.1.11.
+
+88 app tests pass with zero failures/errors/skips, detekt/installDist pass, and final spotlessCheck passes. Exact command
+was the prior draft-close Xvfb fixture command with `:app-ubuntu-touch:desktopDraftCloseProbe :app-ubuntu-touch:spotlessApply
+:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist`, followed by `:app-ubuntu-touch:spotlessCheck`,
+using JDK21/Android SDK and existing no-configuration-cache/isolated-projects=false/max-workers=4 options. No shared Android
+code changed; this JVM app has no Android lint/device task, and Android assembly/device suites were not rerun.
+Evidence (including 88-test XML) is under `app-ubuntu-touch/build/evidence/recipients/`.
+
+Fleet commit `6482bb5` changes only this app's pin; unrelated dirty fleet work is preserved, with no full-fleet converge.
+Reply/forward, Sent filing, message actions, attachments, HTML/privacy, account/search/provider and background/security/
+release requirements remain on the full roadmap, alongside outstanding physical/provider and interruption checks.

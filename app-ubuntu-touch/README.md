@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.11; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.12; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -110,3 +110,8 @@ Development 0.1.11 is installed on FP4 from clean source `57294380c1`. Normal cl
 edits; failed saves retain the editor for correction/retry. Focus loss requests immediate saving. Actual desktop
 window-close regression and confined phone model/SQLite checks pass, alongside the confined cancellation regression.
 Physical phone UI/suspend acceptance and abrupt-termination durability remain open; see milestone 2 evidence.
+
+Development 0.1.12 adds persistent Cc/Bcc editing and outbox details, including Bcc-only queueing. The shared SMTP
+transport delivers all recipient classes and strips Bcc before DATA; a real TLS test verifies each destination mailbox
+and header privacy. Schema 6 preserves existing queued MIME and uncertainty history. Installed FP4 production source
+is `3892a38fed`; confined schema/composer/lifecycle checks pass. Physical UI/provider delivery acceptance remains open.

@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.27 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 357 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 369 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.27 embeds clean `84f80558a8`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.27 install verified; local fleet `e1adc10` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -257,6 +257,12 @@ leases in bounded chunks under a consistent SQLite transaction, preserving binar
 Host tests cover replacement during export, cancellation, file failure, account/folder/UID isolation and lease lifetime;
 ARM64 Click is built/reviewed. This core is not connected to a user Save flow. Content Hub adapter/picker, transfer
 lifecycle/recovery, explicit permission approval and native/physical export acceptance remain required.
+
+Export ownership and handoff recovery are implemented in0.1.29 core, with explicit uncertain-copy review added in
+0.1.30 source. Private journal reservations precede message bytes; broker owner/path and handoff intent are persisted
+before transfer calls. Host fake-broker tests cover lost replies, restart recovery, terminal cleanup, account-authorization
+revocation and late/foreign callbacks without automatic resend. The real D-Bus adapter, picker/Save UI, manager/lifecycle
+binding, permission review and native transfers remain open; these core APIs do not complete user-facing Save.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

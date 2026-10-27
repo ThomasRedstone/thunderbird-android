@@ -2,7 +2,7 @@
 
 Reviewed against Thunderbird baseline `de8a03268415ce8e0c8b0327d3bbcb6b40a06a91` on 2026-10-27.
 Each source anchor below was checked to exist at that commit and to match the working tree byte-for-byte.
-UT implementation checkpoint: `d28776ff32` (0.1.28 export core); installed0.1.27 embeds `84f80558a8`. Deployment is recorded separately
+UT implementation checkpoint: `9fca243742` (0.1.30 export recovery core); installed0.1.27 embeds `84f80558a8`. Deployment is recorded separately
 in [milestone 2 evidence](ubuntu-touch-m2-evidence.md). A source/module anchor proves an implementation exists to
 investigate, not that it can be linked into the UT application or that its feature is complete upstream.
 
@@ -41,7 +41,7 @@ item, not automatic inclusion or exclusion. No architecture or provider configur
 ## Verification and release gates
 
 Current implementation tests are recorded in the milestone evidence and `app-ubuntu-touch/src/test/`; do not treat
-all357 app tests as coverage for every row. Native probes establish engine/model/confinement behaviour, not physical
+all369 app tests as coverage for every row. Native probes establish engine/model/confinement behaviour, not physical
 UI completion. Physical secure input, rotation, focus/keyboard avoidance, suspend/resume, accessibility and provider
 journeys remain open even when host tests pass. Cached search still lacks large-mailbox acceptance.
 

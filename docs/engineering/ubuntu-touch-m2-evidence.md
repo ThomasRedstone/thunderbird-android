@@ -2927,8 +2927,8 @@ Documents/home access. Policy source: `/usr/share/apparmor/easyprof/policygroups
 
 Brief: implement an app-local Kotlin Content Hub adapter, destination picker and source-view/reader Save flow using
 the exact export lease. Keep account/folder/UID ownership and model IO/cancellation. Select a destination only after
-explicit user action; validate peer/type/transfer paths and app identity against the actual profile. Bind/register the
-handler and follow Start/Charge/state signals according to the verified API. Retain the private file until confirmed
+explicit user action; validate peer/type/transfer paths and app identity against the actual profile. Use the direct outbound Service API and follow Start/Charge/state signals; current broker source auto-handles
+manual exports, so do not add an inbound handler/provider hook without runtime evidence that one is required. Retain the private file until confirmed
 collection/finalization or abort, including suspend/service loss/model close; plan persisted recovery before orphan
 cleanup. Reuse this lifecycle for attachment Save later, without silently claiming attachment integration is complete.
 
@@ -2944,3 +2944,41 @@ Permission review: prepare the concrete adapter/UI/tests before requesting the o
 for native transfer acceptance. AGENTS.md says “Add permissions without explicit request and justification” under
 “MUST NOT”. The proposed minimal policy is `content_exchange_source`; no source registration/hook or manifest grant
 is approved by this evidence. Continue authorized implementation/testing without assuming that approval.
+
+
+### Export ownership/recovery core and current delivery boundary
+
+Source1241ee5225 adds a private binary export journal and single-owner controller behind an injected broker contract.
+A forced atomic reservation is recorded before message bytes, independently of the SQLite snapshot transaction.
+Account UUID, exact private relative path and preparation/ready/attached/charging phase persist across object reopen;
+wrappers redact diagnostics. Broker owner/path and charging intent precede Start/Charge. Collected or unknown status
+retains the file; only confirmed terminal state or explicit local review removes it. Unknown replies never trigger an
+automatic Charge retry. Live authorization closures can bind the immutable account snapshot; actual manager/commit
+boundary integration remains part of the unwired UI work. Late/foreign callbacks, stale snapshots, corruption,
+symlinks and unexpected directory contents cannot silently delete unrelated data. The journal assumes one owner;
+multiple processes/background IPC and real process-kill/power-loss acceptance remain open.
+
+A new test exposed missing charging-state decoding; before-fix XML is
+`build/evidence/export-lifecycle/charging-decode-before.xml`, log `/tmp/thunderbird-export-lifecycle-focused-3.log`.
+Corrected focused checks pass. Full368 app tests plus detekt/installDist/spotless pass
+(`/tmp/thunderbird-export-lifecycle-full.log`, XML `build/evidence/export-lifecycle/after/`). These lifecycle tests use
+a fake broker; they do not prove D-Bus tuples, signal authentication, actual suspension or receiver behaviour.
+
+Canonical29 candidate31 built clean1241ee52259ceecb395538d7e4407499f547cfca with empty source changes:
+`app-ubuntu-touch/build/ut-candidate-31/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.29_arm64.click`.
+Size147783510; SHA256 `fd4b2c1bfa9cf5b7b931c17fcd4a25ef66cd25cd4aaf980a883c1ae1aac9eb8e`.
+Click review and ARM64 launcher/JVM/AWT/Skiko pass (`/tmp/thunderbird-029-click.log`). Same builder/runtime reuse;
+no cold/CI claim, upload or phone installation. No Save UI, real broker binding or permission changes.
+
+After freezing29, source9fca243742 adds an explicit-review-only removal action for an uncertain private copy/record.
+It does not send another Charge, claim receiver cancellation or recall destination copies. Original cached message
+is retained. Full369 app tests and quality/distribution checks pass (`/tmp/thunderbird-export-lifecycle-final.log`);
+version fields then advance30, with installDist/spotless rechecked (`/tmp/thunderbird-export-review-version-check.log`).
+Source30 is committed but not packaged or deployed. Phone remains27; fleet remains local e1adc10.
+
+Next work remains the real Content Hub adapter/private wire tests and Save view model/picker, followed by concrete
+outbound policy review and native File Manager acceptance. Signal callbacks must not block the D-Bus receive loop
+on controller IO. Validate unique service owner and exact app-scoped object paths; never fallback to a new owner or
+replay uncertain transfers. Include upgrade tests: standard policy paths contain the app version, so an earlier
+version's pending transfer may become inaccessible and needs explicit uncertainty review rather than broader grants
+or automatic resend. No incoming provider registration is needed by the reviewed manual-export broker path.

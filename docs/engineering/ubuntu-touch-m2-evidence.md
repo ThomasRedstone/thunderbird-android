@@ -2780,3 +2780,36 @@ Embedded clean source `ebeffb1854`; SOURCE-CHANGES empty. Click review and ARM64
 (`/tmp/thunderbird-026-click.log`). Same pinned builder and verified candidate5 runtime reused, not a new cold build.
 Phone remains0.1.25; no26 transfer/installation or scoped-sort native acceptance yet. The experimental SignOn service
 repair is **not part of this package**. Production large protected reads and real provider/physical journeys remain open.
+
+
+### Installed 0.1.26 and confined scoped-sort recovery
+
+The single rsync transfer completed terminal0 (`/tmp/thunderbird-026-transfer.log`), and the full remote package hash
+matched the canonical147716936-byte artifact. Old25MainPID142556 was suspended; a normal WM_DELETE_WINDOW request
+followed by a transient owned-process pidfd SIGCONT let its normal save/close handler exit. No force kill or lifecycle
+exemption was used. Upgrade script then refused any remaining app process, made a private quick-check-verified SQLite
+backup (schema10) at `/home/phablet/.cache/mail-demo.thomasredstone/upgrades/0.1.26-vk0r7kkf`, and Phone Manager
+installed26. Source marker `ebeffb1854033b20f6cdad07c56c01b1019d17c7`/empty changes verified.
+Installer signature/root-bus/old-profile-cache warnings are retained in `/tmp/thunderbird-026-install.log`; new enforcing
+profile independently works. Installed main JAR SHA-256 matches canonical
+`2d67f757c92809c7945655ef78274319a58ef2691becd383d31a92bdd3cd9188`.
+
+A frozen test-only driver compiled against26 verifies private atomic0600 files, legacy defaults and isolated folder,
+account and unified preference writes under `mail-demo.thomasredstone_mail-demo_0.1.26 (enforce)`. A second JVM
+restores all six choices and removes the exact private fixture. Logs:
+`/tmp/thunderbird-026-native-sort-{prepare,reopen}.log`. Zero retained sort fixture directories independently verified.
+Driver `build/evidence/native-026/candidate-026-sort-probe.jar`, two classes, SHA-256
+`e6a8999732a6560fe1170c94a1c7971b43a90f90db571b043b10d63232035e0c`, matched on phone.
+Source driver/guard tests committed `f51980d6d8` after the canonical package: they change no production bytecode and
+are not claimed to be in its embedded source archive. Two host safety tests (unconfined refusal/path-symlink rejection),
+compileTestKotlin, detekt and spotless pass (`/tmp/thunderbird-026-probe-checks.log`); the prior full342 app-suite result
+is unchanged, with these two additional tests run separately.
+
+Actual Main launch exits0; independently foundPID220357 and one owned main window under26(enforce). It is suspended
+(stateT), consistent with background/lock lifecycle; this is not physical keyboard/size/sort-control acceptance.
+Production SQLite read-only quick_check isok/schema10 after launch. Local fleet commit `bb9f09d` pins exact26 artifact;
+scoped lint passed with an absolute-path temporary manifest and independently checked SHA. The first temporary lint
+used a relative path and warned missing artifact; it was corrected and rerun without that warning before commit.
+Unrelated fleet edits/index state were preserved; a temporary Git index scoped the commit, and the whole-fleet
+sync/prune hook was skipped for that invocation. No fleet push/converge or system credential repair was performed.
+Production SignOn integration, physical journeys and real provider gates remain open.

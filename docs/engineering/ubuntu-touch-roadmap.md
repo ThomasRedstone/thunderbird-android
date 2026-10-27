@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.25 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.26 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
 | Engineering | 342 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Installed 0.1.25 embeds clean `a1948b0768`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager 0.1.25 install verified; local fleet `a8e4a39` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
+| Source delivery | Installed 0.1.26 embeds clean `ebeffb1854`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager 0.1.26 install verified; local fleet `bb9f09d` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,7 +27,7 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.25 is installed on the FP4 with account
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.26 is installed on the FP4 with account
 setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined small-credential persistence and upgrade access pass through SignOn; larger payload reads time out and remain a release blocker. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
@@ -212,7 +212,7 @@ Version0.1.26 adds independent persistent sort choices for each account/folder, 
 search. Existing global preferences remain the default for views without a saved choice. Private atomic sidecar files
 contain only the sort enum; account/folder identifiers are hashed in filenames. Host restart/navigation, legacy-default
 and save-failure/retry checks pass, including a fail-before cross-folder regression. The reviewed ARM64 package is built;
-phone installation/physical acceptance and stale preference-file retention remain open.
+confined native writes and fresh-JVM recovery pass on installed0.1.26. Physical acceptance and stale preference-file retention remain open.
 
 Reader attachment names, MIME types and counts are implemented in 0.1.21 development source for complete cached
 messages, including HTML-only bodies. Incomplete messages request full download; shared sanitization and classification,

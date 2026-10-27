@@ -15,6 +15,7 @@ import com.fsck.k9.mail.oauth.OAuth2TokenProvider
 import com.fsck.k9.mail.oauth.XOAuth2ChallengeParser
 import com.fsck.k9.mail.ssl.CertificateChainExtractor
 import com.fsck.k9.mail.ssl.TrustedSocketFactory
+import com.fsck.k9.mail.ssl.createPlainSocket
 import com.fsck.k9.sasl.buildOAuthBearerInitialClientResponse
 import com.jcraft.jzlib.JZlib
 import com.jcraft.jzlib.ZOutputStream
@@ -180,7 +181,7 @@ internal class RealImapConnection(
         val socket = if (settings.connectionSecurity == ConnectionSecurity.SSL_TLS_REQUIRED) {
             socketFactory.createSocket(null, host, port, clientCertificateAlias)
         } else {
-            Socket()
+            socketFactory.createPlainSocket()
         }
 
         socket.connect(socketAddress, socketConnectTimeout)

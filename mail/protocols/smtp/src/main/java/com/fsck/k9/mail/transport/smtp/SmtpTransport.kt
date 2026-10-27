@@ -22,6 +22,7 @@ import com.fsck.k9.mail.oauth.OAuth2TokenProvider
 import com.fsck.k9.mail.oauth.XOAuth2ChallengeParser
 import com.fsck.k9.mail.ssl.CertificateChainExtractor
 import com.fsck.k9.mail.ssl.TrustedSocketFactory
+import com.fsck.k9.mail.ssl.createPlainSocket
 import com.fsck.k9.mail.transport.smtp.SmtpHelloResponse.Hello
 import com.fsck.k9.sasl.buildOAuthBearerInitialClientResponse
 import java.io.BufferedInputStream
@@ -242,7 +243,7 @@ class SmtpTransport(
         val socket = if (connectionSecurity == ConnectionSecurity.SSL_TLS_REQUIRED) {
             trustedSocketFactory.createSocket(null, host, port, clientCertificateAlias)
         } else {
-            Socket()
+            trustedSocketFactory.createPlainSocket()
         }
 
         socket.connect(socketAddress, SOCKET_CONNECT_TIMEOUT)

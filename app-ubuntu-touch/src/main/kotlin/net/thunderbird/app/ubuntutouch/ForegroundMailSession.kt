@@ -37,8 +37,14 @@ internal class ForegroundMailSessionFactory(
         val account = checkNotNull(accounts.findById(id)) { "Account not found" }
         val passwords = accounts.passwords(id)
         val storage = PersistentBackendStorage(database, id.toString())
-        val imap = ImapStore.create(account.incoming.newPassword(passwords.incoming), PreviewImapConfig, sockets, null)
-        val smtp = SmtpTransport(account.outgoing.newPassword(passwords.outgoing), sockets, null)
+        val ownedSockets = CancellableSocketFactory(sockets)
+        val imap = ImapStore.create(
+            account.incoming.newPassword(passwords.incoming),
+            PreviewImapConfig,
+            ownedSockets,
+            null,
+        )
+        val smtp = SmtpTransport(account.outgoing.newPassword(passwords.outgoing), ownedSockets, null)
         val backend = ImapBackend(
             accountName = id.toString(),
             backendStorage = storage,
@@ -48,7 +54,7 @@ internal class ForegroundMailSessionFactory(
             pushConfigProvider = ForegroundOnlyPlatform,
             smtpTransport = smtp,
         )
-        return ForegroundMailSession(backend, imap, smtp)
+        return ForegroundMailSession(backend, imap, smtp, ownedSockets)
     }
 }
 
@@ -56,6 +62,7 @@ internal class ForegroundMailSession(
     private val backend: ImapBackend,
     private val imap: ImapStore,
     private val smtp: SmtpTransport,
+    private val sockets: CancellableSocketFactory,
 ) : AutoCloseable {
     fun checkSettings() {
         imap.checkSettings()
@@ -85,7 +92,10 @@ internal class ForegroundMailSession(
         backend.sendMessage(message)
     }
 
-    override fun close() = imap.closeAllConnections()
+    override fun close() {
+        sockets.close()
+        imap.closeAllConnections()
+    }
 
     private companion object {
         const val PREVIEW_VISIBLE_LIMIT = 100

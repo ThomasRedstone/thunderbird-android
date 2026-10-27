@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.9; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.10; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -93,10 +93,12 @@ See the [dependency audit](../docs/engineering/ubuntu-touch-dependency-audit.md)
 A package build is not proof of on-device input, confinement, reboot behaviour or store approval. Device installation
 and system changes are separate actions; no phone deployment is included in this build workflow.
 
-
 ## Controlled device protocol verification
 
 The opt-in [device protocol guide](../docs/engineering/ubuntu-touch-device-protocol.md) describes the disposable
 GreenMail host fixture and enforcing-profile phone probes. They verify the installed engine with protected SignOn
 credentials, TLS receive/send and fresh-JVM cached reopen after the mail servers stop. They do not replace physical
 screen/input acceptance or change production certificate trust.
+
+Development 0.1.10 adds session-owned socket interruption, including the plain phase before STARTTLS. Cancel controls
+and operation-state wiring are still unfinished; the installed 0.1.9 does not contain this resource-layer change.

@@ -529,3 +529,42 @@ This proves the headless controlled receive/send/restart chain on FP4, not the c
 journey. Physical setup/input, an explicitly configured real test account, successful STARTTLS interoperability,
 active cancellation/interruption recovery and startup/memory measurement remain open. Later roadmap features remain
 required; the tested engine path does not establish daily-use or release completion.
+
+
+## Milestone 2 cancellation: session-owned sockets
+
+Brief: make closing a foreground session interrupt its own active sockets, including direct TLS handshakes and the
+plain TCP phase before required STARTTLS. Closing one session must not affect another. Keep existing mail-client
+behaviour unless a socket factory explicitly opts into ownership. This layer does not implement the user Cancel flow.
+
+Implemented: optional `PlainSocketFactory` plus the `TrustedSocketFactory.createPlainSocket()` extension in mail:common.
+IMAP and SMTP use that hook for the initial non-TLS socket; factories without the optional interface still create the
+same standard Java Socket. The original TrustedSocketFactory interface has no changed/removed members.
+The Ubuntu Touch factory now creates a fresh `CancellableSocketFactory` per session. It tracks plain and TLS sockets
+before engine connect/read operations, rejects new sockets after close and closes tracked resources without holding
+its owner lock during socket IO. Underlying plain sockets are closed before their TLS wrappers. Session close then
+clears the IMAP pool; it no longer depends on pooled connections to find an active connection.
+
+Fail-before-fix evidence: four real loopback cases (IMAP/SMTP × direct TLS/required STARTTLS) accepted TCP and then
+withheld handshake/greeting responses. All four timed out after session close with the old implementation.
+`app-ubuntu-touch/build/evidence/cancellation/before.xml` and `/tmp/thunderbird-cancellation-before.log` retain this.
+After the fix, all cases complete promptly with failure. The strengthened direct-TLS test observes ClientHello before
+closing, and SMTP pre-DATA failures are asserted not to be possible-acceptance failures. A separate real TCP test
+verifies owner isolation, EOF on closed sockets and rejection of socket creation after close.
+
+Verification: 68 app tests, 331 mail:common tests, 433 IMAP tests and 99 SMTP tests pass; zero failures/errors/skips.
+App detekt, spotlessCheck and installDist pass. Each changed shared mail module's lint, detekt and spotlessCheck pass.
+Command: JDK 21/SDK configured, Xvfb Gradle invocation with those scoped tasks and the established configuration flags;
+full command/result is retained in `/tmp/thunderbird-cancellation-shared-checks.log` (BUILD SUCCESSFUL).
+Android app assembly and instrumentation were not run. The shared JVM mail suites and standalone lint cover the changed
+engine paths; no Android-specific implementation or UI source changed.
+
+Development version is 0.1.10. No candidate has been packaged/deployed for this change: phone/fleet remain at verified
+0.1.9/source `131b9b8012`. The earlier confined protocol/restart evidence applies to 0.1.9 and is not evidence of this
+new socket interruption behaviour on ARM64.
+
+Next required work: per-operation cancellation ownership and UI state for refresh/body download/sending, cancellation
+before a session becomes available, and interrupted-send handling that preserves SMTP uncertainty. DNS resolution and
+protected-service calls have no session socket to close; do not claim prompt cancellation of those waits. Successful
+STARTTLS interoperability, cancellation during authenticated sync/body fetch/SMTP DATA, device cancellation and the
+complete physical journey remain open gates. Existing controlled tests for uncertain SMTP outcomes remain in the suite.

@@ -2631,3 +2631,23 @@ Sources and results are retained under `app-ubuntu-touch/build/evidence/signon-i
 No system packages/services were altered. Next verify the full service with the patch in an isolated environment;
 then assess an app-contained remedy versus a separately approved platform fix. The existing preview remains0.1.25,
 large protected reads remain failing, and no provider is enabled.
+
+
+### Full-service check does not yet establish a fix
+
+A disposable `ut-accounts-contract:noble` container installed Ubuntu Noble SignOn8.61-1ubuntu5, its password plugin,
+Qt5.15.13 development tools, D-Bus and PyGObject. The actual IPC library was compiled before/after the upstream patch
+with Qt5 and selected using `LD_LIBRARY_PATH`; `/proc/*/maps` confirmed the patched library loaded in both daemon
+and plugin helper. Each run used a new private session bus and XDG configuration directory. Only synthetic data was
+used, with a fixture-only wildcard ACL because the default container backend lacks phone AppArmor identity ownership.
+This permissive fixture is not a confinement/security acceptance test and changes no production ACL or phone state.
+
+Full-service result:1024 raw bytes read successfully in both variants;8192 and39997 bytes timed out in both at3seconds.
+An extended15second patched run produced a safe `Error.Unknown` type at8192 and a timeout at39997. All synthetic
+identity removals completed. Output contains only sizes, safe failure stage/domain/code/type and cleanup confirmation.
+The isolated buffered-reader regression is real, but replacing that library alone **does not fix this full service**.
+Do not conclude that the missing patch is the sole root cause or deploy it as a verified solution.
+The older container daemon and default backend differ from the phone's exact patched build; next investigate the
+full plugin IPC path with matching service sources and sequential pipe behaviour. No app or system fix is accepted yet.
+Artifacts: `app-ubuntu-touch/build/evidence/signon-full-service/{probe.py,before-after.log,extended-timeout.log}`;
+full build/run log `/tmp/thunderbird-signon-full-result.log`, refined run `/tmp/thunderbird-signon-full-result-4.log`.

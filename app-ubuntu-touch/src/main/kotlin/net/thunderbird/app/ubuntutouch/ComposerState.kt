@@ -13,6 +13,8 @@ internal data class ComposerState(
     val fields: Map<ComposeField, TextFieldValue> = emptyMap(),
     val dirty: Boolean = false,
     val busy: Boolean = false,
+    val canCancel: Boolean = false,
+    val cancelling: Boolean = false,
     val notice: String? = null,
     val confirmRetry: Boolean = false,
 ) {
@@ -35,5 +37,6 @@ internal sealed interface ComposerEvent {
     data object Retry : ComposerEvent
     data object ConfirmRetry : ComposerEvent
     data object CancelRetry : ComposerEvent
+    data object Cancel : ComposerEvent
     data object Back : ComposerEvent
 }

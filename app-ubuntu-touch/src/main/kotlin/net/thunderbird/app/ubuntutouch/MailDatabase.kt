@@ -7,7 +7,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 private const val SIGNON_SCHEMA_VERSION = 3L
-private const val CURRENT_SCHEMA_VERSION = 4L
+private const val OUTGOING_SCHEMA_VERSION = 4L
+private const val CURRENT_SCHEMA_VERSION = 5L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught") // Always close/roll back on failure, including cancellation; rethrow unchanged.
@@ -25,9 +26,10 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version == 0L) createSchema()
             if (version < 2L) createAccountSchema()
             if (version < SIGNON_SCHEMA_VERSION) createSignonSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createOutgoingSchema()
+            if (version < OUTGOING_SCHEMA_VERSION) createOutgoingSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createAttemptHistorySchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
-            execute("UPDATE outgoing SET state='UNCERTAIN' WHERE state='SENDING'")
+            execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
         } catch (exception: Exception) {
             connection.close()
             throw exception
@@ -69,6 +71,13 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createAttemptHistorySchema() = transaction {
+        execute("ALTER TABLE outgoing ADD COLUMN uncertain_attempt INTEGER NOT NULL DEFAULT 0")
+        // Earlier previews did not preserve retry history. Require review before resubmitting their pending rows.
+        execute("UPDATE outgoing SET uncertain_attempt=1 WHERE state IN ('QUEUED','FAILED','SENDING','UNCERTAIN')")
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createOutgoingSchema() = transaction {
         execute(
             """CREATE TABLE outgoing (
@@ -76,7 +85,7 @@ internal class MailDatabase(path: Path) : AutoCloseable {
                 recipients TEXT NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL,
                 message_id TEXT NOT NULL UNIQUE, state TEXT NOT NULL, mime BLOB)""",
         )
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$OUTGOING_SCHEMA_VERSION")
     }
 
     private fun createSignonSchema() = transaction {

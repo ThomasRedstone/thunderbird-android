@@ -70,6 +70,7 @@ object ConfinedComposerProbe {
             database.execute("PRAGMA user_version=3")
         }
         val id = MailDatabase(path).use { database ->
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 5L)
             check(AccountSettingsStorage(database).all().single().id == account.id)
             check(SignonIdentityIndex(database).find("local-index-fixture") == 42L)
             val store = OutgoingMailStore(database)
@@ -83,6 +84,7 @@ object ConfinedComposerProbe {
         MailDatabase(path).use { database ->
             val store = OutgoingMailStore(database)
             check(store.get(account.id, id).state == OutgoingState.UNCERTAIN)
+            check(store.get(account.id, id).hasUncertainAttempt)
             check(runCatching { store.retry(account.id, id) }.isFailure)
             store.retry(account.id, id, acknowledgeDuplicateRisk = true)
             check(store.get(account.id, id).state == OutgoingState.QUEUED)

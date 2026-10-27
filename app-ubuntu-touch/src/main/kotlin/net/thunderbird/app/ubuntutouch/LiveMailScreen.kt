@@ -31,7 +31,9 @@ internal fun LiveMailScreen(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
                 enabled = !state.busy,
             )
         }
-        if (state.busy) TextBodyLarge("Working…")
+        MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel operation") {
+            onEvent(LiveMailEvent.Cancel)
+        }
         state.notice?.let { TextBodyLarge(it) }
         val content = state.content
         when {

@@ -19,6 +19,8 @@ internal data class LiveMailState(
     val messages: List<MailSummary> = emptyList(),
     val content: MailContent? = null,
     val busy: Boolean = false,
+    val canCancel: Boolean = false,
+    val cancelling: Boolean = false,
     val notice: String? = null,
 ) {
     override fun toString(): String = "LiveMailState(redacted)"
@@ -30,6 +32,7 @@ internal sealed interface LiveMailEvent {
     data class OpenMessage(val uid: String) : LiveMailEvent
     data object Refresh : LiveMailEvent
     data object Download : LiveMailEvent
+    data object Cancel : LiveMailEvent
     data object Back : LiveMailEvent
 }
 
@@ -40,9 +43,18 @@ internal class LiveMailViewModel(
 ) : AutoCloseable {
     private val mutableState = MutableStateFlow(LiveMailState(manager.findAll()))
     val state = mutableState.asStateFlow()
+    private var activeOperation: MailOperation? = null
 
     fun event(event: LiveMailEvent) {
         val current = state.value
+        if (event == LiveMailEvent.Cancel) {
+            if (current.busy && current.canCancel) {
+                activeOperation?.cancelIn(scope)
+                mutableState.value =
+                    current.copy(cancelling = true, notice = "Cancelling… Waiting for the operation to stop.")
+            }
+            return
+        }
         if (current.busy) return
         when (event) {
             is LiveMailEvent.OpenAccount -> {
@@ -60,6 +72,8 @@ internal class LiveMailViewModel(
                 load(current, uid = event.uid)
             }
 
+            LiveMailEvent.Cancel -> Unit
+
             LiveMailEvent.Refresh -> load(current, network = true)
 
             LiveMailEvent.Download -> load(current, uid = current.content?.summary?.id, download = true)
@@ -74,40 +88,65 @@ internal class LiveMailViewModel(
 
     private fun load(initial: LiveMailState, uid: String? = null, network: Boolean = false, download: Boolean = false) {
         val account = initial.account ?: return
-        mutableState.value = initial.copy(busy = true, notice = null)
+        val operation = if (network || download) MailOperation() else null
+        activeOperation = operation
+        mutableState.value = initial.copy(busy = true, canCancel = operation != null, cancelling = false, notice = null)
         scope.launch {
             try {
                 val loaded = withContext(Dispatchers.IO) {
-                    if (network) repository.refresh(account, initial.folder?.id)
-                    if (download && uid != null) repository.download(account, checkNotNull(initial.folder).id, uid)
-                    val folders = repository.folders(account)
-                    val folder = initial.folder?.let { old -> folders.find { it.id == old.id } }
-                    initial.copy(
-                        folders = folders,
-                        folder = folder,
-                        messages = folder?.let { repository.messages(account, it.id) }.orEmpty(),
-                        content = if (uid != null &&
-                            folder != null
-                        ) {
-                            repository.content(account, folder.id, uid)
-                        } else {
-                            null
-                        },
-                        busy = false,
-                    )
+                    operation?.ensureActive()
+                    if (network) repository.refresh(account, initial.folder?.id, checkNotNull(operation))
+                    if (download && uid != null) {
+                        repository.download(account, checkNotNull(initial.folder).id, uid, checkNotNull(operation))
+                    }
+                    operation?.ensureActive()
+                    readCache(initial, uid)
                 }
-                mutableState.value = loaded
+                mutableState.value = loaded.copy(
+                    canCancel = false,
+                    cancelling = false,
+                    notice = if (operation?.cancellationRequested ==
+                        true
+                    ) {
+                        "Operation stopped. Cached mail is retained."
+                    } else {
+                        null
+                    },
+                )
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
                 mutableState.value = initial.copy(
                     busy = false,
-                    notice = "Unable to complete the operation. Cached mail is retained. " +
-                        "Check connection and account settings.",
+                    canCancel = false,
+                    cancelling = false,
+                    notice = if (operation?.cancellationRequested == true) {
+                        "Cancelled. Cached mail is retained."
+                    } else {
+                        "Unable to complete the operation. Cached mail is retained. Check connection and account settings."
+                    },
                 )
+            } finally {
+                if (activeOperation === operation) activeOperation = null
             }
         }
     }
 
-    override fun close() = scope.cancel()
+    private fun readCache(initial: LiveMailState, uid: String?): LiveMailState {
+        val account = checkNotNull(initial.account)
+        val folders = repository.folders(account)
+        val folder = initial.folder?.let { old -> folders.find { it.id == old.id } }
+        return initial.copy(
+            folders = folders,
+            folder = folder,
+            messages = folder?.let { repository.messages(account, it.id) }.orEmpty(),
+            content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,
+            busy = false,
+        )
+    }
+
+    override fun close() {
+        activeOperation?.cancelIn(scope)
+        scope.cancel()
+    }
 }

@@ -100,5 +100,7 @@ GreenMail host fixture and enforcing-profile phone probes. They verify the insta
 credentials, TLS receive/send and fresh-JVM cached reopen after the mail servers stop. They do not replace physical
 screen/input acceptance or change production certificate trust.
 
-Development 0.1.10 adds session-owned socket interruption, including the plain phase before STARTTLS. Cancel controls
-and operation-state wiring are still unfinished; the installed 0.1.9 does not contain this resource-layer change.
+Development 0.1.10 adds Cancel controls for receiving/body download and sending. The UI waits for the worker’s saved
+outcome; cancellation never claims that an uncertain send was not accepted. Schema 5 preserves earlier uncertain
+attempts across retries and requires review of pending messages from older previews. Device acceptance of this
+candidate remains separate from the installed 0.1.9 evidence.

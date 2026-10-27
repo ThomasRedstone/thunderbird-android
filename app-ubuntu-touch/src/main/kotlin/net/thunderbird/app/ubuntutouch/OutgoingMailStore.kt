@@ -17,6 +17,7 @@ internal data class OutgoingMail(
     val body: String,
     val messageId: String,
     val state: OutgoingState,
+    val hasUncertainAttempt: Boolean = false,
 ) {
     override fun toString(): String = "OutgoingMail(id=$id, state=$state)"
 }
@@ -37,9 +38,20 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
     }
 
     fun list(account: AccountId): List<OutgoingMail> = database.query(
-        "SELECT id,recipients,subject,body,message_id,state FROM outgoing WHERE account=? ORDER BY rowid DESC",
+        "SELECT id,recipients,subject,body,message_id,state,uncertain_attempt FROM outgoing " +
+            "WHERE account=? ORDER BY rowid DESC",
         account.toString(),
-    ) { OutgoingMail(getText(0), getText(1), getText(2), getText(3), getText(4), OutgoingState.valueOf(getText(5))) }
+    ) {
+        OutgoingMail(
+            getText(0),
+            getText(1),
+            getText(2),
+            getText(3),
+            getText(4),
+            OutgoingState.valueOf(getText(5)),
+            getLong(6) != 0L,
+        )
+    }
 
     fun get(account: AccountId, id: String): OutgoingMail = list(account).single { it.id == id }
 
@@ -89,8 +101,14 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
     }
 
     /** Atomically freeze one attempt. A second caller cannot claim a SENDING/SENT/UNCERTAIN row. */
-    fun claim(account: AccountId, id: String): ByteArray? = database.transaction {
-        if (get(account, id).state != OutgoingState.QUEUED) return@transaction null
+    fun claim(
+        account: AccountId,
+        id: String,
+        acknowledgeDuplicateRisk: Boolean = false,
+    ): ByteArray? = database.transaction {
+        val current = get(account, id)
+        if (current.state != OutgoingState.QUEUED) return@transaction null
+        if (current.hasUncertainAttempt && !acknowledgeDuplicateRisk) return@transaction null
         val mime = database.query(
             "SELECT mime FROM outgoing WHERE account=? AND id=?",
             account.toString(),
@@ -100,18 +118,43 @@ internal class OutgoingMailStore(private val database: MailDatabase) {
         mime
     }
 
-    fun finish(account: AccountId, id: String, outcome: OutgoingState) = database.transaction {
+    fun finish(account: AccountId, id: String, outcome: OutgoingState): OutgoingState = database.transaction {
         require(outcome in setOf(OutgoingState.SENT, OutgoingState.FAILED, OutgoingState.UNCERTAIN))
-        check(get(account, id).state == OutgoingState.SENDING)
-        database.execute("UPDATE outgoing SET state=? WHERE account=? AND id=?", outcome.name, account.toString(), id)
+        val current = get(account, id)
+        check(current.state == OutgoingState.SENDING)
+        val effective = if (outcome == OutgoingState.FAILED &&
+            current.hasUncertainAttempt
+        ) {
+            OutgoingState.UNCERTAIN
+        } else {
+            outcome
+        }
+        val risk = current.hasUncertainAttempt || effective == OutgoingState.UNCERTAIN
+        database.execute(
+            "UPDATE outgoing SET state=?,uncertain_attempt=? WHERE account=? AND id=?",
+            effective.name,
+            if (risk) 1 else 0,
+            account.toString(),
+            id,
+        )
+        effective
     }
 
     fun retry(account: AccountId, id: String, acknowledgeDuplicateRisk: Boolean = false) = database.transaction {
-        val current = get(account, id).state
-        check(current == OutgoingState.FAILED || (current == OutgoingState.UNCERTAIN && acknowledgeDuplicateRisk)) {
-            "An uncertain delivery requires an explicit duplicate-risk decision"
+        val current = get(account, id)
+        check(current.state in setOf(OutgoingState.FAILED, OutgoingState.UNCERTAIN, OutgoingState.QUEUED))
+        check(!current.hasUncertainAttempt || acknowledgeDuplicateRisk) {
+            "An earlier uncertain delivery requires an explicit duplicate-risk decision"
         }
+        check(current.state != OutgoingState.UNCERTAIN || acknowledgeDuplicateRisk)
         database.execute("UPDATE outgoing SET state='QUEUED' WHERE account=? AND id=?", account.toString(), id)
+    }
+
+    fun cancelQueued(account: AccountId, id: String) = database.transaction {
+        val current = get(account, id)
+        if (current.state == OutgoingState.QUEUED && current.hasUncertainAttempt) {
+            database.execute("UPDATE outgoing SET state='UNCERTAIN' WHERE account=? AND id=?", account.toString(), id)
+        }
     }
 
     fun delete(account: AccountId, id: String) = database.transaction {

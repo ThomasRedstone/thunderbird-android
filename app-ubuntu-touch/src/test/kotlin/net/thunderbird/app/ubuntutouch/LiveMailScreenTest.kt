@@ -1,5 +1,6 @@
 package net.thunderbird.app.ubuntutouch
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
@@ -11,6 +12,32 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class LiveMailScreenTest : ComposeUiTestHarness() {
+    @Test
+    fun `cancel requests teardown but keeps navigation disabled until the worker settles`() = runComposeTest {
+        val state = mutableStateOf(
+            LiveMailState(
+                emptyList(),
+                account = AccountIdFactory.create(),
+                busy = true,
+                canCancel = true,
+            ),
+        )
+        var event: LiveMailEvent? = null
+        setContent {
+            ThunderbirdBoltTheme {
+                LiveMailScreen(state.value) {
+                    event = it
+                    state.value = state.value.copy(cancelling = true)
+                }
+            }
+        }
+        onNodeWithText("Cancel operation").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.Cancel)
+        onNodeWithText("Cancel operation").assertIsNotEnabled()
+        onNodeWithText("Back").assertIsNotEnabled()
+        onNodeWithText("Cancelling…").assertIsDisplayed()
+    }
+
     @Test
     fun `partial reader offers explicit full download and displays cached plain text`() = runComposeTest {
         val summary = MailSummary("1", "Fixture subject", "Fixture sender", true)

@@ -43,7 +43,9 @@ internal fun ComposerScreen(state: ComposerState, onEvent: (ComposerEvent) -> Un
                 onEvent(ComposerEvent.Back)
             }, enabled = !state.busy)
         }
-        if (state.busy) TextBodyLarge("Working…")
+        MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel sending") {
+            onEvent(ComposerEvent.Cancel)
+        }
         state.notice?.let { TextBodyLarge(it) }
         when {
             state.selected?.state == OutgoingState.DRAFT -> ComposerEditor(state, onEvent, keyboard)
@@ -101,6 +103,13 @@ private fun OutgoingDetails(state: ComposerState, onEvent: (ComposerEvent) -> Un
     TextBodyLarge("To: ${item.recipients}")
     TextTitleLarge(item.subject.ifBlank { "(No subject)" })
     TextBodyLarge(item.body)
+    if (item.hasUncertainAttempt && item.state in setOf(OutgoingState.QUEUED, OutgoingState.FAILED)) {
+        UncertainDelivery(state, onEvent)
+        return
+    }
+    if (item.hasUncertainAttempt && item.state == OutgoingState.SENT) {
+        TextBodyLarge("An earlier attempt had an unknown result. This accepted attempt may be a duplicate.")
+    }
     when (item.state) {
         OutgoingState.QUEUED -> ButtonText("Send now", { onEvent(ComposerEvent.Send) }, enabled = !state.busy)
 

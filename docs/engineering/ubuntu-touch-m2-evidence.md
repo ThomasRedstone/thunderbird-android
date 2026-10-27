@@ -568,3 +568,57 @@ before a session becomes available, and interrupted-send handling that preserves
 protected-service calls have no session socket to close; do not claim prompt cancellation of those waits. Successful
 STARTTLS interoperability, cancellation during authenticated sync/body fetch/SMTP DATA, device cancellation and the
 complete physical journey remain open gates. Existing controlled tests for uncertain SMTP outcomes remain in the suite.
+
+## Milestone 2 cancellation: operation ownership, UI and retry history
+
+Brief: connect session-owned socket interruption to refresh, body download and foreground sending. A cancellation
+request must prevent later connection attempts even if credential preparation has not finished. Keep the UI busy
+until the worker settles, preserve completed changes, and never relabel a possibly accepted message as safely failed.
+
+Implemented: `MailOperation` registers a session's socket owner before protected credentials are read. Cancellation
+marks the request immediately and tears down sockets on IO, including model disposal; late preparation checks refuse
+new transport work. Mailbox and composer models expose canCancel/cancelling state and Bolt Cancel controls. Navigation
+and repeat clicks remain disabled until the worker finishes. Local draft/database writes are not exposed as cancellable
+network operations. Completed sync changes are not rolled back. Resolver/protected-service waits have no active
+socket to interrupt; the UI honestly remains cancelling until they settle, then prevents any subsequent connection.
+
+SMTP still uses its phase-aware failure classification. Cancellation before submission does not imply acceptance;
+after the DATA terminator without the final response it remains UNCERTAIN. An already accepted result remains SENT
+if cancellation arrives while that result is being committed/displayed. No implicit retry loop is added.
+
+### Preserve uncertainty across later attempts
+
+Two new regressions failed before the fix: an uncertain message retried into a known rejection became FAILED, losing
+the earlier risk; cancelling its queued retry before claim left a plain QUEUED row. Evidence:
+`/tmp/thunderbird-uncertain-history-before.log` and `build/evidence/cancel-ui/uncertain-history-before.xml`.
+Schema 5 adds `outgoing.uncertain_attempt`. Failed or cancelled retries cannot erase earlier uncertainty. Claims with
+that history require explicit duplicate-risk acknowledgement for each attempt, including after reopen/requeue.
+A newly accepted attempt keeps its history for display. Old schema-4 pending rows conservatively require review because
+the older preview did not preserve complete attempt history; MIME and Message-ID are retained. Drafts are not flagged.
+Older previews reject schema 5 rather than resetting data. Rollback remains a separate unverified recovery procedure.
+
+### Verification
+
+79 app tests pass, zero failures/errors/skips; detekt, spotlessCheck and installDist pass with the scoped JDK 21/Xvfb
+command above. Latest log: `/tmp/thunderbird-cancel-probe-build.log`. This includes real socket/model cancellation,
+blocked credential preparation (busy remains true and no later TCP connection occurs), accepted-result preservation,
+Cancel button/repeat-click/navigation states, earlier-attempt retry guards and schema-4 migration.
+
+`SmtpDataCancellationTest` uses a real TLS SMTP peer with an ephemeral certificate explicitly trusted only in that
+test. It reads the full DATA terminator but withholds the final acknowledgement. The real composer/sender/socket path
+cancels the wait within three seconds and persists UNCERTAIN/history; another bare Send does not resubmit it.
+The fixture neither forwards nor logs mail. Prior shared-mail tests/lint/detekt (863 tests at `3234a3b049`) remain
+applicable: this operation/UI work changes no shared mail source. Android assembly/instrumentation were not run.
+
+The source bundle now includes the modified shared socket/protocol source files as well as the app sources; shell
+syntax verification passes. The complete source/materials licensing and reproducible release gate remains open.
+
+`ConfinedCancellationProbe` is an opt-in test executable for the next installed candidate: it checks the enforcing
+profile/schema 5, creates a disposable protected account, drives the default Swing-dispatched mailbox model into a
+controlled TCP greeting wait, requests Cancel and checks settled state within five seconds. A test-only socket observer
+signals TCP establishment without replacing production cancellation code. Protected credential/index/cache cleanup is
+checked. It has not yet been run on the phone at this source checkpoint; do not run it against installed 0.1.9.
+
+Remaining gates: build/install 0.1.10, native cancellation and schema-5 checks, authenticated IMAP sync/body interruption,
+blocked payload-write cancellation, successful STARTTLS interoperability and the complete physical/provider journey.
+These remain explicit requirements; 0.1.9's earlier confined protocol proof does not verify this new code.

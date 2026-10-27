@@ -2,6 +2,7 @@ package net.thunderbird.app.ubuntutouch
 
 import com.fsck.k9.mail.ssl.PlainSocketFactory
 import com.fsck.k9.mail.ssl.TrustedSocketFactory
+import com.fsck.k9.mail.ssl.createPlainSocket
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.Socket
@@ -13,7 +14,7 @@ internal class CancellableSocketFactory(private val delegate: TrustedSocketFacto
     private var closed = false
     private val sockets = linkedSetOf<Socket>()
 
-    override fun createPlainSocket(): Socket = register(Socket())
+    override fun createPlainSocket(): Socket = register(delegate.createPlainSocket())
 
     override fun createSocket(socket: Socket?, host: String, port: Int, clientCertificateAlias: String?): Socket =
         register(delegate.createSocket(socket, host, port, clientCertificateAlias))

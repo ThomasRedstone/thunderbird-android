@@ -174,7 +174,65 @@ class OutgoingMailStoreTest {
             assertThat(OutgoingMailStore(database).list(accountId)).isEqualTo(emptyList())
             assertThat(SignonIdentityIndex(database).find("fixture")).isEqualTo(42L)
             assertThat(AccountSettingsStorage(database).all().single().id).isEqualTo(accountId)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(4L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(5L)
+        }
+    }
+
+    @Test
+    fun `a rejected retry must not erase uncertainty from an earlier attempt`() {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val account = account(database)
+            val store = OutgoingMailStore(database)
+            val draft = queued(store, account)
+            store.claim(account.id, draft.id)
+            store.finish(account.id, draft.id, OutgoingState.UNCERTAIN)
+            store.retry(account.id, draft.id, acknowledgeDuplicateRisk = true)
+            val testSubject =
+                OutgoingMailSender(store) { _, _ -> throw NegativeSmtpReplyException(550, "Rejected fixture") }
+            assertThat(
+                testSubject.send(account.id, draft.id, acknowledgeDuplicateRisk = true),
+            ).isEqualTo(OutgoingState.UNCERTAIN)
+        }
+    }
+
+    @Test
+    fun `cancelling a queued retry preserves the earlier uncertain attempt`() {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val account = account(database)
+            val store = OutgoingMailStore(database)
+            val draft = queued(store, account)
+            store.claim(account.id, draft.id)
+            store.finish(account.id, draft.id, OutgoingState.UNCERTAIN)
+            store.retry(account.id, draft.id, acknowledgeDuplicateRisk = true)
+            val operation = MailOperation().apply { close() }
+            var attempts = 0
+            val testSubject = OutgoingMailSender(store) { _, _ ->
+                attempts++
+                error("Must not send")
+            }
+            assertThat(testSubject.send(account.id, draft.id, operation)).isEqualTo(OutgoingState.UNCERTAIN)
+            assertThat(attempts).isEqualTo(0)
+        }
+    }
+
+    @Test
+    fun `schema four pending rows retain MIME and require review because old attempt history is unavailable`() {
+        val path = directory.root.toPath().resolve("mail.sqlite")
+        val reference = MailDatabase(path).use { database ->
+            val account = account(database)
+            val store = OutgoingMailStore(database)
+            val draft = queued(store, account)
+            database.execute("ALTER TABLE outgoing DROP COLUMN uncertain_attempt")
+            database.execute("PRAGMA user_version=4")
+            account.id to draft.id
+        }
+        MailDatabase(path).use { database ->
+            val store = OutgoingMailStore(database)
+            val (account, id) = reference
+            val restored = store.get(account, id)
+            assertThat(restored.hasUncertainAttempt).isTrue()
+            assertThat(store.claim(account, id)).isEqualTo(null)
+            assertThat(checkNotNull(store.claim(account, id, acknowledgeDuplicateRisk = true)).isNotEmpty()).isTrue()
         }
     }
 

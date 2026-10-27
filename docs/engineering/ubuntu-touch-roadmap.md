@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.9 installed on FP4; 0.1.4 sizing/typing confirmed; SQLite/SignOn confinement checks pass; 0.1.9 dispatcher/draft recovery probe passes | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Cached mailbox/composer UI; confined FP4 TLS IMAP/SMTP, protected credentials and fresh-JVM cache recovery pass |
-| Engineering | 68 app tests, 863 shared mail tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Provider/physical-UI suites, STARTTLS/cancellation, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 79 app tests, 863 shared mail tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Provider/physical-UI suites, STARTTLS/cancellation, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Composer UI committed/pushed as `131b9b8012`; installed 0.1.9 embeds that clean source | Ongoing live-mail work and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `62bc1a1` pins installed 0.1.9/hash | Physical foreground journeys, cancellation and lifecycle verification |
 

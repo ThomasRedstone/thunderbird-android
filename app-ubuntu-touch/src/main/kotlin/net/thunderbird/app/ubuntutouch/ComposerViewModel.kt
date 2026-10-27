@@ -25,9 +25,14 @@ internal class ComposerViewModel(
     val state = mutableState.asStateFlow()
     private val writes = Mutex()
     private var autosave: Job? = null
+    private var activeOperation: MailOperation? = null
 
     fun event(event: ComposerEvent) {
         val current = state.value
+        if (event == ComposerEvent.Cancel) {
+            cancel(current)
+            return
+        }
         if (current.busy) return
         when (event) {
             is ComposerEvent.Change -> change(event.field, event.value)
@@ -51,7 +56,9 @@ internal class ComposerViewModel(
             ComposerEvent.Send -> send(retry = false, acknowledge = false)
 
             ComposerEvent.Retry -> {
-                if (current.selected?.state == OutgoingState.UNCERTAIN) {
+                if (current.selected?.state == OutgoingState.UNCERTAIN ||
+                    current.selected?.hasUncertainAttempt == true
+                ) {
                     mutableState.value = current.copy(confirmRetry = true)
                 } else {
                     send(retry = true, acknowledge = false)
@@ -63,6 +70,13 @@ internal class ComposerViewModel(
             ComposerEvent.CancelRetry -> mutableState.value = current.copy(confirmRetry = false)
 
             else -> navigate(event, current)
+        }
+    }
+
+    private fun cancel(current: ComposerState) {
+        if (current.busy && current.canCancel) {
+            activeOperation?.cancelIn(scope)
+            mutableState.value = current.copy(cancelling = true, notice = "Cancelling… Waiting for the saved outcome.")
         }
     }
 
@@ -122,12 +136,15 @@ internal class ComposerViewModel(
         }
     }
 
-    private fun send(retry: Boolean, acknowledge: Boolean) = operate { current ->
-        val account = checkNotNull(current.account)
-        val id = checkNotNull(current.selected).id
-        if (retry) store.retry(account, id, acknowledge)
-        sender.send(account, id)
-        reload(current, id)
+    private fun send(retry: Boolean, acknowledge: Boolean) {
+        val operation = MailOperation()
+        operate(operation) { current ->
+            val account = checkNotNull(current.account)
+            val id = checkNotNull(current.selected).id
+            if (retry) store.retry(account, id, acknowledge)
+            sender.send(account, id, operation, acknowledgeDuplicateRisk = acknowledge)
+            reload(current, id)
+        }
     }
 
     private fun saveDraft(current: ComposerState): ComposerState {
@@ -164,26 +181,44 @@ internal class ComposerViewModel(
         )
     }
 
-    private fun operate(block: (ComposerState) -> ComposerState) {
+    private fun operate(operation: MailOperation? = null, block: (ComposerState) -> ComposerState) {
         autosave?.cancel()
         val snapshot = state.value
-        mutableState.value = snapshot.copy(busy = true, notice = null)
+        activeOperation = operation
+        mutableState.value =
+            snapshot.copy(busy = true, canCancel = operation != null, cancelling = false, notice = null)
         scope.launch {
             try {
-                mutableState.value =
-                    withContext(Dispatchers.IO) { writes.withLock { block(snapshot) } }.copy(busy = false)
+                val result = withContext(Dispatchers.IO) { writes.withLock { block(snapshot) } }
+                mutableState.value = result.copy(
+                    busy = false,
+                    canCancel = false,
+                    cancelling = false,
+                    notice = if (operation?.cancellationRequested == true) {
+                        "Cancellation requested. Review the saved delivery state before another attempt."
+                    } else {
+                        result.notice
+                    },
+                )
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
                 mutableState.value = snapshot.copy(
                     busy = false,
+                    canCancel = false,
+                    cancelling = false,
                     notice = "Unable to complete the operation. Saved drafts and outbox records are retained.",
                 )
+            } finally {
+                if (activeOperation === operation) activeOperation = null
             }
         }
     }
 
-    override fun close() = scope.cancel()
+    override fun close() {
+        activeOperation?.cancelIn(scope)
+        scope.cancel()
+    }
 
     private companion object {
         const val AUTOSAVE_DELAY_MS = 400L

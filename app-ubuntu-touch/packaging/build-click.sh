@@ -41,7 +41,12 @@ if [[ -n ${UT_RUNTIME_IMAGE:-} ]]; then
 fi
 git rev-parse HEAD > "$STAGE/payload/mail-demo/SOURCE-COMMIT.txt"
 git diff --binary HEAD > "$STAGE/payload/mail-demo/SOURCE-CHANGES.patch"
-tar --exclude=build -czf "$STAGE/payload/mail-demo/PORT-SOURCES.tar.gz" app-ubuntu-touch settings.gradle.kts gradle/libs.versions.toml docs/engineering/ubuntu-touch-roadmap.md components/ui/bolt/src/commonMain/kotlin/net/thunderbird/components/ui/bolt/atom/textfield/TextFieldOutlinedPassword.kt
+tar --exclude=build -czf "$STAGE/payload/mail-demo/PORT-SOURCES.tar.gz" \
+    app-ubuntu-touch settings.gradle.kts gradle/libs.versions.toml docs/engineering/ubuntu-touch-roadmap.md \
+    components/ui/bolt/src/commonMain/kotlin/net/thunderbird/components/ui/bolt/atom/textfield/TextFieldOutlinedPassword.kt \
+    mail/common/src/main/java/com/fsck/k9/mail/ssl/PlainSocketFactory.kt \
+    mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/RealImapConnection.kt \
+    mail/protocols/smtp/src/main/java/com/fsck/k9/mail/transport/smtp/SmtpTransport.kt
 # Refuse to replace an existing output, including one created since the initial check.
 mkdir "$UT_OUTPUT"
 cp -a "$STAGE/payload/." "$UT_OUTPUT/"

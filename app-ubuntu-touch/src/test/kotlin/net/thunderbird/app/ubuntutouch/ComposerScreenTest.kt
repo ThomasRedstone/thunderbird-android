@@ -1,6 +1,8 @@
 package net.thunderbird.app.ubuntutouch
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.input.TextFieldValue
@@ -12,6 +14,33 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class ComposerScreenTest : ComposeUiTestHarness() {
+    @Test
+    fun `send cancellation leaves the outcome pending and prevents a second click`() = runComposeTest {
+        val state = mutableStateOf(
+            ComposerState(
+                emptyList(),
+                account = AccountIdFactory.create(),
+                selected = draft(OutgoingState.QUEUED),
+                busy = true,
+                canCancel = true,
+            ),
+        )
+        var event: ComposerEvent? = null
+        setContent {
+            ThunderbirdBoltTheme {
+                ComposerScreen(state.value, {
+                    event = it
+                    state.value = state.value.copy(cancelling = true)
+                }, null)
+            }
+        }
+        onNodeWithText("Cancel sending").performClick()
+        assertThat(event).isEqualTo(ComposerEvent.Cancel)
+        onNodeWithText("Cancel sending").assertIsNotEnabled()
+        onNodeWithText("Send now").assertIsNotEnabled()
+        onNodeWithText("Back").assertIsNotEnabled()
+    }
+
     @Test
     fun `composer edits recipients and offers offline queue without a send action`() = runComposeTest {
         var event: ComposerEvent? = null
@@ -47,6 +76,20 @@ class ComposerScreenTest : ComposeUiTestHarness() {
         onNodeWithText("Send again despite duplicate risk").performClick()
         assertThat(event).isEqualTo(ComposerEvent.ConfirmRetry)
         onNodeWithText("Send now").assertDoesNotExist()
+    }
+
+    @Test
+    fun `queued message with earlier uncertainty still requires duplicate review`() = runComposeTest {
+        var event: ComposerEvent? = null
+        val state = ComposerState(
+            emptyList(),
+            account = AccountIdFactory.create(),
+            selected = draft(OutgoingState.QUEUED).copy(hasUncertainAttempt = true),
+        )
+        setContent { ThunderbirdBoltTheme { ComposerScreen(state, { event = it }, null) } }
+        onNodeWithText("Send now").assertDoesNotExist()
+        onNodeWithText("Review retry").performClick()
+        assertThat(event).isEqualTo(ComposerEvent.Retry)
     }
 
     private fun draft(state: OutgoingState) = OutgoingMail(

@@ -33,28 +33,40 @@ internal class ForegroundMailSessionFactory(
         initializeMailRuntime(logger, mimeDirectory)
     }
 
-    fun open(id: AccountId): ForegroundMailSession {
-        val account = checkNotNull(accounts.findById(id)) { "Account not found" }
-        val passwords = accounts.passwords(id)
-        val storage = PersistentBackendStorage(database, id.toString())
+    fun open(id: AccountId): ForegroundMailSession = open(id, null)
+
+    @Suppress("TooGenericExceptionCaught") // Release owned resources on every construction failure; rethrow unchanged.
+    fun open(id: AccountId, operation: MailOperation?): ForegroundMailSession {
         val ownedSockets = CancellableSocketFactory(sockets)
-        val imap = ImapStore.create(
-            account.incoming.newPassword(passwords.incoming),
-            PreviewImapConfig,
-            ownedSockets,
-            null,
-        )
-        val smtp = SmtpTransport(account.outgoing.newPassword(passwords.outgoing), ownedSockets, null)
-        val backend = ImapBackend(
-            accountName = id.toString(),
-            backendStorage = storage,
-            imapStore = imap,
-            powerManager = ForegroundOnlyPlatform,
-            idleRefreshManager = ForegroundOnlyPlatform,
-            pushConfigProvider = ForegroundOnlyPlatform,
-            smtpTransport = smtp,
-        )
-        return ForegroundMailSession(backend, imap, smtp, ownedSockets)
+        try {
+            operation?.register(ownedSockets)
+            operation?.ensureActive()
+            val account = checkNotNull(accounts.findById(id)) { "Account not found" }
+            val passwords = accounts.passwords(id)
+            operation?.ensureActive()
+            val storage = PersistentBackendStorage(database, id.toString())
+            val imap = ImapStore.create(
+                account.incoming.newPassword(passwords.incoming),
+                PreviewImapConfig,
+                ownedSockets,
+                null,
+            )
+            val smtp = SmtpTransport(account.outgoing.newPassword(passwords.outgoing), ownedSockets, null)
+            val backend = ImapBackend(
+                accountName = id.toString(),
+                backendStorage = storage,
+                imapStore = imap,
+                powerManager = ForegroundOnlyPlatform,
+                idleRefreshManager = ForegroundOnlyPlatform,
+                pushConfigProvider = ForegroundOnlyPlatform,
+                smtpTransport = smtp,
+            )
+            return ForegroundMailSession(backend, imap, smtp, ownedSockets, operation)
+        } catch (failure: Throwable) {
+            ownedSockets.close()
+            operation?.release(ownedSockets)
+            throw failure
+        }
     }
 }
 
@@ -63,6 +75,7 @@ internal class ForegroundMailSession(
     private val imap: ImapStore,
     private val smtp: SmtpTransport,
     private val sockets: CancellableSocketFactory,
+    private val operation: MailOperation?,
 ) : AutoCloseable {
     fun checkSettings() {
         imap.checkSettings()
@@ -94,6 +107,7 @@ internal class ForegroundMailSession(
 
     override fun close() {
         sockets.close()
+        operation?.release(sockets)
         imap.closeAllConnections()
     }
 

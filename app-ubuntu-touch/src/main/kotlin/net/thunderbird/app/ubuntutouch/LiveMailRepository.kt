@@ -15,7 +15,14 @@ internal interface LiveMailRepository {
     fun messages(account: AccountId, folder: String): List<MailSummary>
     fun content(account: AccountId, folder: String, uid: String): MailContent
     fun refresh(account: AccountId, folder: String?)
+    fun refresh(account: AccountId, folder: String?, operation: MailOperation) = refresh(account, folder)
     fun download(account: AccountId, folder: String, uid: String)
+    fun download(
+        account: AccountId,
+        folder: String,
+        uid: String,
+        operation: MailOperation,
+    ) = download(account, folder, uid)
 }
 
 internal class PersistentLiveMailRepository(
@@ -46,15 +53,21 @@ internal class PersistentLiveMailRepository(
         )
     }
 
-    override fun refresh(account: AccountId, folder: String?) {
-        sessions.open(account).use {
+    override fun refresh(account: AccountId, folder: String?) = refresh(account, folder, MailOperation())
+
+    override fun refresh(account: AccountId, folder: String?, operation: MailOperation) {
+        sessions.open(account, operation).use {
             it.refreshFolders()
+            operation.ensureActive()
             if (folder != null && folder in storage(account).getFolderServerIds()) it.sync(folder)
         }
     }
 
-    override fun download(account: AccountId, folder: String, uid: String) {
-        sessions.open(account).use { it.downloadMessage(folder, uid) }
+    override fun download(account: AccountId, folder: String, uid: String) =
+        download(account, folder, uid, MailOperation())
+
+    override fun download(account: AccountId, folder: String, uid: String, operation: MailOperation) {
+        sessions.open(account, operation).use { it.downloadMessage(folder, uid) }
     }
 
     private fun storage(account: AccountId) = PersistentBackendStorage(database, account.toString())

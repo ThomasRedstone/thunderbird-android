@@ -2651,3 +2651,64 @@ The older container daemon and default backend differ from the phone's exact pat
 full plugin IPC path with matching service sources and sequential pipe behaviour. No app or system fix is accepted yet.
 Artifacts: `app-ubuntu-touch/build/evidence/signon-full-service/{probe.py,before-after.log,extended-timeout.log}`;
 full build/run log `/tmp/thunderbird-signon-full-result.log`, refined run `/tmp/thunderbird-signon-full-result-4.log`.
+
+
+### Full-service failure traced to disabled daemon-side notifier
+
+Size-only IPC instrumentation found the helper completes its large reply, while the daemon consumes a page header
+then waits forever. In `PluginProxy::waitForStarted`, upstream creates a notifier for **STDIN_FILENO**, disables it,
+and passes it to BlobIOHandler, whose partial-read path then listens to that disabled notifier instead of the
+QProcess `readyRead` signal. This code is unchanged between VERSION_8.61 and current upstream. It explains why the
+buffered-page patch alone was insufficient in the full service.
+
+A minimal experimental library fix ignores a disabled notifier, letting the existing QIODevice readyRead path run:
+
+```diff
+-    if (notifier == 0)
++    if (notifier == 0 || !notifier->isEnabled())
+         return;
+```
+
+With this change alone, the full container daemon/plugin/password flow reads1024/8192/39997 raw bytes exactly.
+With both this change and upstreama08b05b, a build without instrumentation passes the same three sizes in **three
+fresh private D-Bus sessions**. Every synthetic identity is removed. The earlier before/after-only variants fail
+on the same service/client; this is a meaningful fail-before/pass-after comparison. The existing buffered-input
+harness additionally proves why the upstream queued-page change remains necessary for already-buffered multi-page
+input even though notifier-only passed this particular service schedule.
+
+Evidence bundle: `app-ubuntu-touch/build/evidence/signon-full-service/fix/`, including
+`ignore-disabled-notifier.patch` (on top of current upstream), `combined.cpp`, size-only IPC metrics,
+`notifier-only.log` and `combined-three-runs.log`. Canonical result log:
+`/tmp/thunderbird-signon-combined-result.log`. Both daemon and helper loaded the experimental library; no private
+credential content was printed. The service test uses the older Noble desktop daemon/default backend and fixture
+ACL described above, so it proves this experimental full-service remedy, not phone/AppArmor or production token-flow
+acceptance. The FP4 remains on unchanged0.1.25 with failing large reads. No platform package, daemon or app permission
+was changed on the phone. Next native verification needs an explicitly scoped platform-test approach; no systemwide
+credential service replacement is assumed authorized by app deployment permission.
+
+
+### ARM64 phone private-service comparison passes with combined fix
+
+The existing Clickable cross-build image `ae156e669bf4` compiled the combined library with Qt5.15.13 and
+`aarch64-linux-gnu-g++`; ELF verification identifies ARM aarch64. Library SHA-256:
+`ac282552e3a03ddab67acdc8edd3b5a92846ca29a119c3c96cc1d9240c301833`, independently matched after upload.
+The library is staged only under the app-owned cache `probes/signon-ipc-native-combined/`; it replaces no system file.
+
+Using the phone's installed `/usr/bin/signond` and helper on **separate private D-Bus sessions**, a synthetic probe
+uses new app-cache fixture directories, private XDG/SignOn configuration and explicit default storage/access backends.
+It terminates its own daemon and removes its own storage directory after removing every test identity. No normal
+session-bus address, production database, AppArmor profile, system package or service registration was changed.
+This is a private synthetic backend test, not app confinement or production keyring acceptance.
+
+The installed baseline reads1024 bytes but times out at8192/39997. The combined library selected only for the private
+process via LD_LIBRARY_PATH reads **all three sizes exactly**; cleanup succeeds. This is native fail-before/pass-after
+with the actual installed daemon/helper, strengthening the desktop service evidence. Private-bus logs retain failed
+activation warnings for missing `/usr/bin/online-accounts-service` on identity removal; these occur in both variants
+and do not prevent the measured reads/removals. The production app remains0.1.25 and its normal large reads remain
+unfixed. No claim of completed native OAuth identity/token acceptance follows from this private service test.
+
+Artifacts: `app-ubuntu-touch/build/evidence/signon-native-private/`; logs
+`/tmp/thunderbird-signon-phone-private-{baseline,combined}.log`; cross-build logs
+`/tmp/thunderbird-signon-arm64-build{,-final}.log` (the first compilation needed an include-path correction for the
+combined file; the final build succeeds). The fix now has a concrete ARM64 artifact and reviewable minimal source
+patch, but integration into the real credential service still needs its own bounded deployment/recovery plan.

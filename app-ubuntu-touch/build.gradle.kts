@@ -26,6 +26,8 @@ dependencies {
     implementation(projects.backend.api)
     implementation(projects.mail.common)
     implementation(projects.core.common)
+    implementation(projects.feature.account.api)
+    implementation(projects.feature.mail.account.api)
     implementation(libs.tb.mobile.components.ui.bolt)
     testImplementation(libs.tb.mobile.components.ui.testing)
     testImplementation(libs.jetbrains.compose.ui.test)
@@ -106,4 +108,12 @@ tasks.named<CreateStartScripts>("startScripts") {
     doFirst {
         classpath = files(classpath!!.files.map { file(it.distributionName()) })
     }
+}
+
+// Opt-in integration probe: run on a disposable session bus/keyring, or explicitly on the test device.
+tasks.register<JavaExec>("secretServiceProbe") {
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("net.thunderbird.app.ubuntutouch.SecretServiceProbe")
+    providers.gradleProperty("utSecretProbeMode").orNull?.let { args(it) }
 }

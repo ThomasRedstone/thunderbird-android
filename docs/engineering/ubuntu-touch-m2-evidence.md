@@ -72,3 +72,56 @@ trusted direct TLS and STARTTLS, rejection of trusted certificates for another h
 of an unknown self-signed certificate by the system trust store. Test credentials are temporary fixture values.
 This is a prerequisite for account setup, not a completed account flow: Secret Service, server settings persistence,
 secure input, UI and protocol wiring remain open.
+
+## Work package 2.2: account persistence and protected secrets
+
+Brief: implement the Linux adapters for shared `AccountManager<UtMailAccount>` and `AccountRepository`, with durable
+server settings and protected passwords. Preserve existing cached mail when upgrading the schema. Account settings
+must contain no passwords; unavailable or locked secret storage must never trigger a plaintext fallback. Test
+restart, failed writes, replacement and selected-account removal before wiring the setup UI.
+
+Implemented adapters:
+
+- `UtAccountManager` provides shared API create/update/delete, ordering and observable accounts. `UtMailAccount` uses
+  the shared `AccountId` and existing `ServerSettings`. Settings reject disabled TLS, embedded passwords and unsupported
+  authentication modes; initial password/app-password authentication supports IMAP/SMTP. OAuth and client certificates
+  remain later required work.
+- Database schema 2 adds account/server configuration and a credential-cleanup journal. The schema-1 upgrade preserves
+  cached folders and sync metadata. Credentials are written under an immutable reference before the SQL commit claims
+  them. Failed/crashed saves leave journaled, unreferenced entries that can be cleaned on retry/restart. Password
+  replacement preserves the old reference if the new write fails. Delayed cleanup is reported separately from the
+  committed password change. Removal refuses locked/unavailable storage, then deletes only the selected account's
+  credentials, settings and cached mail. A crash between secret deletion and the SQL removal can leave an account
+  needing credentials again; it does not erase its cached mail. Removal is retryable.
+- `SecretServiceCredentialStore` implements the
+  [Secret Service protocol](https://specifications.freedesktop.org/secret-service/latest/) on the local session bus,
+  following `../ut-platform/src/secrets.rs`. Sessions close after each operation. The library's bounded reply timeout
+  is 20 seconds per method. These blocking adapters must be called on IO dispatchers; shared suspend create/update
+  methods dispatch to IO, and setup UI wiring remains pending. Locked items, missing service,
+  unsupported prompts and invalid replies fail clearly. No unlock UI is implemented yet. The `plain` session algorithm
+  follows the local-service reference; per-app attributes namespace items but do not isolate them from unconfined
+  processes running as the same user. Labels contain no account address or password.
+- Maliit now accepts a hidden-text focus mode, resets composition before activation, and explicitly disables prediction,
+  correction and capitalization for passwords. Normal-field hints reset the hidden-text mode. This API is unit-tested;
+  password-field phone interaction is not yet verified.
+
+Verification on 2026-10-27:
+
+- All 26 app tests pass, including eight account tests and the protocol/hint tests. Cases cover restart with separate
+  protected passwords, no plaintext password in SQLite, locked-store failure, interrupted SQL saves and credential
+  cleanup after reopen, account-scoped deletion, password replacement/failure, migration and TLS/settings validation.
+- Detekt, spotlessCheck and installDist pass. Command: JDK 21 with Xvfb,
+  `./gradlew :app-ubuntu-touch:spotlessApply :app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:spotlessCheck :app-ubuntu-touch:installDist --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+- `app-ubuntu-touch/scripts/test-secret-service.sh` passes against a disposable session bus and real GNOME keyring:
+  create/read/replace/delete, namespace isolation and actual locked-item failure. It deliberately locks only its
+  disposable collection and never uses the user's existing session bus or keyring. Requires dbus-run-session,
+  gnome-keyring-daemon, JDK 21 and the configured Android SDK for Gradle configuration.
+- The test-only `SecretServiceProbe` ran on FP4 using the installed preview's bundled JVM: exit 0,
+  `Secret Service create/read/replace/delete and namespace isolation passed`. It created and deleted only a random
+  probe namespace/item. The phone collection was never locked or modified beyond those test items. Output retained in
+  `app-ubuntu-touch/build/evidence/secret-probe/phone-result.txt`.
+
+The real-keyring probe exposed a D-Bus path equality bug; comparing protocol paths instead of library source metadata
+fixed it, and both real-service probes pass. The phone test was outside Click confinement. Confined access, setup UI,
+secure-field interaction and live IMAP/SMTP are still open. The installed app remains the offline 0.1.4 preview.
+These are unfinished roadmap requirements, not product exclusions. No production account credentials were requested.

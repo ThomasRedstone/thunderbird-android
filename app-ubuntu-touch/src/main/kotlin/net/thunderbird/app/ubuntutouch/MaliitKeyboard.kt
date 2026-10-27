@@ -14,7 +14,6 @@ import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder
 import org.freedesktop.dbus.connections.impl.DirectConnection
 import org.freedesktop.dbus.connections.impl.DirectConnectionBuilder
 import org.freedesktop.dbus.interfaces.Properties
-import org.freedesktop.dbus.types.Variant
 
 internal class MaliitKeyboard(private val logger: Logger) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
@@ -30,14 +29,17 @@ internal class MaliitKeyboard(private val logger: Logger) {
         private set
 
     private var textFocused = false
+    private var hiddenText = false
     private var windowFocused = true
     private var connection: DirectConnection? = null
     private var server: MaliitServer? = null
     private val context = InputContext()
 
-    fun focus(focused: Boolean) {
+    fun focus(focused: Boolean, hiddenText: Boolean = false) {
+        val modeChanged = focused && this.hiddenText != hiddenText
+        if (focused) this.hiddenText = hiddenText
         textFocused = focused
-        updateFocus()
+        updateFocus(force = modeChanged)
     }
 
     fun windowFocusChanged(focused: Boolean) {
@@ -45,16 +47,18 @@ internal class MaliitKeyboard(private val logger: Logger) {
         updateFocus()
     }
 
-    private fun updateFocus() {
+    private fun updateFocus(force: Boolean = false) {
         val focused = textFocused && windowFocused
-        if (this.focused == focused) return
+        if (this.focused == focused && !force) return
         this.focused = focused
+        val hints = maliitWidgetState(hiddenText)
         scope.launch {
             runCatching {
                 if (focused) {
                     val keyboard = connect()
+                    keyboard.reset()
                     keyboard.activateContext()
-                    keyboard.updateWidgetInformation(mapOf("focusState" to Variant(true)), true)
+                    keyboard.updateWidgetInformation(hints, true)
                     keyboard.showInputMethod()
                     mutableUnavailable.value = false
                 } else {

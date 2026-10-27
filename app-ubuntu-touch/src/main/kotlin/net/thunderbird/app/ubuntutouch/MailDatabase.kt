@@ -18,8 +18,9 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             execute("PRAGMA foreign_keys=ON")
             execute("PRAGMA busy_timeout=5000")
             val version = query("PRAGMA user_version") { getLong(0) }.single()
-            check(version in 0L..1L) { "Unsupported mail database version" }
+            check(version in 0L..2L) { "Unsupported mail database version" }
             if (version == 0L) createSchema()
+            if (version < 2L) createAccountSchema()
         } catch (exception: Exception) {
             connection.close()
             throw exception
@@ -60,6 +61,22 @@ internal class MailDatabase(path: Path) : AutoCloseable {
 
     @Synchronized
     override fun close() = connection.close()
+
+    private fun createAccountSchema() = transaction {
+        execute(
+            """CREATE TABLE accounts (
+                id TEXT PRIMARY KEY NOT NULL, display_name TEXT NOT NULL, address TEXT NOT NULL,
+                credential_key TEXT NOT NULL, position INTEGER NOT NULL)""",
+        )
+        execute(
+            """CREATE TABLE servers (
+                account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, kind TEXT NOT NULL,
+                host TEXT NOT NULL, port INTEGER NOT NULL, security TEXT NOT NULL, auth TEXT NOT NULL,
+                username TEXT NOT NULL, PRIMARY KEY(account,kind))""",
+        )
+        execute("PRAGMA user_version=2")
+        execute("CREATE TABLE credential_cleanup (key TEXT PRIMARY KEY NOT NULL)")
+    }
 
     private fun createSchema() = transaction {
         execute(

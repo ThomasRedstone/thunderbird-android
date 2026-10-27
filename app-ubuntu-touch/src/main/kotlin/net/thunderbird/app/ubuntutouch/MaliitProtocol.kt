@@ -9,6 +9,15 @@ import org.freedesktop.dbus.types.Variant
 internal const val MALIIT_SERVER_PATH = "/com/meego/inputmethod/uiserver1"
 internal const val MALIIT_CONTEXT_PATH = "/com/meego/inputmethod/inputcontext"
 
+// Always send both modes explicitly so a normal field cannot inherit password hints, or vice versa.
+internal fun maliitWidgetState(hiddenText: Boolean): Map<String, Variant<*>> = mapOf(
+    "focusState" to Variant(true),
+    "hiddenText" to Variant(hiddenText),
+    "predictionEnabled" to Variant(!hiddenText),
+    "correctionEnabled" to Variant(!hiddenText),
+    "autocapitalizationEnabled" to Variant(!hiddenText),
+)
+
 // Wire names and signatures match ut-platform/src/ime.rs. Maliit's callbacks
 // are commitString/updatePreedit, not the adaptor's C++ send-prefixed names.
 @JvmSuppressWildcards

@@ -2608,3 +2608,26 @@ without dbus-java/junixsocket, so a Java-only transport fix is not justified by 
 The matching installed SignOn package family reports8.61+git20231015.c8ad982 with UBports patches. Upstream source
 was obtained read-only at `/tmp/thunderbird-signond-source` to inspect plugin IPC framing; exact installed-patch
 comparison and a verified root cause remain pending. No system service or phone package was changed.
+
+
+### SignOn multi-page IPC regression isolated
+
+The phone's packaging revision is exactly `8568d3188166a6f941c47d7157f8627b63cff1c8`, retrieved from
+[UBports packaging](https://gitlab.com/ubports/development/core/packaging/signond/-/tree/8568d3188166a6f941c47d7157f8627b63cff1c8).
+Its patch series includes partial-read transactions but lacks upstream
+[`a08b05b79100bfd535100b8341df4e8bf1441802`](https://gitlab.com/accounts-sso/signond/-/commit/a08b05b79100bfd535100b8341df4e8bf1441802),
+which schedules further reads when another IPC page is already buffered. Without it, the reader consumes one page
+then waits for a notification that may never arrive. The framing page size is16384 bytes; UTF-16 serialization of
+base64 credential strings explains why8192 raw bytes already cross that boundary.
+
+An isolated host Qt6.10.2 harness compiles the actual upstream BlobIOHandler before/after that patch, with identical
+buffered input and synthetic data. The only common compatibility adjustment casts the outgoing size to qint32,
+preserving the Qt5 wire width (Qt6 QByteArray::size returns64-bit qsizetype). This adjustment applies to both versions.
+Before:1024 characters pass;8192 and53342 hang until the100ms test timeout, leaving33 and90353 buffered bytes.
+After: all three payloads round-trip exactly with zero remaining bytes. No payload content is printed.
+Sources and results are retained under `app-ubuntu-touch/build/evidence/signon-ipc-regression/`; upstream checkout
+`/tmp/thunderbird-signond-source`, exact packaging checkout `/tmp/thunderbird-signond-ubports`, executable harness
+`/tmp/thunderbird-signon-ipc-regression/`. This is strong isolated evidence, not a patched full-daemon or phone pass.
+No system packages/services were altered. Next verify the full service with the patch in an isolated environment;
+then assess an app-contained remedy versus a separately approved platform fix. The existing preview remains0.1.25,
+large protected reads remain failing, and no provider is enabled.

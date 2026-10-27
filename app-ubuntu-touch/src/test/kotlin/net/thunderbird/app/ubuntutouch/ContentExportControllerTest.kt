@@ -119,6 +119,30 @@ class ContentExportControllerTest {
         assertThat(journal.records()).isEqualTo(emptyList())
     }
 
+    @Test
+    fun `explicit review can remove an uncertain local copy without claiming receiver cancellation`() = fixture {
+            database,
+            exports,
+            journal,
+        ->
+        val broker = FakeExportBroker(destination).apply { loseChargeReply = true }
+        val testSubject = ContentExportController(CachedMessageExport(database, exports), journal, broker, { true })
+        val ready = testSubject.prepare(account, "INBOX", "1", authorized = { true })
+        val uncertain = checkNotNull(testSubject.send(ready, destination).record)
+        val file = journal.file(uncertain)
+        broker.unavailable = true
+        assertThat(testSubject.discardLocalCopy(uncertain).record).isEqualTo(null)
+        assertThat(Files.exists(file)).isEqualTo(false)
+        assertThat(journal.records()).isEqualTo(emptyList())
+        assertThat(broker.charges).isEqualTo(1)
+        assertThat(broker.aborts).isEqualTo(0)
+        assertThat(database.query("SELECT mime FROM messages") { String(getBlob(0)) }.single())
+            .isEqualTo("Synthetic message")
+        assertThat(
+            testSubject.observed(uncertain.id, broker.reference, ExportBrokerState.FINALIZED).record,
+        ).isEqualTo(null)
+    }
+
     private fun fixture(work: (MailDatabase, Path, ContentExportJournal) -> Unit) {
         MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
             val storage = PersistentBackendStorage(database, account.toString())

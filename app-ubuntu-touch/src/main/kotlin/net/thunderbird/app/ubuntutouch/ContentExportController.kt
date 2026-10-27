@@ -55,7 +55,7 @@ internal class ContentExportController(
         } catch (failure: Throwable) {
             try {
                 lease?.close()
-                record?.let { current(it.id)?.let(::release) }
+                record?.let { journal.currentRecord(it.id)?.let(::release) }
             } catch (cleanup: Throwable) {
                 failure.addSuppressed(cleanup)
             }
@@ -68,7 +68,9 @@ internal class ContentExportController(
 
     @Synchronized
     fun send(record: ExportLeaseRecord, destination: ExportDestination): ExportReconcileResult {
-        check(record.id in active && current(record.id) == record && record.phase == ExportLeasePhase.READY)
+        check(
+            record.id in active && journal.currentRecord(record.id) == record && record.phase == ExportLeasePhase.READY,
+        )
         if (!allowed(record)) return cancel(record.id)
         return preservingUncertainty(record.id) {
             require(destination in broker.destinations())
@@ -78,7 +80,7 @@ internal class ContentExportController(
             val state = broker.state(reference)
             if (!allowed(record)) {
                 cancel(record.id)
-            } else if (current(record.id) == attached && state == ExportBrokerState.IN_PROGRESS) {
+            } else if (journal.currentRecord(record.id) == attached && state == ExportBrokerState.IN_PROGRESS) {
                 // Persist before sending. No recovery path retries an ambiguous Charge.
                 journal.charging(attached)
                 if (allowed(record)) {
@@ -95,7 +97,7 @@ internal class ContentExportController(
 
     @Synchronized
     fun poll(id: UUID): ExportReconcileResult {
-        val record = current(id)
+        val record = journal.currentRecord(id)
         val reference = record?.transfer
         return if (reference == null) {
             ExportReconcileResult(record)
@@ -106,7 +108,7 @@ internal class ContentExportController(
 
     @Synchronized
     fun cancel(id: UUID): ExportReconcileResult {
-        val record = current(id)
+        val record = journal.currentRecord(id)
         val reference = record?.transfer
         return when {
             record == null -> ExportReconcileResult(null)
@@ -121,6 +123,15 @@ internal class ContentExportController(
                 poll(id)
             }
         }
+    }
+
+    /** Explicit user review only. Removing this private copy does not recall any destination copy. */
+    @Synchronized
+    fun discardLocalCopy(expected: ExportLeaseRecord): ExportReconcileResult {
+        require(expected.phase.hasTransfer)
+        check(journal.currentRecord(expected.id) == expected) { "Export changed; review again" }
+        release(expected)
+        return ExportReconcileResult(null)
     }
 
     @Synchronized
@@ -138,7 +149,7 @@ internal class ContentExportController(
     /** Duplicate/late notifications cannot target a different owner/path or resurrect an already released export. */
     @Synchronized
     fun observed(id: UUID, reference: ExportTransferReference, state: ExportBrokerState): ExportReconcileResult {
-        val record = current(id)
+        val record = journal.currentRecord(id)
         return when {
             record == null -> ExportReconcileResult(null)
 
@@ -156,8 +167,6 @@ internal class ContentExportController(
     private fun allowed(record: ExportLeaseRecord): Boolean =
         accountExists(record.account) && active[record.id]?.invoke() == true
 
-    private fun current(id: UUID): ExportLeaseRecord? = journal.records().singleOrNull { it.id == id }
-
     private fun release(record: ExportLeaseRecord) {
         journal.release(record)
         active -= record.id
@@ -168,6 +177,8 @@ internal class ContentExportController(
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        ExportReconcileResult(current(id))
+        ExportReconcileResult(journal.currentRecord(id))
     }
 }
+
+private fun ContentExportJournal.currentRecord(id: UUID): ExportLeaseRecord? = records().singleOrNull { it.id == id }

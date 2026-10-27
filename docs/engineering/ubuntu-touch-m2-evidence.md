@@ -1066,3 +1066,23 @@ assembly and connected-device suites were not rerun. Documentation formatting is
 Repository-wide spotlessCheck also ran and failed on existing Markdown formatting in the dependency audit.
 The four changed documentation files pass focused spotlessApply/spotlessCheck using `-PspotlessIdeHook`
 (`/tmp/thunderbird-015-doc-focused.log`); unrelated baseline formatting was preserved.
+
+### Transport-level lost APPEND acknowledgement
+
+A host integration fixture now closes the actual TLS client connection after the real IMAP server returns tagged
+successful APPEND, withholding that acknowledgement from the mail engine. The gateway counts the dropped response;
+the independent owner mailbox proves the copy was committed. Production filing reports UNKNOWN while SMTP remains
+SENT. After closing/reopening the SQLite database, a new filer/session searches by Message-ID and reports SAVED,
+retaining uncertainty history. Independent recipient and owner mailboxes each contain exactly one message, and the
+owner body survives unchanged. This is actual transport response loss, unlike the earlier injected local exception.
+
+The gateway's line-oriented response interception is restricted to this bounded APPEND/search fixture, which has no
+body literals in server replies. Other gateway tests retain byte-stream forwarding. A fault-disabled control fails
+at the dropped-response assertion; its XML is retained as `build/evidence/sent-copies/wire-fault-disabled.xml`.
+The positive focused run passes (`/tmp/thunderbird-wire-append.log`). This is host TLS protocol coverage, not confined
+phone or public-provider loss coverage. Authenticated body-fetch interruption, blocked writes, physical lifecycle and
+provider recovery remain open. Production source/package remains the deployed 0.1.15; these changes are test-only.
+
+All 121 app tests pass with zero failures/errors/skips, alongside app detekt and spotlessCheck
+(`/tmp/thunderbird-wire-full.log`). Changed documentation passes focused formatting checks.
+Only tests and evidence changed; Android assembly/device suites were not rerun.

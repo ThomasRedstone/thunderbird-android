@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
@@ -22,12 +23,15 @@ internal class StartTlsGateway(
     private val context: SSLContext,
     address: InetAddress = InetAddress.getLoopbackAddress(),
     private val allowRejectedHandshake: Boolean = false,
+    private val dropAppendAcknowledgement: Boolean = false,
 ) : AutoCloseable {
     private val listener = ServerSocket(0, 10, address)
     private val workers = Executors.newCachedThreadPool()
     private val sockets = ConcurrentHashMap.newKeySet<Socket>()
     private val failures = ConcurrentLinkedQueue<Exception>()
     val upgrades = AtomicInteger()
+    val droppedAppendAcknowledgements = AtomicInteger()
+    private val appendResponseDropped = AtomicBoolean()
     val port: Int get() = listener.localPort
 
     init {
@@ -78,13 +82,35 @@ internal class StartTlsGateway(
                 }
             }
             try {
-                backend.inputStream.copyTo(encrypted.outputStream)
+                if (dropAppendAcknowledgement) {
+                    relayUntilAppendAcknowledgement(backend, encrypted)
+                } else {
+                    backend.inputStream.copyTo(encrypted.outputStream)
+                }
             } catch (_: java.io.IOException) {
                 // The production engine closes owned sockets when a session ends.
             } finally {
                 sockets.remove(backend)
                 sockets.remove(peer)
             }
+        }
+    }
+
+    /** Only used for bounded APPEND/search fixtures, whose server responses contain no body literals. */
+    private fun relayUntilAppendAcknowledgement(backend: Socket, encrypted: Socket) {
+        while (true) {
+            val response = try {
+                readLine(backend)
+            } catch (_: java.io.EOFException) {
+                return
+            }
+            val appendAccepted = Regex("^[^ ]+ OK .*APPEND.*", RegexOption.IGNORE_CASE).matches(response)
+            if (appendAccepted && appendResponseDropped.compareAndSet(false, true)) {
+                droppedAppendAcknowledgements.incrementAndGet()
+                encrypted.close()
+                return
+            }
+            reply(encrypted, response)
         }
     }
 
@@ -112,7 +138,8 @@ internal class StartTlsGateway(
         val bytes = ArrayList<Byte>()
         while (true) {
             val next = peer.inputStream.read()
-            check(next >= 0 && bytes.size < 8192) { "Truncated or oversized fixture command" }
+            if (next < 0) throw java.io.EOFException()
+            check(bytes.size < 8192) { "Truncated or oversized fixture command" }
             if (next == 10) return bytes.toByteArray().toString(Charsets.US_ASCII).trimEnd('\r')
             bytes.add(next.toByte())
         }

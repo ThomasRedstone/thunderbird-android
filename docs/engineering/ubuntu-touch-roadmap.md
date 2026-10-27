@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.15 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 120 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 121 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Sent-copy recovery committed/pushed as `d38c691ea9`; installed 0.1.15 embeds that clean source | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `06a59d2` pins installed 0.1.15/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
@@ -185,7 +185,8 @@ the engine's viewable-part classification so text attachments are not mistaken f
 Automatic Sent copies are implemented in 0.1.15, with per-account folder selection, separate delivery/copy state,
 search before APPEND and explicit review before retrying an uncertain copy. Confined phone tests and independent
 recipient/Sent mailbox assertions verify one delivery/copy; fresh-process recovery passes after server shutdown.
-True APPEND-response loss, uncertain-copy retargeting and physical/provider acceptance remain open.
+Host TLS APPEND-response-loss recovery also passes after database reopen; phone/provider interruption, blocked writes,
+uncertain-copy retargeting and physical/provider acceptance remain open.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

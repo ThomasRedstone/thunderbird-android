@@ -504,6 +504,57 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `dropped wire APPEND acknowledgement recovers by search after database reopen`() {
+        prepareSentFolder()
+        val material = StartTlsMaterial(directory.root.toPath())
+        StartTlsGateway(true, server.imap.port, material.context, dropAppendAcknowledgement = true).use { gateway ->
+            accounts.updateSync(account.id) {
+                it.copy(
+                    incoming = settings(
+                        "imap",
+                        gateway.port,
+                    ).copy(connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED),
+                )
+            }
+            val sessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("wire-mime"),
+            )
+            val store = OutgoingMailStore(database)
+            val draft = store.create(account.id)
+            store.save(account.id, draft.id, RECIPIENT, "Wire acknowledgement loss", "Retained body λ")
+            store.queue(account, draft.id)
+            // SMTP retains its independently trusted TLS connection; only IMAP passes through the fault gateway.
+            val filer = SentCopyFiler(SentCopyStore(database), SessionSentCopyTransport(sessions))
+            val testSubject = OutgoingMailSender(store, SessionOutgoingTransport(factory()), filer)
+            assertThat(testSubject.send(account.id, draft.id)).isEqualTo(OutgoingState.SENT)
+            assertThat(gateway.droppedAppendAcknowledgements.get()).isEqualTo(1)
+            assertThat(filer.status(account.id, draft.id)?.state).isEqualTo(SentCopyState.UNKNOWN)
+            withOracleSent { assertThat(it.messageCount).isEqualTo(1) }
+            database.close()
+            database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+            val reopenedSessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("wire-mime"),
+            )
+            val recovered = SentCopyFiler(SentCopyStore(database), SessionSentCopyTransport(reopenedSessions))
+            assertThat(recovered.file(account.id, draft.id)?.state).isEqualTo(SentCopyState.SAVED)
+            assertThat(recovered.status(account.id, draft.id)?.hasUncertainAttempt).isEqualTo(true)
+            withOracleSent { folder ->
+                assertThat(folder.messageCount).isEqualTo(1)
+                assertThat(folder.messages.single().content.toString().trim()).isEqualTo("Retained body λ")
+            }
+            withOracleInbox("recipient") { assertThat(it.messageCount).isEqualTo(1) }
+        }
+    }
+
+    @Test
     fun `existing provider Sent copy is found instead of appending another copy`() {
         prepareSentFolder()
         val store = OutgoingMailStore(database)

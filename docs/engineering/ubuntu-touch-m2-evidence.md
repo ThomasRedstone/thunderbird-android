@@ -2467,3 +2467,23 @@ Focused log `/tmp/thunderbird-oauth-scopes-focused.log`; full log `/tmp/thunderb
 Scoped documentation checks pass. No Android lint/instrumentation target exists for this JVM app; shared Android
 source is unchanged and prior shared-engine Android assembly evidence remains applicable. Native protected-format
 migration, real provider flows and physical permission/error handling were not tested.
+
+
+### Verified 0.1.24 ARM64 package
+
+Candidate26 built from clean `a5e21f5529354ac1f3fcd4882bd18041039919b9`; embedded SOURCE-CHANGES is empty.
+Artifact: `app-ubuntu-touch/build/ut-candidate-26/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.24_arm64.click`.
+Size 147659328 bytes; SHA-256 `7a955401bc7c21ab81974b4b9b89e123eec16ef68a8782a7064be8403146709c`.
+Click review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-024-click.log`). The same pinned builder
+and verified candidate5 runtime were reused; cold reproducibility remains unproven.
+
+Matching frozen drivers: `build/evidence/oauth-native-024/candidate-024-probes.jar` (62 classes),
+SHA-256 `eecf254563bc5c12a708c766196fa90308893b4827c55fe93f0a5bd8061506a4`;
+`host-server-024.jar` (2 classes), SHA-256 `80b7536baa8de683925bccd5e30f90b83f476713a4f68fde2ab7763a2a251efc`.
+OAuthTokens and token-provider constructor ABIs changed, so use the matching driver/production classes. Existing native
+fixtures do not establish the new format migration or every scope-policy branch; explicit native acceptance remains.
+
+No 0.1.24 transfer or installation was attempted. Latest verified phone version remains 0.1.18, and partial 0.1.19 is
+preserved. The old upgrade script still targets 0.1.19; adapt and verify the selected version/source/hash and database
+backup before Phone Manager. Phone b-nnxn and registration decision q-ar74 remain partial gaps. Identity verification
+and real provider policy selection remain open independently of scope metadata support. No real registration is enabled.

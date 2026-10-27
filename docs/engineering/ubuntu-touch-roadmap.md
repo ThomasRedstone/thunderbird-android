@@ -230,7 +230,8 @@ native/physical/provider acceptance and large-mailbox performance remain open.
 OAuth scope metadata and configurable minimum-permission gates are implemented in 0.1.24 development source across
 exchange, protected storage, account commit, cached access and refresh. Rotated refresh tokens persist before a narrowed
 access token is denied. Legacy unknown scopes are not guessed. Real-provider scope policies/canonicalization, identity
-verification, registration and phone/provider acceptance remain open; the production registry is still empty.
+verification, registration and phone/provider acceptance remain open; the production registry is still empty. The
+0.1.24 ARM64 Click is built and reviewed, with installation pending.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

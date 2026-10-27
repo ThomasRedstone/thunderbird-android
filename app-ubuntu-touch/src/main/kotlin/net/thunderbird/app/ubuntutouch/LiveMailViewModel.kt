@@ -65,10 +65,11 @@ internal class LiveMailViewModel(
     private val manager: UtAccountManager,
     private val repository: LiveMailRepository,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    private val sortPreferences: MailSortPreferences? = null,
 ) : AutoCloseable {
-    private val mutableState = MutableStateFlow(LiveMailState(manager.findAll()))
+    private var selectedSort = sortPreferences?.read() ?: MailSort.NEWEST
+    private val mutableState = MutableStateFlow(LiveMailState(manager.findAll(), sort = selectedSort))
     val state = mutableState.asStateFlow()
-    private var selectedSort = MailSort.NEWEST
     private var activeOperation: MailOperation? = null
     private var localWrite: Job? = null
     private var localWriteFailed = false
@@ -83,7 +84,7 @@ internal class LiveMailViewModel(
         when (event) {
             is LiveMailEvent.Sort -> if (current.folder != null && current.content == null) {
                 selectedSort = event.sort
-                load(current.copy(sort = event.sort))
+                load(current.copy(sort = event.sort), action = event)
             }
 
             is LiveMailEvent.OpenAccount -> {
@@ -258,7 +259,7 @@ internal class LiveMailViewModel(
                     notice = if (operation?.cancellationRequested == true) {
                         "Cancelled. Cached mail is retained."
                     } else {
-                        "Unable to complete the operation. Cached mail is retained. Check connection and account settings."
+                        failureNotice(action)
                     },
                 )
             } finally {
@@ -287,6 +288,7 @@ internal class LiveMailViewModel(
                 action.enabled,
             )
         }
+        if (action is LiveMailEvent.Sort) sortPreferences?.save(action.sort)
         if (action == LiveMailEvent.ConfirmDiscard) repository.discardFlags(account)
         if (network) repository.refresh(account, initial.folder?.id, checkNotNull(operation))
         if (download && uid != null) {
@@ -358,4 +360,10 @@ internal class LiveMailViewModel(
         activeOperation?.cancelIn(scope)
         scope.cancel()
     }
+}
+
+private fun failureNotice(action: LiveMailEvent?): String = if (action is LiveMailEvent.Sort) {
+    "Unable to save sort order. Your selection applies until this mailbox closes. Try again."
+} else {
+    "Unable to complete the operation. Cached mail is retained. Check connection and account settings."
 }

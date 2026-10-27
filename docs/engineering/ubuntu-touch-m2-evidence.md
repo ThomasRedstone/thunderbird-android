@@ -2214,3 +2214,30 @@ Log: `/tmp/thunderbird-sort-full-fixed.log`; XML retained under `build/evidence/
 This JVM application has no Android lint/instrumentation target; shared Android sources were unchanged and the prior
 shared-engine Android assembly evidence still applies. Native checks were not run because the FP4 remains unreachable
 (blocker b-nnxn). Provider registration decision q-ar74 remains pending.
+
+
+### Durable sort selection (0.1.20 development source)
+
+The selected sort order now survives mailbox recreation and app restart. Production Koin injects
+`MailSortPreferences` using a `mail-sort` file beside the existing private mail database; model creation already runs
+on IO. Saves run on the mailbox's IO worker and register as local writes so window close joins the pending operation.
+The file contains only the enum name, with owner-only permissions. A flushed temporary file is atomically renamed
+within the same directory; failed replacement removes the provisional file. Missing, unknown and overlong values
+fall back to newest-first, with bounded reads. Other read failures surface through the existing storage-opening error.
+
+A failed save retains the selected order in the current mailbox, shows an explicit persistence failure and supports
+retry. It also reports a failed local write through close-flush instead of silently declaring the preference saved.
+Tests exercise every mode after reopening the store, private permissions, failed replacement/cleanup, a fresh model
+and reopened mail database, plus a failed model save followed by successful retry without network access.
+No database migration or new permission/dependency is required. The global order applies to folder/account/unified
+cached lists. Per-folder preferences and locale-specific collation remain follow-up work.
+
+The phone reachability recheck again timed out (`ssh` port 2222, ConnectTimeout10); no transfer or installation was
+started. Frozen 0.1.19 remains the built deployment candidate; no changed 0.1.19 artifact is produced and current
+0.1.20 source is not yet packaged. OAuth provider decision q-ar74 and phone blocker b-nnxn remain partial gaps.
+
+Verification: full 295 app tests, zero failures/errors/skips; `detekt`, `installDist` and `spotlessCheck` pass using the
+same full app command recorded above. Log `/tmp/thunderbird-sort-preferences-full.log`; XML
+`app-ubuntu-touch/build/evidence/mail-sort-preferences/`. Scoped documentation formatting also checked. Shared/Android
+source is unchanged; Android instrumentation and native preference acceptance were not run. Packaging follows from
+this clean committed source; the current source remains 0.1.20 and no earlier artifact is overwritten.

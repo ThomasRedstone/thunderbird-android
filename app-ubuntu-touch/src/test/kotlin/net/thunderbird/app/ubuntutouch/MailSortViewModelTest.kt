@@ -78,6 +78,75 @@ class MailSortViewModelTest {
         }
     }
 
+    @Test
+    fun `sort selection survives a fresh mailbox model and closed database`() = runTest {
+        val path = directory.root.toPath().resolve("persisted.sqlite")
+        val preferencePath = directory.root.toPath().resolve("mail-sort")
+        val id = MailDatabase(path).use { database ->
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val account = account(manager)
+            val repository = CachedRepository(account)
+            val testSubject = LiveMailViewModel(
+                manager,
+                repository,
+                backgroundScope,
+                MailSortPreferences(preferencePath),
+            )
+            testSubject.event(LiveMailEvent.OpenAccount(account))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.Sort(MailSort.SUBJECT))
+            idle(testSubject)
+            assertThat(testSubject.flushForClose()).isEqualTo(true)
+            account
+        }
+        MailDatabase(path).use { database ->
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val repository = CachedRepository(id)
+            val testSubject = LiveMailViewModel(
+                manager,
+                repository,
+                backgroundScope,
+                MailSortPreferences(preferencePath),
+            )
+            assertThat(testSubject.state.value.sort).isEqualTo(MailSort.SUBJECT)
+            testSubject.event(LiveMailEvent.OpenAccount(id))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            assertThat(idle(testSubject).messages.map { it.id }).isEqualTo(listOf("old", "new"))
+        }
+    }
+
+    @Test
+    fun `sort save failure retains session order exposes notice and allows retry`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("failure.sqlite")).use { database ->
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val account = account(manager)
+            val repository = CachedRepository(account)
+            val path = directory.root.toPath().resolve("mail-sort")
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope, MailSortPreferences(path))
+            testSubject.event(LiveMailEvent.OpenAccount(account))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(repository.inbox))
+            idle(testSubject)
+            java.nio.file.Files.createDirectory(path)
+            testSubject.event(LiveMailEvent.Sort(MailSort.SUBJECT))
+            val failed = idle(testSubject)
+            assertThat(failed.messages.map { it.id }).isEqualTo(listOf("old", "new"))
+            assertThat(failed.notice).isEqualTo(
+                "Unable to save sort order. Your selection applies until this mailbox closes. Try again.",
+            )
+            assertThat(testSubject.flushForClose()).isEqualTo(false)
+            java.nio.file.Files.delete(path)
+            testSubject.event(LiveMailEvent.Sort(MailSort.SUBJECT))
+            idle(testSubject)
+            assertThat(testSubject.flushForClose()).isEqualTo(true)
+            assertThat(MailSortPreferences(path).read()).isEqualTo(MailSort.SUBJECT)
+            assertThat(repository.networkCalls).isEqualTo(0)
+        }
+    }
+
     private fun account(manager: UtAccountManager): AccountId {
         val id = AccountIdFactory.create()
         val server = ServerSettings(

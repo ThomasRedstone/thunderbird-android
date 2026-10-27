@@ -2132,3 +2132,37 @@ run for this JVM-only slice. The phone's last verified package remains 0.1.18; n
 
 Provider registration direction is parked in Desk q-ar74, with halted=false. No provider configuration is enabled
 while that decision is pending. Native controlled acceptance and independent later roadmap requirements can proceed.
+
+
+### 0.1.19 built from clean source; transfer in progress
+
+Candidate 21 builds from clean commit 3266863128050ad98218caed4645c217599d0472, with an empty
+SOURCE-CHANGES.patch. Gradle, Click manifest and ARM packager versions are all 0.1.19.
+Artifact: app-ubuntu-touch/build/ut-candidate-21/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.19_arm64.click.
+Size: 147562550 bytes. SHA-256: 571fde133180cd3764a23fecb9bdcbb0132c467b209dffedb66f144380bbd28a.
+Clickable review and ARM64 launcher/JVM/AWT/Skiko validation pass (/tmp/thunderbird-019-click.log).
+The pinned builder and verified candidate-5 ARM runtime were reused; this is not cold-build reproducibility proof.
+All 281 host app tests pass, plus detekt/installDist/spotlessCheck (/tmp/thunderbird-019-checks.log).
+
+A new 62-class test-only driver is compiled against this source, without replacement production classes:
+build/evidence/oauth-native-019/candidate-019-probes.jar, SHA-256
+159c3996bea1b3878f89f5ac70fe3397c34b576b93ef09ffb1469c07db1caa63. Its uploaded phone copy matches.
+The frozen 0.1.18 driver is unchanged (52ddbbdfad8bdb8d2f38ea25f2d7ee91ba4c61e2f71e453921ec0d106289b825).
+
+ConfinedOAuthTokenProbe is prepared to verify 16384-character access and refresh token payloads through real
+SignOn storage, default-trust rejection of a self-signed controlled endpoint, fixture-scoped trusted HTTPS refresh,
+synthetic loopback/PKCE code exchange and protected account commit, then identity/index cleanup. It uses a private
+temporary database and retains its directory if protected cleanup fails; cleanup mode is restricted to this probe's
+private directory prefix. PhoneOAuthTokenServer is a bounded host-only synthetic fixture that logs request counts
+and validity, never request bodies or credentials. No real provider is contacted and no system trust is modified.
+
+The 147 MB Click transfer is still running over the phone's mobile-data connection; no USB device or Wi-Fi address
+was available. A local rsync comparison found 143351358 bytes of literal data, so a compressed-Click delta was
+rejected as ineffective and the original transfer was kept. No restart or second Click transfer was launched.
+The unused controlled HTTPS server was stopped before any native probe, to restart only when installation is ready.
+
+At this checkpoint the last observed phone version is still 0.1.18. No installation, schema migration, native
+0.1.19 result or fleet update is claimed. The prepared upgrade script requires the complete Click size/hash, the
+expected old source and no running Mail demo profile, then makes a private quick_check-verified SQLite backup
+before Phone Manager installation. Future tests must use the matching 0.1.19 profile and driver, never the frozen
+0.1.18 driver. Actual setup UI focus/suspend and real provider acceptance remain open.

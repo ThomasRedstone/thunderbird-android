@@ -24,6 +24,9 @@ internal data class MailContent(
 /** Local reads never request credentials or initiate network activity. Blocking methods require an IO caller. */
 @Suppress("TooManyFunctions") // Foreground mail and atomic local message actions share one cache contract.
 internal interface LiveMailRepository {
+    fun source(account: AccountId, folder: String, uid: String, offset: Long): MailSourcePage {
+        error("Source inspection is unavailable")
+    }
     fun respond(account: AccountId, folder: String, uid: String, mode: ResponseMode): String {
         error("Responses are unavailable")
     }
@@ -60,6 +63,9 @@ internal class PersistentLiveMailRepository(
     private val sessions: ForegroundMailSessionFactory,
 ) : LiveMailRepository {
     private val actions = PendingFlagStore(database)
+
+    override fun source(account: AccountId, folder: String, uid: String, offset: Long): MailSourcePage =
+        cachedMessageSource(database, account, folder, uid, offset)
 
     override fun respond(account: AccountId, folder: String, uid: String, mode: ResponseMode): String =
         ResponseDraftFactory(database).create(account, folder, uid, mode)

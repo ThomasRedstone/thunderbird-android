@@ -278,6 +278,52 @@ class MailSortViewModelTest {
         }
     }
 
+    @Test
+    fun `source inspection uses the selected unified result and back restores reader then search`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("source.sqlite")).use { database ->
+            val credentials = FakeCredentialStore()
+            val manager = UtAccountManager(AccountSettingsStorage(database), credentials)
+            val first = account(manager)
+            val second = account(manager)
+            val cached = CachedRepository(first)
+            val requested = mutableListOf<MailMessageKey>()
+            val repository = object : LiveMailRepository by cached {
+                override fun source(account: AccountId, folder: String, uid: String, offset: Long): MailSourcePage {
+                    requested += MailMessageKey(account, folder, uid)
+                    check(offset == 0L) { "sensitive-source-error" }
+                    return MailSourcePage(0, SOURCE_PAGE_BYTES * 2L, true, ByteArray(SOURCE_PAGE_BYTES) { 65 })
+                }
+            }
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(first))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenFolder(cached.inbox))
+            idle(testSubject)
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ALL_ACCOUNTS))
+            val results = idle(testSubject)
+            testSubject.event(LiveMailEvent.OpenSearchResult(results.searchHits.first { it.account == second }))
+            val reader = idle(testSubject)
+            credentials.locked = true
+            testSubject.event(LiveMailEvent.Source())
+            val source = idle(testSubject)
+            assertThat(source.source?.offset).isEqualTo(0L)
+            assertThat(requested).isEqualTo(listOf(MailMessageKey(second, "INBOX", reader.content!!.summary.id)))
+            testSubject.event(LiveMailEvent.Refresh)
+            assertThat(cached.networkCalls).isEqualTo(0)
+            testSubject.event(LiveMailEvent.Source(SOURCE_PAGE_BYTES.toLong()))
+            val failed = idle(testSubject)
+            assertThat(failed.source).isEqualTo(source.source)
+            assertThat(failed.notice).isEqualTo("Unable to read this source page. Cached mail is retained.")
+            testSubject.event(LiveMailEvent.Back)
+            assertThat(testSubject.state.value.source).isEqualTo(null)
+            assertThat(testSubject.state.value.content).isEqualTo(reader.content)
+            assertThat(testSubject.state.value.account).isEqualTo(second)
+            testSubject.event(LiveMailEvent.Back)
+            assertThat(idle(testSubject).account).isEqualTo(first)
+            assertThat(testSubject.state.value.searchScope).isEqualTo(CachedSearchScope.ALL_ACCOUNTS)
+        }
+    }
+
     private fun account(manager: UtAccountManager): AccountId {
         val id = AccountIdFactory.create()
         val server = ServerSettings(

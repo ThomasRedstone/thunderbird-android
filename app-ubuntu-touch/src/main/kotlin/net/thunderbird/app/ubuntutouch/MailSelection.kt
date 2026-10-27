@@ -67,20 +67,27 @@ internal fun LiveMailState.retainListedSelection(): LiveMailState = copy(
 internal fun LiveMailState.forMailEvent(event: LiveMailEvent): LiveMailState =
     if (event is LiveMailEvent.Selection) this else copy(selection = MailSelection())
 
-internal fun handleQueuedMailAction(
+internal fun handleLocalMailAction(
     event: LiveMailEvent,
     current: LiveMailState,
     publish: (LiveMailState) -> Unit,
     apply: () -> Unit,
 ): Boolean {
-    if (event == LiveMailEvent.SyncQueuedFlags) {
-        apply()
-    } else if (event is LiveMailEvent.Selection) {
-        handleSelectionAction(event.action, current, publish, apply)
-    } else {
-        return false
+    return when {
+        handleSourceEvent(event, current, publish, apply) -> true
+
+        event == LiveMailEvent.SyncQueuedFlags -> {
+            apply()
+            true
+        }
+
+        event is LiveMailEvent.Selection -> {
+            handleSelectionAction(event.action, current, publish, apply)
+            true
+        }
+
+        else -> false
     }
-    return true
 }
 
 private fun handleSelectionAction(

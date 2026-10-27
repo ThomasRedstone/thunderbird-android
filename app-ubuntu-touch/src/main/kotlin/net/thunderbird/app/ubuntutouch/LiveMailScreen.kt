@@ -41,14 +41,17 @@ internal fun LiveMailScreen(state: LiveMailState, keyboard: MaliitKeyboard? = nu
     ) {
         TextTitleLarge("Mailboxes")
         TextBodyLarge("Foreground preview · Cached mail opens offline")
-        MailboxControls(state, onEvent)
+        ReaderNavigationControls(state, onEvent)
         val content = state.content
         when {
+            state.source != null -> MailSourceScreen(state.source, state.busy, onEvent, Modifier.weight(1f))
+
             content != null -> {
                 if (!content.complete) {
                     TextBodyLarge("Only a preview is cached.")
                     ButtonText("Download full message", { onEvent(LiveMailEvent.Download) }, enabled = !state.busy)
                 }
+                ButtonText("View source", { onEvent(LiveMailEvent.Source()) }, enabled = !state.busy)
                 MessageFlagButtons(content.summary, state.busy, onEvent)
                 ResponseButtons(content, state.busy, onEvent)
                 MailReader(content, state.accounts.find { it.id == state.account }?.displayName, Modifier.weight(1f))
@@ -93,7 +96,7 @@ internal fun LiveMailScreen(state: LiveMailState, keyboard: MaliitKeyboard? = nu
 }
 
 @Composable
-private fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Unit) {
+internal fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Unit) {
     if (state.account != null) {
         ButtonText("Back", { onEvent(LiveMailEvent.Back) }, enabled = !state.busy)
         ButtonText(

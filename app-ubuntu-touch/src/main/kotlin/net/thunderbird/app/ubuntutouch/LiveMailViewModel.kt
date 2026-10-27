@@ -22,6 +22,7 @@ internal data class LiveMailState(
     val folder: MailFolder? = null,
     val messages: List<MailSummary> = emptyList(),
     val content: MailContent? = null,
+    val source: MailSourcePage? = null,
     val query: String = "",
     val searchScope: CachedSearchScope = CachedSearchScope.FOLDER,
     val searchHits: List<CachedMailHit> = emptyList(),
@@ -52,6 +53,7 @@ internal sealed interface LiveMailEvent {
     data class SearchScope(val scope: CachedSearchScope) : LiveMailEvent
     data class OpenSearchResult(val hit: CachedMailHit) : LiveMailEvent
     data class OpenMessage(val uid: String) : LiveMailEvent
+    data class Source(val offset: Long = 0) : LiveMailEvent
     data class Respond(val mode: ResponseMode) : LiveMailEvent
     data class ChangeFlag(val flag: Flag, val enabled: Boolean) : LiveMailEvent
     data object DiscardPending : LiveMailEvent
@@ -85,7 +87,7 @@ internal class LiveMailViewModel(
             return
         }
         if (current.busy ||
-            handleQueuedMailAction(event, current, { mutableState.value = it }, { load(current, action = event) }) ||
+            handleLocalMailAction(event, current, { mutableState.value = it }, { load(current, action = event) }) ||
             handleActions(event, current)
         ) {
             return
@@ -228,7 +230,7 @@ internal class LiveMailViewModel(
         action: LiveMailEvent? = null,
     ) {
         if (initial.account == null) return
-        val searching = initial.query.isNotBlank() || initial.searchAllFolders
+        val searching = initial.searchingFor(action)
         val transport = network || download || action == LiveMailEvent.SyncQueuedFlags
         val operation = if (transport || searching) MailOperation() else null
         activeOperation = operation
@@ -237,7 +239,11 @@ internal class LiveMailViewModel(
         val work = scope.launch {
             try {
                 val loaded = withContext(Dispatchers.IO) {
-                    perform(initial, uid, network, download, action, operation)
+                    if (action is LiveMailEvent.Source) {
+                        repository.readSource(initial, action)
+                    } else {
+                        perform(initial, uid, network, download, action, operation)
+                    }
                 }
                 mutableState.value = loaded.copy(
                     canCancel = false,
@@ -250,7 +256,7 @@ internal class LiveMailViewModel(
                 if (action.isLocalMailWrite()) localWriteFailed = true
                 val retained =
                     withContext(Dispatchers.IO) {
-                        if (operation?.cancellationRequested == true) {
+                        if (keepInitialOnFailure(action, operation)) {
                             initial
                         } else {
                             runCatching { readCache(initial, uid) }.getOrDefault(initial)
@@ -380,6 +386,14 @@ internal class LiveMailViewModel(
 
 private fun failureNotice(action: LiveMailEvent?): String = if (action is LiveMailEvent.Sort) {
     "Unable to save sort order. Your selection applies until this mailbox closes. Try again."
+} else if (action is LiveMailEvent.Source) {
+    "Unable to read this source page. Cached mail is retained."
 } else {
     "Unable to complete the operation. Cached mail is retained. Check connection and account settings."
 }
+
+private fun LiveMailState.searchingFor(action: LiveMailEvent?): Boolean =
+    action !is LiveMailEvent.Source && (query.isNotBlank() || searchAllFolders)
+
+private fun keepInitialOnFailure(action: LiveMailEvent?, operation: MailOperation?): Boolean =
+    operation?.cancellationRequested == true || action is LiveMailEvent.Source

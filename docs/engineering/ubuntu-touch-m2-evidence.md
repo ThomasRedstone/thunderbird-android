@@ -2565,3 +2565,46 @@ separate 0.1.25 rsync upload is running, with partial/resume verification and ke
 transfer is live. Connectivity blocker b-nnxn is resolved; transfer, full remote hash, private SQLite backup, installation
 and native acceptance remain pending. Main0.1.18 is still running; a normal close will be requested after staging,
 without force-killing or bypassing its draft/save close handler. No OS/modem/network or whole-fleet changes were made.
+
+
+### Installed 0.1.25 and newly exposed protected-storage gap
+
+The upload completed and the full remote canonical size/hash matched. Phone Manager installed 0.1.25 after a
+normal window-close/save handler and a private quick-check-verified schema9 SQLite backup at
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/0.1.25-tcoqr3oo`.
+Installed clean source is `a1948b0768d12899c18ae8ff04852e29e769ab44`. Enforcing-profile migration9→10 and database
+quick_check pass; native composer/draft/queue/recovery and unified cached-search probes pass. Logs:
+`/tmp/thunderbird-025-install.log`, `/tmp/thunderbird-025-native-migration.log`,
+`/tmp/thunderbird-025-native-composer.log`, `/tmp/thunderbird-025-native-search.log`.
+Installer signature/root-bus/old-profile-cache warnings are retained; the new enforcing profile was independently verified.
+Local fleet commit `a8e4a39` pins the installed canonical artifact; scoped manifest lint passed without whole-fleet deployment.
+
+The new controlled identity probe reached verified HTTPS profile/account commit and small protected-grant rotation,
+then failed reading the maximum39997-byte protected payload. All known fixture identities were cleaned; no retained
+identity fixture directories remained. This is **not a native identity-suite pass**.
+`/tmp/thunderbird-025-native-identity-prepare.log` records the failure. A safe D-Bus size diagnostic reads1024/3072-byte
+payloads successfully, while8192/16384/24576/39997-byte reads return `org.freedesktop.dbus.errors.NoReply`.
+No plaintext fallback or reduced advertised payload limit was introduced. Root cause remains under investigation.
+Test-only native drivers bring the full host suite to340 passing tests, with detekt/spotless passing; the latest size
+helper also compiles and passes detekt/spotless (`/tmp/thunderbird-signon-size-checks.log`).
+Physical size/typing acceptance of this version and real Google/Microsoft journeys remain open; production provider
+registry remains empty pending q-ar74 and provider policy/redirect acceptance.
+
+A separate clean worktree at the same source built successfully with `UT_RUNTIME_IMAGE` unset, rebuilding the runtime:
+`/home/tom/own/thunderbird-ut-cold-025/app-ubuntu-touch/build/ut-cold-025/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.25_arm64.click`.
+Size147639142; SHA-256 `37e28b2a679ab2b7965ca2cd0a66434b8a9c5efde6559a2fbbb4f5c837b906ae`.
+Click review and ARM64 checks pass. Resolved runtime file contents, app JAR entries and source TAR file contents match
+the canonical build. Archive metadata, licence symlinks and provenance differ: this is not byte-identical reproduction.
+The pinned prebuilt builder and shared Gradle cache remain in use; independent empty-cache CI proof remains open.
+Comparison: `app-ubuntu-touch/build/evidence/oauth-native-025/cold-rebuild-comparison.json`;
+log `/tmp/thunderbird-025-cold-build.log`.
+
+
+Independent GLib/GIO D-Bus comparison on the FP4 also read a1024-byte synthetic payload, but timed out at8192 and39997
+bytes (`g-io-error-quark`, code24). Each synthetic identity was removed in finally; output contained only sizes,
+readability, error domain/code and cleanup confirmation. This comparison ran outside app confinement to distinguish
+backend behaviour from the Java client; it is not additional confinement acceptance. It reproduces the failure
+without dbus-java/junixsocket, so a Java-only transport fix is not justified by current evidence.
+The matching installed SignOn package family reports8.61+git20231015.c8ad982 with UBports patches. Upstream source
+was obtained read-only at `/tmp/thunderbird-signond-source` to inspect plugin IPC framing; exact installed-patch
+comparison and a verified root cause remain pending. No system service or phone package was changed.

@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.18 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.25 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 338 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Installed 0.1.18 embeds clean `f18314918d`; later OAuth setup and mail-session integration is verified on host | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager 0.1.18 install verified; fleet `9333240` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
+| Engineering | 340 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Source delivery | Installed 0.1.25 embeds clean `a1948b0768`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager 0.1.25 install verified; local fleet `a8e4a39` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,9 +27,9 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.18 is installed on the FP4 with account
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.25 is installed on the FP4 with account
 setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
-remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
+remains open. Confined small-credential persistence and upgrade access pass through SignOn; larger payload reads time out and remain a release blocker. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
 for the initial scope, and [milestone 2 evidence](ubuntu-touch-m2-evidence.md) for current build/device results and gaps.
 Controlled-server receiving/sending and fresh-process recovery pass under phone confinement; the physical

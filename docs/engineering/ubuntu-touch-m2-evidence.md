@@ -125,3 +125,39 @@ The real-keyring probe exposed a D-Bus path equality bug; comparing protocol pat
 fixed it, and both real-service probes pass. The phone test was outside Click confinement. Confined access, setup UI,
 secure-field interaction and live IMAP/SMTP are still open. The installed app remains the offline 0.1.4 preview.
 These are unfinished roadmap requirements, not product exclusions. No production account credentials were requested.
+
+## Account setup UI candidate 0.1.5
+
+The application now has an Accounts entry with manual IMAP/SMTP server settings, direct TLS/required STARTTLS,
+separate usernames/passwords, editing and explicit account-removal confirmation. It uses Bolt components, Koin and
+an MVI controller. Database creation uses the app's XDG data directory with owner-only directory permissions.
+Blocking storage/keyring work runs on IO; navigation is disabled while saves/removal are active. Password fields are
+cleared after saves, failures and cancellation, and are never prepopulated from the keyring. A failed combined
+settings/password replacement keeps the prior settings/reference; obsolete-key cleanup failures are reported after
+the active account is committed. The UI explicitly states that receiving/sending are not yet connected.
+
+The shared Bolt password field gained a `TextFieldValue` overload, preserving selection/cursor/preedit data while
+retaining password masking, visibility controls and semantics. The existing String overloads and tests remain.
+Keyboard edits apply to the controller's current state, avoiding lost input when several Maliit events arrive before
+recomposition. Demo state is hoisted through the new application screen; the existing demo navigation test still passes.
+
+Verification:
+
+- All 30 app tests pass. Added journeys cover account create/edit/confirmed removal, locked-keyring error and password
+  clearing, consecutive Maliit edits with selection, and scrolling the form to enter a masked password and cancel.
+- All 108 Bolt JVM tests pass, including the new selected-password replacement test. `:components:ui:bolt:compileAndroidMain`
+  passes for the shared component change. Android instrumentation/device tests remain unrun; no Android test device
+  is configured for this port work.
+- App detekt, spotlessCheck and installDist pass. Scoped Spotless IDE-hook checks report `IS CLEAN` for both changed
+  Bolt Kotlin files. The standalone Bolt detekt task initially fails because its included-build config path is missing.
+  Running it with the root repository detekt config reports 27 findings; running the same analysis over committed
+  `HEAD` sources reports the same 27 rule/message pairs, with no new findings. This is a retained baseline quality gap,
+  not a claimed passing whole-module static check. SARIF comparisons are retained under
+  `app-ubuntu-touch/build/evidence/account-ui/bolt-{current,baseline}.sarif`.
+- The normal desktop distribution launched under Xvfb with a separate test XDG data directory. Accounts and Add account
+  navigated to the form. Rendered screenshots were inspected at
+  `app-ubuntu-touch/build/evidence/account-ui/{accounts,form}.png`.
+
+Version 0.1.5 is prepared in source and packaging metadata. Packaging, Click review, confined SQLite/Secret Service,
+physical secure input and phone account setup acceptance remain pending. The phone still has 0.1.4 installed.
+Live IMAP/SMTP, controlled-server integration and the rest of the roadmap remain open work.

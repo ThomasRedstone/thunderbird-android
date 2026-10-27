@@ -36,6 +36,11 @@ import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldOutlined
 @Composable
 internal fun DemoMailScreen(viewModel: DemoMailViewModel, keyboard: MaliitKeyboard? = null) {
     val state by viewModel.state.collectAsState()
+    DemoMailScreen(state, viewModel::event, keyboard)
+}
+
+@Composable
+internal fun DemoMailScreen(state: DemoMailState, onEvent: (DemoMailEvent) -> Unit, keyboard: MaliitKeyboard?) {
     val height = keyboard?.height?.collectAsState()?.value ?: 0
     val windowHeight = LocalWindowInfo.current.containerSize.height.coerceAtLeast(0)
     val keyboardInset = with(LocalDensity.current) { height.coerceIn(0, windowHeight).toDp() }
@@ -46,13 +51,13 @@ internal fun DemoMailScreen(viewModel: DemoMailViewModel, keyboard: MaliitKeyboa
         TextTitleLarge("Mail demo")
         TextBodyLarge("Offline preview · Sample messages only")
         if (state.folder != null) {
-            ButtonText("Back", { viewModel.event(DemoMailEvent.Back) }, Modifier.heightIn(min = 48.dp))
+            ButtonText("Back", { onEvent(DemoMailEvent.Back) }, Modifier.heightIn(min = 48.dp))
         }
         val message = state.message
         when {
             message != null -> DemoReader(message, Modifier.weight(1f))
 
-            state.folder != null -> DemoMessageList(state, viewModel::event, keyboard, Modifier.weight(1f))
+            state.folder != null -> DemoMessageList(state, onEvent, keyboard, Modifier.weight(1f))
 
             else -> {
                 TextTitleLarge("Folders")
@@ -60,7 +65,7 @@ internal fun DemoMailScreen(viewModel: DemoMailViewModel, keyboard: MaliitKeyboa
                     items(state.folders, key = { it.id }) { item ->
                         ButtonText(
                             text = "${item.name} (${item.messages.size})",
-                            onClick = { viewModel.event(DemoMailEvent.OpenFolder(item)) },
+                            onClick = { onEvent(DemoMailEvent.OpenFolder(item)) },
                             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                         )
                     }

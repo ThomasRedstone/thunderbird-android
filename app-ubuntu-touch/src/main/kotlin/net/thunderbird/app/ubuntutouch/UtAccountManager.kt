@@ -74,7 +74,14 @@ internal class UtAccountManager(
     @Synchronized
     fun replacePasswords(accountId: AccountId, passwords: AccountPasswords): Boolean {
         val current = checkNotNull(findById(accountId)) { "Account not found" }
-        val replacement = current.copy(credentialKey = UUID.randomUUID().toString())
+        return replaceAccountAndPasswords(current, passwords)
+    }
+
+    @Synchronized
+    fun replaceAccountAndPasswords(account: UtMailAccount, passwords: AccountPasswords): Boolean {
+        val current = checkNotNull(findById(account.id)) { "Account not found" }
+        require(account.credentialKey == current.credentialKey)
+        val replacement = account.copy(credentialKey = UUID.randomUUID().toString())
         storage.scheduleCredentialCleanup(replacement.credentialKey)
         writePasswords(replacement.credentialKey, passwords)
         storage.scheduleCredentialCleanup(current.credentialKey)

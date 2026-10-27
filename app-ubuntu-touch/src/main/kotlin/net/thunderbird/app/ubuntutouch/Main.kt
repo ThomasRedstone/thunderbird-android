@@ -85,7 +85,7 @@ fun main() {
                                 modifier = Modifier.padding(24.dp),
                             )
                         } else {
-                            DemoMailScreen(loaded, keyboard)
+                            MailApplicationScreen(loaded, keyboard) { koin.get<AccountSetupViewModel>() }
                         }
                     }
                 }
@@ -98,6 +98,11 @@ private fun startApplicationKoin() = startKoin {
     modules(
         module {
             single { DemoMailRepository() }
+            single { MailDatabase(mailDatabasePath()) }
+            single { AccountSettingsStorage(get()) }
+            single<CredentialStore> { SecretServiceCredentialStore() }
+            single { UtAccountManager(get(), get()) }
+            factory { AccountSetupViewModel(get()) }
             single<Logger> { DefaultLogger(sink = ConsoleLogSink()) }
             single { MaliitKeyboard(get()) }
         },

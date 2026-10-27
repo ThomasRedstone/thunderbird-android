@@ -1,9 +1,6 @@
 package net.thunderbird.components.ui.bolt.atom.textfield
 
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Icon as Material3Icon
-import androidx.compose.material3.IconButton as Material3IconButton
-import androidx.compose.material3.OutlinedTextField as Material3OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import net.thunderbird.components.ui.bolt.PreviewWithThemes
@@ -21,6 +19,41 @@ import net.thunderbird.components.ui.bolt.resources.Res
 import net.thunderbird.components.ui.bolt.resources.bolt_atom_password_textfield_hide_password
 import net.thunderbird.components.ui.bolt.resources.bolt_atom_password_textfield_show_password
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.material3.Icon as Material3Icon
+import androidx.compose.material3.IconButton as Material3IconButton
+import androidx.compose.material3.OutlinedTextField as Material3OutlinedTextField
+
+@Suppress("LongParameterList")
+@Composable
+fun TextFieldOutlinedPassword(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    isEnabled: Boolean = true,
+    isReadOnly: Boolean = false,
+    isRequired: Boolean = false,
+    hasError: Boolean = false,
+) {
+    var passwordVisibilityState by rememberSaveable { mutableStateOf(false) }
+    Material3OutlinedTextField(
+        value = value,
+        onValueChange = stripTextFieldValueLineBreaks(onValueChange),
+        modifier = modifier.applyPasswordSemantics(),
+        enabled = isEnabled,
+        label = selectLabel(label, isRequired),
+        trailingIcon = selectTrailingIcon(
+            isEnabled = isEnabled,
+            isPasswordVisible = passwordVisibilityState,
+            onClick = { passwordVisibilityState = !passwordVisibilityState },
+        ),
+        readOnly = isReadOnly,
+        isError = hasError,
+        visualTransformation = selectVisualTransformation(isEnabled, passwordVisibilityState),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        singleLine = true,
+    )
+}
 
 @Suppress("LongParameterList")
 @Composable

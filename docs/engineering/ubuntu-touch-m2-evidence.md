@@ -1254,3 +1254,23 @@ Logs: `/tmp/thunderbird-016-window-diagnosis.log`, `/tmp/thunderbird-016-x11-foc
 integration. Neither an app-dead claim nor physical launch/keyboard acceptance follows from the current evidence.
 No lifecycle exemption, AppArmor expansion or global display change was made. Physical UI and normal suspend/resume
 acceptance remain open; the existing 0.1.16 protocol/search confinement evidence is unchanged.
+
+## 0.1.17 candidate and targeted X11 rendering evidence
+
+Production candidate source `a938b0424efadb2c9753ef80e58ee4b11fd5992f` is committed/pushed. Full 133 app tests,
+detekt/installDist/spotlessCheck pass for version 0.1.17 (`/tmp/thunderbird-017-checks.log`). Protocol probes now also
+check account-wide search and deduplicated account enumeration during preparation and fresh-process offline recovery.
+The matching test-only JAR contains 52 probe/fixture classes, including ConfinedSearchProbe; it has been uploaded.
+No installed production classes are overlaid by that JAR. Native checks await installation.
+
+Clean candidate 19 passed Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks using the pinned packager and
+verified reused runtime. Embedded SOURCE-COMMIT matches, SOURCE-CHANGES.patch is empty. Artifact:
+`app-ubuntu-touch/build/ut-candidate-19/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.17_arm64.click`,
+147276968 bytes, SHA256 `508c662427ea49404581ace649ef21413d75adc41324eb84ae1f7a3a1c4e659d`.
+Transfer is in progress; the phone remains on 0.1.16 until the checksum-guarded installation is recorded.
+
+A read-only XGetImage capture of only the identified 0.1.16 Mail window (verified _NET_WM_PID) produced
+`app-ubuntu-touch/build/evidence/search/window-016.png`, 1080×2259. Visual inspection confirms the demo UI fills that
+window and renders its navigation/folder list. This follows the earlier diagnostic resume, so it does not establish
+normal focus/suspension behaviour. It is an app-window capture, not a Mir foreground screenshot, and does not complete
+physical input, secure keyboard or live-mail UI acceptance. No display policy/permission change was made.

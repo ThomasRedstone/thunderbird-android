@@ -161,7 +161,9 @@ blocked writes and the complete physical/provider vertical slice remain incomple
 
 Expand from the vertical slice into the core mail experience:
 
-- Safe HTML rendering with an explicit external-content policy and suitable Linux rendering integration.
+- Safe HTML rendering with an explicit external-content policy and suitable Linux rendering integration. See the
+  [HTML feasibility investigation](ubuntu-touch-html-feasibility.md) for reusable sanitisation, device evidence and required
+  renderer/privacy experiments; no renderer has been selected yet.
 - Attachment download/open/save through supported Ubuntu Touch file and content integration.
 - OAuth browser handoff and callback handling for selected providers, with provider registration requirements resolved.
 - Reply/reply-all/forward, quoting, signatures, sender identity, To/Cc/Bcc, autosaved drafts and a persistent outbox.

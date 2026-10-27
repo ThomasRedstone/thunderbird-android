@@ -2055,3 +2055,50 @@ also passed (/tmp/thunderbird-oauth-setup-focused.log); final full verification 
 immediate-cancel regressions. Initial virtual-clock timeouts in socket tests were corrected with bounded real-time
 waits; they were not treated as application evidence. No shared engine/Android changes; prior SMTP/Android consumer
 checks remain applicable. Android instrumentation and native deployment were not run for this JVM-only slice.
+
+
+### Provider registration proposal (2026-10-27; not enabled)
+
+The existing Thunderbird debug OAuth factory supplies Android custom-scheme redirects (including an Android
+package/signature-bound Microsoft redirect). Those public client IDs are not evidence that this unofficial port
+is authorized to use a different callback. No existing ID or production configuration has been changed.
+
+Proposed first test setup: dedicated, owner-controlled registrations named “Mail demo for Ubuntu Touch,” with
+explicit test accounts and no client secret bundled into the app. Enable entries only after registration details,
+callback behaviour and grants have been verified. Separate Microsoft 365 and Outlook.com mail-server pairs can
+share an approved registration while keeping their account-specific server allowlists distinct.
+
+| Provider | Proposed registration and grant | Candidate mail-server pair from the existing factory | Open acceptance gate |
+| --- | --- | --- | --- |
+| Gmail | Google Desktop client, code + S256 PKCE, `https://mail.google.com/` | `imap.gmail.com:993` direct TLS; `smtp.gmail.com:587` required STARTTLS | Owner-approved client ID; consent/test-user setup; actual loopback exchange/refresh; public-distribution verification |
+| Microsoft 365 | Entra mobile/desktop public client; Outlook IMAP/SMTP delegated scopes plus `offline_access`; audience chosen by owner | `outlook.office365.com:993` direct TLS; `smtp.office365.com:587` required STARTTLS | Registered redirect and port policy; tenant/user consent; protocol availability; granted scopes and validated identity strategy |
+| Outlook.com | Approved public-client registration supporting personal accounts; same Outlook resource permissions | `outlook.office365.com:993` direct TLS; `smtp-mail.outlook.com:587` required STARTTLS | Personal-account login, matching SMTP identity and actual receive/send/refresh acceptance |
+
+Google documents loopback support for Desktop client types, while Android/iOS client loopback support was removed.
+Its native-app guide lists a client secret as optional for code exchange/refresh. The current secretless PKCE client
+therefore has a documented path to test, not proof that a particular registration will accept it.
+Sources: [desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
+[loopback migration](https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration).
+Gmail IMAP/SMTP requires the full mail scope and public apps using it have verification/policy requirements; a
+controlled test login does not establish release approval.
+Source: [Gmail XOAUTH2](https://developers.google.com/workspace/gmail/imap/xoauth2-protocol).
+
+Microsoft specifies the Outlook resource scopes `https://outlook.office.com/IMAP.AccessAsUser.All` and
+`https://outlook.office.com/SMTP.Send`; `offline_access` requests refresh capability.
+Source: [Exchange OAuth](https://learn.microsoft.com/en-us/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth/).
+Its redirect guidance documents ephemeral-port matching for localhost and a manifest-based way to register HTTP
+127.0.0.1 callbacks. The current receiver always uses numeric IPv4 with an allocated port, so numeric-address port
+matching must be demonstrated against the chosen registration. Do not infer it from the localhost example. If a
+fixed registered port or localhost callback is necessary, adapt and test the receiver explicitly; never silently
+fall back to a different redirect after binding fails.
+Source: [Entra redirect rules](https://learn.microsoft.com/en-us/entra/identity-platform/reply-url).
+
+Microsoft's code-flow guidance treats access tokens as opaque for APIs the client does not own. This port must
+not derive trusted mailbox identities by decoding an unverified access token. Granted-scope handling and an
+approved identity-validation strategy remain implementation work before enabling provider-specific identity
+alternatives. Source: [code flow and token handling](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow).
+
+Required owner input: use approved existing Desktop/public-client registrations, or authorize setting up dedicated
+ones and identify their owning Google project/Entra tenant. No passwords or client secrets should be pasted into
+chat. Repository AGENTS.md prohibits OAuth configuration changes without explicit instruction. This is a bounded
+provider-enablement decision, not a blocker on remaining UI/platform/roadmap work.

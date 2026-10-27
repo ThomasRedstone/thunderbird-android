@@ -19,6 +19,45 @@ import org.junit.rules.TemporaryFolder
 class MessageSaveViewModelTest {
     @get:Rule val directory = TemporaryFolder()
 
+    private var previousMime: java.io.File? = null
+
+    @org.junit.Before
+    fun captureMimeDirectory() {
+        previousMime = com.fsck.k9.mail.internet.BinaryTempFileBody.getTempDirectory()
+    }
+
+    @org.junit.After
+    fun restoreMimeDirectory() {
+        com.fsck.k9.mail.internet.BinaryTempFileBody.setTempDirectory(previousMime)
+    }
+
+    @Test
+    fun `attachment selection is local and changed cached bytes cannot export a stale reference`() = runTest {
+        com.fsck.k9.mail.internet.BinaryTempFileBody.setTempDirectory(directory.newFolder("mime"))
+        fixture { database, accounts, controller, broker ->
+            val account = accounts.findAll().single().id
+            val raw = "Content-Type: multipart/mixed; boundary=x\r\n\r\n" +
+                "--x\r\nContent-Type: text/plain\r\n\r\nBody\r\n" +
+                "--x\r\nContent-Type: application/octet-stream\r\n" +
+                "Content-Disposition: attachment; filename=file.bin\r\n" +
+                "Content-Transfer-Encoding: base64\r\n\r\nAAECAw==\r\n--x--\r\n"
+            database.execute("UPDATE messages SET mime=?", raw.toByteArray())
+            val testSubject = MessageSaveViewModel(controller, accounts, backgroundScope)
+            testSubject.state.first { !it.busy }
+            testSubject.event(MessageSaveEvent.Attachments(MailMessageKey(account, "INBOX", "1")))
+            val listed = testSubject.state.first { !it.busy }
+            val reference = listed.attachments.single().reference
+            assertThat(listed.pending).isEqualTo(null)
+            assertThat(broker.charges).isEqualTo(0)
+            database.execute("UPDATE messages SET mime=?", raw.replace("AAECAw==", "BAUGBw==").toByteArray())
+            testSubject.event(MessageSaveEvent.Prepare(account, "INBOX", "1", reference))
+            val rejected = testSubject.state.first { !it.busy }
+            assertThat(rejected.pending?.record).isEqualTo(null)
+            assertThat(rejected.notice != null).isTrue()
+            assertThat(broker.charges).isEqualTo(0)
+        }
+    }
+
     @Test
     fun `receiver discovery failure keeps prepared export visible and refresh can retry selection`() = runTest {
         fixture { database, accounts, controller, broker ->
@@ -95,6 +134,7 @@ class MessageSaveViewModelTest {
                 ContentExportJournal(directory.root.toPath().resolve("journal"), exports),
                 broker,
                 { accounts.findById(it) != null },
+                CachedAttachmentStore(database, exports),
             )
             work(database, accounts, controller, broker)
         }

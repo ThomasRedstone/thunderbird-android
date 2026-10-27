@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.18; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.33; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -153,3 +153,8 @@ OAuth development includes PKCE/state validation, a bounded loopback receiver an
 The installed 0.1.18 synthetic browser callback passes under confinement. Later source adds protected token storage
 and HTTPS exchange/refresh clients with host tests, but these are not yet connected to account setup or deployed.
 Gmail/Outlook registration/login and authenticated transport integration remain unfinished. See the milestone evidence for source/device status.
+
+Development0.1.33 connects cached attachment Save to the reader's picker and the existing
+Content Hub transfer owner. Complete cached attachments are decoded locally with source
+fingerprint checks; a destination must be selected explicitly. Outbound permission approval
+and real receiver/phone acceptance remain open; this is not outgoing attachment support.

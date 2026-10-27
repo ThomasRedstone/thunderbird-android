@@ -17,11 +17,12 @@ internal fun MessageSaveControls(state: MessageSaveState, onEvent: (MessageSaveE
         state.notice?.let { TextBodyLarge(it) }
         if (state.busy) TextBodyLarge("Preparing or checking file transfer…")
         SaveTransferOutcome(state)
+        AttachmentChoices(state, onEvent)
         val record = state.pending?.record
         if (record != null) {
             TextBodyLarge(
                 if (record.phase == ExportLeasePhase.READY) {
-                    "Choose where to save the complete cached message (.eml)."
+                    "Choose where to save this file."
                 } else {
                     "File transfer pending. Its private copy is retained until completion is confirmed."
                 },
@@ -63,7 +64,7 @@ internal fun MessageSaveControls(state: MessageSaveState, onEvent: (MessageSaveE
 }
 
 @Composable
-internal fun ReaderSaveAction(state: LiveMailState, onSave: ((MessageSaveEvent.Prepare) -> Unit)?) {
+internal fun ReaderSaveAction(state: LiveMailState, onSave: ((MessageSaveEvent) -> Unit)?) {
     val request = state.saveRequest()
     if (onSave != null && request != null) {
         ButtonText("Save message (.eml)", { onSave(request) }, enabled = !state.busy)
@@ -81,11 +82,36 @@ internal fun LiveMailState.saveRequest(): MessageSaveEvent.Prepare? {
 
 @Composable
 private fun SaveTransferOutcome(state: MessageSaveState) {
-    if (state.pending?.record != null || state.busy) return
+    if (state.pending?.record != null || state.busy || state.attachments.isNotEmpty()) return
     val message = when (state.pending?.state) {
         ExportBrokerState.FINALIZED -> "The transfer service confirmed completion."
         ExportBrokerState.ABORTED -> "The transfer service confirmed cancellation."
         else -> if (state.notice == null) "No pending message transfer." else null
     }
     message?.let { TextBodyLarge(it) }
+}
+
+@Composable
+private fun AttachmentChoices(state: MessageSaveState, onEvent: (MessageSaveEvent) -> Unit) {
+    if (state.attachments.isEmpty()) return
+    TextBodyLarge("Choose an attachment to save")
+    Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+        state.attachments.forEach { attachment ->
+            ButtonText(attachment.displayName, {
+                val reference = attachment.reference
+                onEvent(MessageSaveEvent.Prepare(reference.account, reference.folder, reference.uid, reference))
+            }, enabled = !state.busy)
+            TextBodyLarge(attachment.mimeType)
+        }
+    }
+}
+
+@Composable
+internal fun ReaderAttachmentAction(state: LiveMailState, onSave: ((MessageSaveEvent) -> Unit)?) {
+    val request = state.saveRequest()
+    if (onSave != null && request != null && state.content?.attachments?.isNotEmpty() == true) {
+        ButtonText("Save attachments", {
+            onSave(MessageSaveEvent.Attachments(MailMessageKey(request.account, request.folder, request.uid)))
+        }, enabled = !state.busy)
+    }
 }

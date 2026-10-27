@@ -185,13 +185,14 @@ internal fun LiveMailState.moveRequest(): MailMessageKey? {
 @Composable
 internal fun ReaderTools(
     state: LiveMailState,
-    onSave: ((MessageSaveEvent.Prepare) -> Unit)?,
+    onSave: ((MessageSaveEvent) -> Unit)?,
     onMove: ((MailMessageKey) -> Unit)?,
     onEvent: (LiveMailEvent) -> Unit,
 ) {
     Row(Modifier.horizontalScroll(rememberScrollState())) {
         ButtonText("View source", { onEvent(LiveMailEvent.Source()) }, enabled = !state.busy)
         ReaderSaveAction(state, onSave)
+        ReaderAttachmentAction(state, onSave)
         ReaderMoveAction(state, onMove)
     }
 }

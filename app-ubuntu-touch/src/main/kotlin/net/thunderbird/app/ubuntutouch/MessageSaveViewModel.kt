@@ -20,13 +20,22 @@ internal data class MessageSaveState(
     val destinations: List<ExportDestination> = emptyList(),
     val notice: String? = null,
     val confirmDiscard: Boolean = false,
+    val attachments: List<CachedAttachment> = emptyList(),
 ) {
     override fun toString(): String = "MessageSaveState(redacted)"
 }
 
 internal sealed interface MessageSaveEvent {
-    data class Prepare(val account: AccountId, val folder: String, val uid: String) : MessageSaveEvent {
+    data class Prepare(
+        val account: AccountId,
+        val folder: String,
+        val uid: String,
+        val attachment: AttachmentReference? = null,
+    ) : MessageSaveEvent {
         override fun toString(): String = "Prepare(redacted)"
+    }
+    data class Attachments(val key: MailMessageKey) : MessageSaveEvent {
+        override fun toString(): String = "Attachments(redacted)"
     }
     data class Select(val destination: ExportDestination) : MessageSaveEvent
     data object Refresh : MessageSaveEvent
@@ -74,6 +83,11 @@ internal class MessageSaveViewModel(
     private fun act(event: MessageSaveEvent, initial: MessageSaveState): MessageSaveState {
         val record = initial.pending?.record
         return when (event) {
+            is MessageSaveEvent.Attachments -> {
+                check(record == null)
+                MessageSaveState(attachments = controller.attachments(event.key))
+            }
+
             is MessageSaveEvent.Prepare -> {
                 check(record == null)
                 val account = checkNotNull(accounts.findById(event.account))
@@ -83,6 +97,7 @@ internal class MessageSaveViewModel(
                     event.uid,
                     authorized = { accounts.findById(account.id) === account },
                     handoff = { send -> accounts.withCurrentAccount(account, send) },
+                    attachment = event.attachment,
                 )
                 MessageSaveState(pending = ExportReconcileResult(ready), destinations = controller.destinations())
             }

@@ -3575,3 +3575,37 @@ and `-PutProtocolSecurity=starttls`, then append `unknown` to the native Move pr
 Use that run's ports/certificate; stop the server and require the independent oracle exit0.
 This covers one acknowledgement-loss boundary, not every disconnect point, provider, physical
 UI or power-loss case. Frozen32 and production configuration remain unchanged.
+
+### Cached attachment Save integration (development0.1.33, 2026-10-27)
+
+The reader now offers Save attachments for complete cached messages with metadata. It opens
+a local list of decoded filenames/MIME types with account/folder/UID, immutable raw fingerprint
+and attachment ordinal. Selection passes that exact reference to the existing global Save
+owner; it rechecks source identity, prepares the decoded file, then offers explicit destinations.
+No transfer starts during listing/selection/preparation. Filename/path rules reject traversal,
+controls and unsanitized components. Journal reservation precedes output bytes, forced file
+contents precede READY, and the existing live account guard controls final handoff.
+
+The single transfer journal now accepts sanitized attachment names as well as message.eml;
+old version1 message journals remain readable. An older app expecting only message.eml will
+fail closed on attachment journals, so downgrading with a pending transfer is not accepted.
+New non-message records keep the existing serialization format and owner/path authentication.
+Recovery preserves uncertain files, never repeats Charge, and cleans only reviewed/terminal
+owned copies. Reader attachment metadata alone was already implemented; this change connects
+the picker, model, runtime/controller, decoded store and D-Bus file-item adapter.
+
+Full428 app tests pass with zero failures/errors/skips plus detekt/installDist/spotlessCheck:
+`/tmp/thunderbird-attachment-save-full-2.log`, JDK21/SDK and standard Gradle flags/tasks.
+Added checks cover Unicode decoded-byte handoff/reopened-journal retention/one Charge,
+reservation-before-bytes/interrupted cleanup, unsafe record names, rendered picker/reference
+routing/busy controls, reader context, and stale cached-source rejection. Real private D-Bus
+serialization checks both message.eml and a Unicode filename with spaces, exact URI and bytes.
+The old eml-only adapter fails the new wire test: `/tmp/thunderbird-attachment-wire-before.log`,
+XML `build/evidence/attachment-save/eml-only-adapter-before.xml`; corrected adapter passes.
+Earlier focused logs: `/tmp/thunderbird-attachment-export-focused.log` and
+`/tmp/thunderbird-attachment-save-ui-check-3.log`.
+
+No permissions were added; q-jk4j still gates confined outbound Content Hub receiver testing.
+Source33/schema15 is not phone-accepted; frozen installed32 stays unchanged until a separately
+verified upgrade. Native decoded attachment/transfer and physical UI, Open, outgoing files,
+large-file performance and orphan-cache/power-loss coverage remain required.

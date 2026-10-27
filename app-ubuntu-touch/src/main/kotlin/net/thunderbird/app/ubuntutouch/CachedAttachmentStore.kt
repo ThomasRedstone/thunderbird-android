@@ -6,7 +6,9 @@ import com.fsck.k9.mail.Part
 import com.fsck.k9.mail.internet.MimeUtility
 import com.fsck.k9.mail.internet.RawDataBody
 import java.io.OutputStream
+import java.nio.channels.FileChannel
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.util.Locale
 import net.thunderbird.feature.account.AccountId
@@ -68,6 +70,7 @@ internal class CachedAttachmentStore(
         folder: String,
         uid: String,
         reference: AttachmentReference,
+        reserved: (Path) -> Unit = {},
         checkActive: () -> Unit = {},
     ): PreparedAttachment {
         require(reference.account == account && reference.folder == folder && reference.uid == uid)
@@ -87,10 +90,12 @@ internal class CachedAttachmentStore(
                     }
                 }
                 val owned = AttachmentTarget.create(exportRoot, info.displayName).also { target = it }
+                reserved(owned.file)
                 val size = owned.open().use { output -> exportBody(body, output, checkActive) }
                 info to size
             }
             checkActive()
+            FileChannel.open(checkNotNull(target).file, StandardOpenOption.WRITE).use { it.force(true) }
             return PreparedAttachment(
                 checkNotNull(target),
                 result.first.displayName,

@@ -59,20 +59,10 @@ class DbusContentExportBrokerTest {
                     assertThat(fixture.transfer.starts).isEqualTo(0)
                     testSubject.start(reference)
                     assertThat(testSubject.state(reference)).isEqualTo(ExportBrokerState.IN_PROGRESS)
-                    val file = Files.createDirectory(root.resolve("attachment-fixture")).resolve("message.eml")
-                    val bytes = byteArrayOf(0, 13, 10, -1, 65)
-                    Files.write(file, bytes)
-                    testSubject.charge(reference, file)
-                    val item = checkNotNull(fixture.transfer.item)
-                    assertThat(item.sig).isEqualTo("(sayss)")
-                    val fields = item.value as Array<*>
-                    assertThat(fields[0]).isEqualTo("")
-                    assertThat(fields[1]).isEqualTo(emptyList<Byte>())
-                    assertThat(fields[2]).isEqualTo("message.eml")
-                    val received = Path.of(URI(fields[3] as String))
-                    assertThat(received).isEqualTo(file)
-                    assertThat(Files.readAllBytes(received).contentEquals(bytes)).isTrue()
-                    assertThat(testSubject.state(reference)).isEqualTo(ExportBrokerState.CHARGED)
+                    val owned = Files.createDirectory(root.resolve("attachment-fixture"))
+                    listOf("message.eml", "café final.bin").forEach { name ->
+                        verifyFileItem(testSubject, fixture.transfer, reference, owned.resolve(name))
+                    }
                     verifySignals(server, address, testSubject, reference)
                     testSubject.forget(reference)
                     server.releaseBusName(CONTENT_HUB_SERVICE)
@@ -134,6 +124,27 @@ class DbusContentExportBrokerTest {
             check(worker.awaitTermination(5, TimeUnit.SECONDS))
             stopDaemon(daemon)
         }
+    }
+
+    private fun verifyFileItem(
+        testSubject: DbusContentExportBroker,
+        transfer: WireTransferFixture,
+        reference: ExportTransferReference,
+        file: Path,
+    ) {
+        val bytes = byteArrayOf(0, 13, 10, -1, 65)
+        Files.write(file, bytes)
+        testSubject.charge(reference, file)
+        val item = checkNotNull(transfer.item)
+        assertThat(item.sig).isEqualTo("(sayss)")
+        val fields = item.value as Array<*>
+        assertThat(fields[0]).isEqualTo("")
+        assertThat(fields[1]).isEqualTo(emptyList<Byte>())
+        assertThat(fields[2]).isEqualTo(file.fileName.toString())
+        val received = Path.of(URI(fields[3] as String))
+        assertThat(received).isEqualTo(file)
+        assertThat(Files.readAllBytes(received).contentEquals(bytes)).isTrue()
+        assertThat(testSubject.state(reference)).isEqualTo(ExportBrokerState.CHARGED)
     }
 
     private fun verifySignals(

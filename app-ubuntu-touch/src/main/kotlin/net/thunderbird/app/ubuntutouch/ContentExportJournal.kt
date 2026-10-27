@@ -38,7 +38,9 @@ internal data class ExportLeaseRecord(
     val transfer: ExportTransferReference? = null,
 ) {
     init {
-        require(Regex("attachment-[A-Za-z0-9_-]{1,100}/message\\.eml").matches(relativeFile))
+        val parts = relativeFile.split('/')
+        require(parts.size == 2 && Regex("attachment-[A-Za-z0-9_-]{1,100}").matches(parts[0]))
+        require(isExportFileName(parts[1]))
         require(phase.hasTransfer == (transfer != null))
     }
     override fun toString(): String = "ExportLeaseRecord(redacted)"

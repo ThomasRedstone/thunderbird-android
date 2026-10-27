@@ -14,6 +14,51 @@ import org.junit.Test
 
 class MessageSaveScreenTest : ComposeUiTestHarness() {
     @Test
+    fun `attachment picker preserves exact reference and busy prevents selection`() = runComposeTest {
+        val reference = AttachmentReference(AccountIdFactory.create(), "Archive", "42", "fixture", 1)
+        val current = mutableStateOf(
+            MessageSaveState(
+                attachments = listOf(CachedAttachment(reference, "café.bin", "application/octet-stream")),
+            ),
+        )
+        val events = mutableListOf<MessageSaveEvent>()
+        setContent { ThunderbirdBoltTheme { MessageSaveControls(current.value, events::add) } }
+        onNodeWithText("café.bin").performClick()
+        assertThat(events).isEqualTo(
+            listOf(
+                MessageSaveEvent.Prepare(
+                    reference.account,
+                    reference.folder,
+                    reference.uid,
+                    reference,
+                ),
+            ),
+        )
+        current.value = current.value.copy(busy = true)
+        onNodeWithText("café.bin").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `reader attachment action passes cached message context`() = runComposeTest {
+        val account = AccountIdFactory.create()
+        val current = LiveMailState(
+            emptyList(),
+            account = account,
+            folder = MailFolder("Archive", "Archive"),
+            content = MailContent(
+                MailSummary("42", "Fixture", "Sender", false),
+                "Body",
+                true,
+                attachments = listOf(MailAttachmentInfo("file.bin", "application/octet-stream")),
+            ),
+        )
+        val events = mutableListOf<MessageSaveEvent>()
+        setContent { ThunderbirdBoltTheme { ReaderAttachmentAction(current, events::add) } }
+        onNodeWithText("Save attachments").performClick()
+        assertThat(events).isEqualTo(listOf(MessageSaveEvent.Attachments(MailMessageKey(account, "Archive", "42"))))
+    }
+
+    @Test
     fun `terminal receiver states show their confirmed outcome rather than a blank picker`() = runComposeTest {
         val current = mutableStateOf(
             MessageSaveState(pending = ExportReconcileResult(null, ExportBrokerState.FINALIZED)),
@@ -38,7 +83,7 @@ class MessageSaveScreenTest : ComposeUiTestHarness() {
                 content = MailContent(MailSummary("42", "Fixture", "Sender", false), "Fixture", true),
             ),
         )
-        val events = mutableListOf<MessageSaveEvent.Prepare>()
+        val events = mutableListOf<MessageSaveEvent>()
         setContent {
             ThunderbirdBoltTheme {
                 Surface { LiveMailScreen(current.value, onSave = events::add, onEvent = {}) }

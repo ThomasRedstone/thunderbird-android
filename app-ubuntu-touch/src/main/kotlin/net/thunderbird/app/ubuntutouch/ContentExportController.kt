@@ -30,6 +30,7 @@ internal class ContentExportController(
     private val journal: ContentExportJournal,
     private val broker: ContentExportBroker,
     private val accountExists: (AccountId) -> Boolean,
+    private val attachments: CachedAttachmentStore? = null,
 ) {
     private val active = mutableMapOf<UUID, ExportAuthorization>()
 
@@ -42,16 +43,29 @@ internal class ContentExportController(
         authorized: () -> Boolean,
         checkActive: () -> Unit = {},
         handoff: (() -> Unit) -> Unit = { it() },
+        attachment: AttachmentReference? = null,
     ): ExportLeaseRecord {
         check(accountExists(account) && authorized())
         check(journal.records().isEmpty()) { "Review pending exports before starting another" }
         var record: ExportLeaseRecord? = null
         var lease: PreparedAttachment? = null
         try {
-            lease = exporter.prepare(account, folder, uid, reserved = { file ->
+            val reserve: (Path) -> Unit = { file ->
                 record = journal.reserve(file, account)
                 active[checkNotNull(record).id] = ExportAuthorization(authorized, handoff)
-            }, checkActive = checkActive)
+            }
+            lease = if (attachment == null) {
+                exporter.prepare(account, folder, uid, reserved = reserve, checkActive = checkActive)
+            } else {
+                checkNotNull(attachments).prepare(
+                    account,
+                    folder,
+                    uid,
+                    attachment,
+                    reserved = reserve,
+                    checkActive = checkActive,
+                )
+            }
             check(accountExists(account) && authorized())
             return journal.ready(checkNotNull(record))
         } catch (failure: Throwable) {
@@ -66,6 +80,12 @@ internal class ContentExportController(
     }
 
     @Synchronized
+    fun attachments(key: MailMessageKey): List<CachedAttachment> {
+        check(accountExists(key.account))
+        return checkNotNull(attachments).list(key.account, key.folder, key.uid)
+    }
+
+    @Synchronized
     fun destinations(): List<ExportDestination> = broker.destinations()
 
     @Synchronized
@@ -74,7 +94,7 @@ internal class ContentExportController(
             record.id in active && journal.currentRecord(record.id) == record && record.phase == ExportLeasePhase.READY,
         )
         if (!allowed(record)) return cancel(record.id)
-        return preservingUncertainty(record.id) {
+        return preservingUncertainty(journal, record.id) {
             require(destination in broker.destinations())
             val reference = broker.create(destination)
             val attached = journal.attach(record, reference)
@@ -107,7 +127,7 @@ internal class ContentExportController(
         return if (reference == null) {
             ExportReconcileResult(record)
         } else {
-            preservingUncertainty(id) { observed(id, reference, broker.state(reference)) }
+            preservingUncertainty(journal, id) { observed(id, reference, broker.state(reference)) }
         }
     }
 
@@ -123,7 +143,7 @@ internal class ContentExportController(
                 ExportReconcileResult(null)
             }
 
-            else -> preservingUncertainty(id) {
+            else -> preservingUncertainty(journal, id) {
                 broker.abort(reference)
                 poll(id)
             }
@@ -177,16 +197,20 @@ internal class ContentExportController(
         active -= record.id
         record.transfer?.let { runCatching { broker.forget(it) } }
     }
-
-    private fun preservingUncertainty(id: UUID, work: () -> ExportReconcileResult): ExportReconcileResult = try {
-        work()
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (_: Exception) {
-        ExportReconcileResult(journal.currentRecord(id))
-    }
 }
 
 private fun ContentExportJournal.currentRecord(id: UUID): ExportLeaseRecord? = records().singleOrNull { it.id == id }
 
 private class ExportAuthorization(val allowed: () -> Boolean, val handoff: (() -> Unit) -> Unit)
+
+private fun preservingUncertainty(
+    journal: ContentExportJournal,
+    id: UUID,
+    work: () -> ExportReconcileResult,
+): ExportReconcileResult = try {
+    work()
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    ExportReconcileResult(journal.currentRecord(id))
+}

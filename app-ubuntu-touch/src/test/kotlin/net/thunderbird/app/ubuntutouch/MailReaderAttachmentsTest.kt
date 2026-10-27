@@ -19,7 +19,6 @@ class MailReaderAttachmentsTest : ComposeUiTestHarness() {
         onNodeWithText("Attachments (1)").assertIsDisplayed()
         onNodeWithText("café.bin").assertIsDisplayed()
         onNodeWithText("application/octet-stream").assertIsDisplayed()
-        onNodeWithText("Opening and saving attachments is not available in this preview.").assertIsDisplayed()
         onNodeWithText("Download the complete message to list attachments.").assertDoesNotExist()
     }
 

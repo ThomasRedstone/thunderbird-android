@@ -19,6 +19,22 @@ class ContentExportJournalTest {
     private val transfer = ExportTransferReference(":1.42", "/transfers/mail_demo/export/1")
 
     @Test
+    fun `attachment journal rejects traversal controls and unsanitized filenames`() {
+        listOf("../escape", "..", ".hidden", "a\\b", "a\nb", "a\u202Eb", "").forEach { name ->
+            assertThat(
+                runCatching {
+                    ExportLeaseRecord(
+                        java.util.UUID.randomUUID(),
+                        AccountIdFactory.create(),
+                        "attachment-fixture/$name",
+                        ExportLeasePhase.PREPARING,
+                    )
+                }.isFailure,
+            ).isTrue()
+        }
+    }
+
+    @Test
     fun `reservation and broker ownership survive reopening until the private file is released`() {
         val exports = directory.root.toPath().resolve("exports")
         val root = directory.root.toPath().resolve("journal")

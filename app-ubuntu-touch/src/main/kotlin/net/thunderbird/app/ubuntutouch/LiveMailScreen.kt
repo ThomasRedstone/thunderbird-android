@@ -34,7 +34,7 @@ import net.thunderbird.core.common.mail.Flag
 internal fun LiveMailScreen(
     state: LiveMailState,
     keyboard: MaliitKeyboard? = null,
-    onSave: ((MessageSaveEvent.Prepare) -> Unit)? = null,
+    onSave: ((MessageSaveEvent) -> Unit)? = null,
     onMove: ((MailMessageKey) -> Unit)? = null,
     onEvent: (LiveMailEvent) -> Unit,
 ) {

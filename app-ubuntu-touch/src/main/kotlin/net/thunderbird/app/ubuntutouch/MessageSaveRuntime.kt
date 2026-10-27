@@ -23,6 +23,7 @@ internal class MessageSaveRuntime(
             ContentExportJournal(data.resolve("message-export-journal"), exports),
             broker,
             { accounts.findById(it) != null },
+            CachedAttachmentStore(database, exports),
         ),
         accounts,
         changes = broker.changes,

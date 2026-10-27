@@ -295,6 +295,70 @@ class CachedAttachmentStoreTest {
         assertClean()
     }
 
+    @Test
+    fun `attachment handoff retains decoded bytes across journal recovery and never repeats Charge`() {
+        val attachments = CachedAttachmentStore(database, exports)
+        val reference = attachments.list(account, "INBOX", "1").single().reference
+        val journalPath = directory.root.toPath().resolve("journal")
+        val journal = ContentExportJournal(journalPath, exports)
+        val broker = AttachmentExportBroker()
+        val testSubject = ContentExportController(
+            CachedMessageExport(database, exports),
+            journal,
+            broker,
+            { it == account },
+            attachments,
+        )
+        val ready = testSubject.prepare(account, "INBOX", "1", authorized = { true }, attachment = reference)
+        assertThat(journal.file(ready).fileName.toString()).isEqualTo("café.bin")
+        assertThat(broker.charges).isEqualTo(0)
+        val pending = checkNotNull(testSubject.send(ready, broker.destination).record)
+        assertThat(pending.phase).isEqualTo(ExportLeasePhase.CHARGING)
+        val reopened = ContentExportJournal(journalPath, exports)
+        val recovered = ContentExportController(
+            CachedMessageExport(database, exports),
+            reopened,
+            broker,
+            { true },
+            attachments,
+        )
+        assertThat(recovered.recover().single().record).isEqualTo(pending)
+        assertThat(Files.readAllBytes(reopened.file(pending)).toList()).isEqualTo(listOf<Byte>(0, 1, 2, 3, 4, 5))
+        assertThat(broker.charges).isEqualTo(1)
+        broker.current = ExportBrokerState.FINALIZED
+        assertThat(recovered.poll(pending.id).record).isEqualTo(null)
+        assertThat(reopened.records()).isEqualTo(emptyList())
+        assertClean()
+    }
+
+    @Test
+    fun `attachment reservation precedes bytes and preparation failure leaves recoverable cleanup metadata`() {
+        val attachments = CachedAttachmentStore(database, exports)
+        val reference = attachments.list(account, "INBOX", "1").single().reference
+        val journal = ContentExportJournal(directory.root.toPath().resolve("journal"), exports)
+        val failure = runCatching {
+            attachments.prepare(account, "INBOX", "1", reference, reserved = { file ->
+                assertThat(Files.exists(file)).isEqualTo(false)
+                journal.reserve(file, account)
+                throw CancellationException("Controlled reservation interruption")
+            })
+        }
+        assertThat(failure.isFailure).isTrue()
+        assertThat(journal.records().single().phase).isEqualTo(ExportLeasePhase.PREPARING)
+        val broker = AttachmentExportBroker()
+        val testSubject = ContentExportController(
+            CachedMessageExport(database, exports),
+            journal,
+            broker,
+            { true },
+            attachments,
+        )
+        assertThat(testSubject.recover().single().record).isEqualTo(null)
+        assertThat(journal.records()).isEqualTo(emptyList())
+        assertThat(broker.charges).isEqualTo(0)
+        assertClean()
+    }
+
     private fun assertClean() {
         assertThat(directory.root.resolve("mime").listFiles().orEmpty().toList()).isEqualTo(emptyList())
         if (Files.exists(exports)) Files.list(exports).use { assertThat(it.count()).isEqualTo(0L) }
@@ -318,4 +382,26 @@ class CachedAttachmentStoreTest {
         "--fixture\r\nContent-Type: application/octet-stream; name=fixture.bin\r\n" +
         "Content-Disposition: attachment; filename*=utf-8''caf%C3%A9.bin; size=1\r\n" +
         "Content-Transfer-Encoding: base64\r\n\r\nAAECAwQF\r\n--fixture--\r\n"
+}
+
+private class AttachmentExportBroker : ContentExportBroker {
+    val destination = ExportDestination("receiver.fixture", "Fixture")
+    private val reference = ExportTransferReference(":1.42", "/transfers/mail_demo/export/1")
+    var current = ExportBrokerState.CREATED
+    var charges = 0
+    override fun destinations() = listOf(destination)
+    override fun create(destination: ExportDestination) = reference
+    override fun start(reference: ExportTransferReference) {
+        current = ExportBrokerState.IN_PROGRESS
+    }
+    override fun charge(reference: ExportTransferReference, file: Path) {
+        check(Files.readAllBytes(file).contentEquals(byteArrayOf(0, 1, 2, 3, 4, 5)))
+        charges++
+        current = ExportBrokerState.CHARGED
+        error("Controlled lost reply")
+    }
+    override fun state(reference: ExportTransferReference) = current
+    override fun abort(reference: ExportTransferReference) {
+        current = ExportBrokerState.ABORTED
+    }
 }

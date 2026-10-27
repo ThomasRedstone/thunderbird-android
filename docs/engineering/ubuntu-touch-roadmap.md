@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.32 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 419 full app tests plus 3 native-probe host tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 428 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.32 embeds clean `9d037c201a`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.32 install verified; local fleet `bd04d29` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -483,3 +483,12 @@ Native32 acknowledgement-loss testing also passes: the service retains UNKNOWN a
 snapshot, refuses unconfirmed retry, and reconciliation leaves exactly one destination copy
 according to an independent host oracle. Physical Move UI, real providers, remaining network
 interruption boundaries and large-mailbox/performance gates remain open.
+
+Development0.1.33 integrates cached attachment Save: the reader opens an attachment picker,
+selecting a fingerprint/ordinal-pinned file prepares decoded bytes, then the existing destination
+picker and single-owner transfer journal handle handoff/recovery. Sanitized Unicode filenames
+survive journal reopen and D-Bus file-item serialization. Source replacement refuses stale
+selection; lost Charge replies retain bytes without replay. Full428 app tests and quality/
+distribution checks pass. This does not complete attachment handling: outbound Content Hub
+permission/real receiver acceptance, Open, outgoing attachments and native/physical/large-file
+testing remain open. Installed phone32 is unchanged at this source checkpoint.

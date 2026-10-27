@@ -78,9 +78,10 @@ internal class DbusContentExportBroker(
                 Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS),
         )
         check(file.parent.toRealPath().parent == exportRoot.toRealPath())
-        require(file.fileName.toString() == "message.eml")
+        val name = file.fileName.toString()
+        require(isExportFileName(name))
         require(Regex("attachment-[A-Za-z0-9_-]{1,100}").matches(file.parent.fileName.toString()))
-        val item = ContentHubFileItem("", byteArrayOf(), "message.eml", file.toUri().toASCIIString())
+        val item = ContentHubFileItem("", byteArrayOf(), name, file.toUri().toASCIIString())
         remote.charge(listOf(Variant(item, "(sayss)")))
     }
 

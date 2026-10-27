@@ -40,7 +40,7 @@ internal class AttachmentTarget private constructor(private val directory: Path,
                 file.parent.parent == root &&
                     Regex("attachment-[A-Za-z0-9_-]{1,100}").matches(file.parent.fileName.toString()),
             )
-            require(file.fileName.toString() == "message.eml")
+            require(isExportFileName(file.fileName.toString()))
             check(Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS))
             check(Files.isDirectory(file.parent, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(file))
             check(
@@ -76,3 +76,5 @@ private val HIDDEN_TYPES = setOf(
     Character.LINE_SEPARATOR.toInt(),
     Character.PARAGRAPH_SEPARATOR.toInt(),
 )
+
+internal fun isExportFileName(name: String): Boolean = name == safeAttachmentName(name)

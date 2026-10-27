@@ -13,6 +13,5 @@ internal fun MailReaderAttachments(content: MailContent) {
             TextBodyLarge(it.displayName)
             TextBodyLarge(it.mimeType)
         }
-        TextBodyLarge("Opening and saving attachments is not available in this preview.")
     }
 }

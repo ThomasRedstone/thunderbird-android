@@ -215,3 +215,17 @@ message. Wait for host exit 0 before fresh-JVM recovery, which checks persisted 
 protected credentials and SENT state, then cleans its fixture. This flow passes under 0.1.14 confinement; evidence is
 `build/evidence/responses/native-run-1/`. Native composer Resume/Maliit edit/flush and cancellation regressions also pass.
 This is not physical UI acceptance or complete attachment/HTML forwarding coverage.
+
+## Automatic Sent filing fixture
+
+On installed 0.1.15, add `-PutProtocolSent=sent` to the STARTTLS/flags/reply host fixture command and append `sent` as
+the tenth phone probe argument. The host creates the owner's Sent folder before readiness. The phone configures that
+cached folder and uses production automatic filing after durable SMTP acceptance. Repeated send/file calls must not
+create another delivery or copy. The host independently inspects recipient Inbox and owner Sent mailboxes, including
+matching Message-ID, body, threading and the read flag before body fetch. Never use the server's global message list
+as a delivery count: IMAP APPEND legitimately adds an owner copy there.
+
+Wait for phone preparation success, stop the host and require its final assertions/exit 0, then run the two-argument
+fresh-JVM probe against the retained fixture directory. It must verify SAVED copy state alongside cached mail,
+credentials and SENT state without servers, then remove its private account/fixture. Independently confirm cleanup.
+This passes on 0.1.15; physical/provider and actual transport APPEND-response-loss acceptance remain open.

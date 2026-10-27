@@ -1030,3 +1030,39 @@ local result loss following a real successful APPEND. This last case is not a cl
 
 0.1.15 is the candidate version. Packaging/native validation follows; the installed phone remains 0.1.14 until the
 verified deployment below. Matching schema9 probes must not be run against older installed production JARs.
+
+### 0.1.15 deployed Sent-copy evidence
+
+Production `d38c691ea9b78af4e67841d54593b63c9bb56947` is committed/pushed. Candidate 17 embeds that source with an
+empty SOURCE-CHANGES.patch. Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks pass. Artifact:
+`app-ubuntu-touch/build/ut-candidate-17/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.15_arm64.click`,
+147242292 bytes, SHA256 `6729ba1f8af624ffca0a2684085bce67f65cfbba7f2f4f21e746f62d57ef703f`.
+Transfer completed before the exact phone checksum guard and successful Phone Manager installation. Current symlink,
+embedded source, empty patch and enforcing profile were independently checked. Fleet scoped commit `06a59d2` pins the
+matching package; unrelated dirty work is preserved and no whole-fleet converge or fleet push was performed.
+
+The installed production JVM/JARs plus a test-only 36-class probe JAR passed under
+`mail-demo.thomasredstone_mail-demo_0.1.15`:
+
+- Composer schema3→9, Swing Main, drafts/queue/history, response/Maliit edit and close flushing, including Sent settings.
+- Required STARTTLS IMAP/SMTP, protected SignOn account, default unknown-certificate rejection and injected fixture trust.
+- Queued read/star reconciliation, actual reply seeding/threading, automatic Sent filing and repeated-send/copy suppression.
+- Independent host Jakarta recipient mailbox: exactly one correct delivery/body/threading. Owner Sent mailbox: exactly
+  one matching copy/body/threading, with SEEN asserted before fetching its body. Independent source read/star assertions pass.
+- Host server exits 0 before a fresh phone JVM verifies protected credentials, cache, reply metadata, SENT and SAVED
+  copy state offline. Phone exits 0 and independent SSH confirms the private fixture directory was removed.
+
+Logs: `/tmp/thunderbird-015-native-result.log`, `/tmp/thunderbird-015-sent-phone.log`,
+`/tmp/thunderbird-015-sent-server.log`, `/tmp/thunderbird-015-restart.log`.
+Controlled host output: `app-ubuntu-touch/build/evidence/sent-copies/native-run-1/`.
+All prepare/server/restart/cleanup commands completed successfully. Physical UI/provider journeys remain unverified.
+This run does not add an actual TCP APPEND-response-loss test or repeat the stalled-peer cancellation probe.
+
+Final full 120 app tests, detekt, installDist, spotlessCheck and actual Xvfb composer-close exact-subject preservation
+pass (`/tmp/thunderbird-sent-verified.log`); XML is retained under `build/evidence/sent-copies/`.
+No shared Android code/dependencies/permissions changed. This JVM module has no Android lint/device task; Android
+assembly and connected-device suites were not rerun. Documentation formatting is checked separately.
+
+Repository-wide spotlessCheck also ran and failed on existing Markdown formatting in the dependency audit.
+The four changed documentation files pass focused spotlessApply/spotlessCheck using `-PspotlessIdeHook`
+(`/tmp/thunderbird-015-doc-focused.log`); unrelated baseline formatting was preserved.

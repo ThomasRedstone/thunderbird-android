@@ -1699,3 +1699,45 @@ Fleet commit 9333240 now pins 0.1.18/candidate-20/source f18314918d and SHA-256
 check passed. Only the owned mail entry was staged/committed; unrelated manifest/payload/artifact changes were
 preserved. The fleet-wide hook was bypassed for this scoped commit; no whole-fleet converge or fleet remote push ran.
 This closes the local fleet-pin gap, not physical UI/provider acceptance or the later token-client deployment gap.
+
+
+### Serialized OAuth token coordination (later source, not installed 0.1.18)
+
+OAuthTokenCoordinator composes the protected store and HTTP token client. One shared instance serializes operations
+per account while allowing different accounts to refresh independently. Every request checks protected storage;
+there is no plaintext disk fallback or independent background worker. It reuses access outside a 60-second safety
+margin and persists a refresh replacement before returning it. An invalid grant removes unusable saved state;
+transient failures retain refresh state without returning expired access. An already-expired replacement is saved
+for its rotated refresh credential but is not returned for authentication.
+
+A protected-write failure retains the observed replacement in memory for a write retry rather than refreshing the
+old credential again. Pending data remains bound to an immutable provider-configuration snapshot. Invalidation names
+the actual rejected access token, so a delayed rejection cannot expire a newer token. It also retains a failed
+invalidation write, preventing reuse of the rejected saved access token. Once a replacement/invalidation is observed,
+its protected write completes in NonCancellable; ordinary queued/network cancellation remains cancellable. This
+critical section still depends on the credential service's call/timeout behavior; bounded cancellation latency of
+an unresponsive SignOn service is not established here.
+
+Registry references include queued waiters; idle entries are removed once no pending protected write remains,
+preventing two live mutexes for one account. Only failed pending writes retain token references between operations.
+Deletion clears both protected data and pending state, but must still be integrated with actual account-removal and
+setup-generation/credential-cleanup transactions. A setup owner must validate its account/generation before storeGrant.
+The app must inject the same coordinator across operations; cross-process or independent-coordinator locking is not
+implemented. A crash or response loss before rotation is observed/persisted can still require provider reauthentication;
+this is not an exactly-once remote refresh guarantee or physical secret-memory erasure.
+
+Thirteen tests exercise safety-margin expiry, one refresh across concurrent same-account operations, independent
+accounts, failed persistence/retry without another refresh, provider binding, stale-token rejection, invalid grant,
+queued cancellation, cancellation during the protected rotation commit, deletion/locked service, already-expired
+replacement and transient failure. Meaningful fail-before regressions caught rejected-token reuse after a failed
+invalidation write and returning an already-expired replacement; XML retained in
+build/evidence/oauth-coordinator/{invalidation-before,expiry-before}.xml. The protected fake is thread-safe and uses
+synthetic tokens only. These host tests do not establish native SignOn round trips or account/IMAP/SMTP/UI integration.
+
+
+All 204 host app tests pass (zero failures/errors/skips), plus detekt/installDist/spotlessCheck:
+/tmp/thunderbird-oauth-coordinator-full.log, XML build/evidence/oauth-coordinator/.
+The app-scoped tasks used JDK 21/SDK and standard no-configuration-cache/isolated-projects=false/max-workers=4 options.
+No new dependencies/permissions/shared Android code; Android assembly/device suites were not rerun and this JVM module
+has no Android lint/device task. This coordinator is not included in installed 0.1.18/f18314918d; native acceptance
+requires a later version together with token store/HTTP client, without rebuilding changed source as another 0.1.18.

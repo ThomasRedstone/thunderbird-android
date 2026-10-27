@@ -3711,3 +3711,54 @@ Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks pass; build7626 exit
 `/tmp/thunderbird-034-click.log`. Same pinned builder/verified candidate5 runtime reuse;
 not cold-build/CI reproducibility proof. The artifact is not installed yet. Preserve it
 unchanged; subsequent production changes require a new version.
+
+### Installed 0.1.34 and native folder-role acceptance (2026-10-27)
+
+The FP4 upgraded33→34 after the guarded normal close of PID505622 (pidfd SIGCONT only for
+its stopped state). Transfer size/hash, old/new source markers and empty changes patch
+match candidate36. Schema15 pre-upgrade backup:
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/0.1.34-1oyuds7q`. Upgrade46755
+exited0; `/tmp/thunderbird-034-upgrade.log` retains the known user-bus/profile-cache warnings.
+Installed main JAR SHA256 `a4ce4742b0b4aac4850fabbd10a239ae6ba4d93bd964e5e5eae940ca5268571f`
+matches the canonical artifact. Actual production15→15 initialization/quick_check passes
+under exact34 enforcing confinement: `/tmp/thunderbird-034-production-migration.log`.
+
+ConfinedFolderRoleProbe persists explicit Archive/Trash choices in a private synthetic
+database, reopens in a fresh installed34 JVM, verifies both choices, changes the incoming
+connection and proves the old mapping becomes inactive. A stale configuration write is
+rejected; explicit reconfiguration/clear and account metadata cleanup pass. Its private
+fixture is removed. Logs `/tmp/thunderbird-034-folder-role-prepare.log` and
+`/tmp/thunderbird-034-folder-role-reopen.log` both exit0. No production settings or credentials
+are read by this storage-only probe.
+
+Separate protected synthetic accounts exercise the actual native Move service with
+`archive` and `trash` role requests over required STARTTLS. Each role is explicitly mapped
+to the fixture's Archive folder: this verifies that configuration, not the folder's literal
+name, controls filing. Enqueue checks the selected role, submission completes, both folders
+reconcile, the intact destination body is read, retained payload cleanup requires verified
+cache bytes, and repeated completed submission is rejected. Each synthetic protected account
+and private database is cleaned up. Independent host Jakarta IMAP assertions confirm source
+absence and exactly one intact destination message. Both host fixture servers stop with
+exit0; no server is left running.
+
+Phone logs `/tmp/thunderbird-034-{archive,trash}-protocol.log` and host logs
+`/tmp/thunderbird-034-{archive,trash}-server.log` pass. Five-class driver (excluding JUnit):
+`build/evidence/native-034/candidate-034-folder-role-probe.jar`, SHA256
+`5d3bbf8d1bf580545207b3bfb13575f799a2bc84bc82b2e4f3f820c62da4ad79`.
+It was compiled after the immutable package against its unchanged34 APIs. Frozen32/33
+drivers remain unchanged; fresh current drivers must not be run against an older ABI.
+No production trust, permissions, OAuth registration or provider account changed.
+
+The latest normal launch returns0, `/tmp/thunderbird-034-launch.log`. Independent inspection
+finds exact34 enforcing JVM538669, T(stopped) while inactive, and one owned main window
+(`/tmp/thunderbird-034-window.log`). This is not physical focus/UI proof or resolution of
+prior intermittent registry disconnects. Local fleet commit `c1a763f` pins the exact34
+artifact/hash; scoped pm lint passes and the temporary-index update preserves unrelated
+worktree/index changes. No fleet sync, prune or push occurred.
+
+Full 439 app tests pass with zero failures/errors/skips plus detekt/spotlessCheck:
+`/tmp/thunderbird-034-native-driver-full.log`; two new host probe/path-validation tests
+and compile/quality checks pass in `/tmp/thunderbird-034-native-probe-check.log`. Existing
+437-test production/installDist proof remains unchanged. Physical role configuration/review,
+real-provider filing, remaining interruption boundaries, bulk organisation, copy, permanent
+deletion and broad folder management remain required.

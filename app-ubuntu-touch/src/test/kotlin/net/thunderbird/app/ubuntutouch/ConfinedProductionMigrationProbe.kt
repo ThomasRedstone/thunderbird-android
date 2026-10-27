@@ -41,6 +41,6 @@ object ConfinedProductionMigrationProbe {
         println("Enforcing production storage initialization/migration $before->$CURRENT_SCHEMA and quick_check: PASS")
     }
 
-    private const val PROFILE = "mail-demo.thomasredstone_mail-demo_0.1.33"
+    private const val PROFILE = "mail-demo.thomasredstone_mail-demo_0.1.34"
     private const val CURRENT_SCHEMA = 15L
 }

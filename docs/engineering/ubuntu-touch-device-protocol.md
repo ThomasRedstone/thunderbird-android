@@ -265,3 +265,16 @@ JVM without replay, then cleans it. `cleanup FIXTURE_DIR` removes only an owned 
 fixture after explicit failure inspection; unexpected files/symlinks are retained.
 Require both processes to exit0. See M2 evidence for exact hashes/logs. This test does not
 replace physical attachment selection, real receiver transfer or large-file/abrupt-loss tests.
+
+## Folder roles on34
+
+Use exact34 enforcing confinement and the installed34 JVM/JAR classpath with
+`candidate-034-folder-role-probe.jar`. Keep the explicit UTF8 locale from the33 helper.
+`ConfinedFolderRoleProbe prepare` prints its private fixture path; a fresh
+`reopen FIXTURE_DIR` verifies persistence, connection invalidation and cleanup.
+For network checks start independent controlled fixtures in move mode (see M2 reproduction),
+then invoke ConfinedMoveProtocolProbe with the run's host/IMAP/SMTP/certificate arguments
+and append `archive` or `trash`. Each run explicitly maps that role to the fixture Archive
+folder, testing configured targets independently of literal folder names. Use a fresh server
+for each case; stop it after phone success and require both independent IMAP oracle and
+phone exit0. No physical UI, provider or permanent-deletion acceptance is inferred.

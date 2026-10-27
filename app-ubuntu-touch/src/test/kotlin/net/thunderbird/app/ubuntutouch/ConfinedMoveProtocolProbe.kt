@@ -19,9 +19,15 @@ object ConfinedMoveProtocolProbe {
     @JvmStatic
     fun main(args: Array<String>) {
         require(args.size in 5..6)
-        val unknown = args.size == 6
-        if (unknown) require(args[5] == "unknown")
-        val profile = "mail-demo.thomasredstone_mail-demo_0.1.32"
+        val mode = args.getOrNull(5)
+        require(mode == null || mode in setOf("unknown", "archive", "trash"))
+        val unknown = mode == "unknown"
+        val role = when (mode) {
+            "archive" -> MailFolderRole.ARCHIVE
+            "trash" -> MailFolderRole.TRASH
+            else -> null
+        }
+        val profile = "mail-demo.thomasredstone_mail-demo_0.1.34"
         check(args[0] == profile)
         check(Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000') == "$profile (enforce)")
         val parent = Path.of(System.getProperty("user.home"), ".cache", "mail-demo.thomasredstone", "probes")
@@ -45,7 +51,7 @@ object ConfinedMoveProtocolProbe {
             UUID.randomUUID().toString(),
         )
         try {
-            checkMove(directory, account, Path.of(args[4]), unknown)
+            checkMove(directory, account, Path.of(args[4]), unknown, role)
         } finally {
             MailDatabase(directory.resolve("mail.sqlite")).use { database ->
                 val accounts = manager(database)
@@ -57,7 +63,13 @@ object ConfinedMoveProtocolProbe {
         println("Enforcing STARTTLS Move, destination reconciliation and retained-payload policy: PASS")
     }
 
-    private fun checkMove(directory: Path, account: UtMailAccount, certificate: Path, unknown: Boolean) {
+    private fun checkMove(
+        directory: Path,
+        account: UtMailAccount,
+        certificate: Path,
+        unknown: Boolean,
+        role: MailFolderRole?,
+    ) {
         var logs = 0
         val logger = DefaultLogger(object : LogSink {
             override val level = LogLevel.VERBOSE
@@ -91,7 +103,11 @@ object ConfinedMoveProtocolProbe {
             val operations = PersistentMailMoveOperations(database, accounts, sessions)
             val key = MailMessageKey(account.id, "INBOX", uid)
             operations.verify(key, MailOperation())
-            val queued = operations.enqueue(key, "Archive")
+            if (role != null) {
+                operations.configureRole(key, role, "Archive")
+                check(operations.overview(key).roles[role] == "Archive")
+            }
+            val queued = operations.enqueue(key, "Archive", role)
             check(queued.state == MailMoveState.QUEUED)
             val complete = operations.submit(queued, MailOperation(), acknowledgeDuplicateRisk = false)
             val expected = if (unknown) MailMoveState.UNKNOWN else MailMoveState.COMPLETE

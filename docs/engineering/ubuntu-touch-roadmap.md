@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.10 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.11 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, successful STARTTLS, authenticated interruption coverage and daily-use features |
-| Engineering | 79 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Cancellation/history UI committed/pushed as `080d86f30c`; installed 0.1.10 embeds that clean source | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager install; fleet commit `9e08d03` pins installed 0.1.10/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
+| Engineering | 83 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Source delivery | Draft recovery committed/pushed as `57294380c1`; installed 0.1.11 embeds that clean source | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager install; fleet commit `183ea07` pins installed 0.1.11/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,7 +27,7 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.10 is installed on the FP4 with account
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.11 is installed on the FP4 with account
 setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
@@ -266,8 +266,8 @@ regression checks for changed shared code. Test boundaries with meaningful cases
 platform contracts and user journeys. Validate the packaged application on real hardware; desktop execution alone
 does not cover Ubuntu Touch confinement or lifecycle behaviour.
 
-Graceful-close draft flushing and immediate focus-loss saving are implemented and desktop verified; deployment and
-physical suspend/lifecycle acceptance remain open (see milestone 2 evidence). Abrupt termination can still lose input
+Graceful-close draft flushing and immediate focus-loss saving are deployed in 0.1.11 and desktop/native-model verified;
+physical suspend/lifecycle acceptance remains open (see milestone 2 evidence). Abrupt termination can still lose input
 inside the debounce interval.
 
 The immediate work is milestone 2: verify the cached mailbox and composer/outbox UI on device, complete

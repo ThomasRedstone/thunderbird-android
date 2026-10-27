@@ -696,3 +696,37 @@ Verification on 2026-10-27:
 This change is source/desktop verified; the installed phone remains 0.1.10 without this fix until a new candidate is
 packaged and deployed. Native focus-loss/suspend/rotation acceptance remains open. A 400 ms uncommitted window still
 exists for abrupt termination, and focus-loss saving cannot guarantee completion before OS suspension.
+
+
+### 0.1.11 package and confined lifecycle verification
+
+The draft-recovery fix (`db5a48eb71`) and release/probe preparation are committed and pushed as clean production
+source `57294380c158ad0791ffa1e6853bb5e3235c6e89`. Candidate 12 contains empty SOURCE-CHANGES.patch and that exact
+SOURCE-COMMIT.txt. Pinned builder and verified ARM64 runtime reuse are unchanged from 0.1.10. Click review and
+launcher/JVM/AWT/Skiko/SQLite architecture checks pass. Package:
+`app-ubuntu-touch/build/ut-candidate-12/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.11_arm64.click`,
+147127116 bytes, SHA-256 `608d985a82b822d1e4610c196706f72d128abca06c3dddb7a33ff342a118face`.
+
+Rsync completed with exit 0 before phone-side exact checksum verification and Phone Manager installation (exit 0).
+No existing database was present at either checked standard/doubled application path. The guarded install retained
+private backup handling for any existing database. Known unsigned-development/user-bus-hook/old-profile-cache warnings
+occurred; independent current symlink, source/empty patch and new enforcing profile checks passed. The device reports
+FP4, Ubuntu Touch 24.04-2.x/arm64/android9plus/daily, build 708.
+
+The expanded test-only ConfinedComposerProbe ran with installed production JARs and bundled JVM, no production
+overlays, under `mail-demo.thomasredstone_mail-demo_0.1.11 (enforce)`. It passes Swing Main dispatch, schema 3→5,
+draft/queue/single-claim/uncertain recovery, immediate native model close flush, invalid-save preservation and immediate
+background flush. Its new lifecycle fixture uses synthetic local settings and no credential operations/network/send;
+the probe removes its own private fixture. This verifies native model/storage behaviour, not a physical window or OS
+suspend. The actual window regression remains desktop evidence.
+
+ConfinedCancellationProbe also passes on installed 0.1.11 with a disposable protected SignOn account and the default
+Swing mailbox model. Both phone and host exit 0; the independent host observes EOF with zero protocol/credential bytes.
+No protocol receive/send replay is claimed for this version; the previous 0.1.10 proof remains recorded above.
+
+83 app tests, detekt and installDist pass (`/tmp/thunderbird-011-native-checks.log`); the version-only first check also
+passed spotlessCheck. Final documentation/probe formatting check follows. Native/package/install/cancellation logs and
+test-only JAR are retained under `app-ubuntu-touch/build/evidence/draft-lifecycle/`. Phone-fleet scoped commit `183ea07`
+pins only this app's version/path/hash; unrelated dirty fleet work was preserved and no whole-fleet converge was run.
+Physical secure-input/foreground provider journey, suspend/rotation, successful STARTTLS and broader authenticated
+interruption checks remain open. The full daily-use/background/parity/release roadmap remains required.

@@ -1418,3 +1418,31 @@ port or its current registration. Microsoft requires a [registered matching redi
 Thus a loopback receiver is only a candidate pending registration, confinement, browser and suspend/resume tests.
 OAuth can proceed independently of HTML and attachment UI; neither provider is accepted until actual login,
 refresh and authenticated receive/send succeed on the phone.
+
+
+### OAuth platform probe on installed 0.1.17
+
+ConfinedOAuthPlatformProbe is test-only and uses no new production classes, credentials or provider requests.
+It verifies /proc/self/attr/current against the expected enforcing profile, then binds IPv4 127.0.0.1 on an
+OS-selected port, connects, accepts and checks one synthetic byte. This passes using the installed bundled JVM.
+It does not prove Morph redirect delivery, callback HTTP parsing, PKCE/state, foreground restoration or suspend survival.
+
+Live introspection exposes com.lomiri.URLDispatcher at /com/lomiri/URLDispatcher with DispatchURL(s,s) and
+TestURL(as)->as. The installed app profile permits DispatchURL only. The probe's read-only TestURL call therefore
+fails with org.freedesktop.dbus.errors.AccessDenied, confirmed on the real session bus. This is a measured API
+constraint, not evidence that browser dispatch itself is denied. Do not add permissions merely for preflight lookup;
+use the permitted dispatch operation and handle its outcome. No browser was launched in this experiment.
+Installed dispatcher packages report 0.1.4+0~20260705190008.3+ubports24.04.2~1.gbp309775.
+
+Build/testClasses/detekt/spotlessCheck pass (/tmp/thunderbird-oauth-platform-build.log). Native diagnostic exits 1
+at TestURL after printing its loopback PASS (/tmp/thunderbird-oauth-platform-phone.log); it is not an overall green
+authentication test. The initial diagnostic omitted the existing required private java.io.tmpdir and failed loading
+junixsocket; rerunning with the normal private cache path reached the actual dispatcher policy denial.
+
+To reproduce, package only ConfinedOAuthPlatformProbe*.class and OAuthDispatcherProbe*.class from the test output
+into a separate test-only JAR. Run the installed bundled JVM with that JAR plus installed lib/app/*, the installed
+profile via aa-exec, user-session bus variables and java.io.tmpdir pointing into the app private cache, as described
+in the device protocol guide. Supply the exact installed profile as the sole argument. The probe intentionally
+fails when capability resolution is unavailable; do not weaken confinement or mistake this for a provider test.
+Next: implement/test one-use PKCE/state and bounded callback handling, then test DispatchURL/browser return and
+lifecycle under the same profile before connecting any real provider account.

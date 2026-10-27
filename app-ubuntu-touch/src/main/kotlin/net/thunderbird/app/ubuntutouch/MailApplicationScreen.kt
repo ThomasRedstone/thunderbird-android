@@ -69,10 +69,7 @@ internal fun MailApplicationScreen(
         MailDestination.COMPOSE -> {
             val composer = loadOwnedMailModel(createComposer)
             if (composer != null) {
-                DisposableEffect(composer, lifecycle) {
-                    val registration = lifecycle.register(composer::flushForClose, composer::flushOnBackground)
-                    onDispose { registration.close() }
-                }
+                RegisterMailClose(composer, lifecycle, composer::flushForClose, composer::flushOnBackground)
                 val state by composer.state.collectAsState()
                 ComposerDestination(state, composer::event, keyboard) { destination = it }
             }
@@ -81,6 +78,7 @@ internal fun MailApplicationScreen(
         MailDestination.MAILBOX -> {
             val mailbox = loadOwnedMailModel(createMailbox)
             if (mailbox != null) {
+                RegisterMailClose(mailbox, lifecycle, mailbox::flushForClose, {})
                 val state by mailbox.state.collectAsState()
                 Column(
                     Modifier.fillMaxSize().mailBack(!state.busy) {
@@ -96,6 +94,19 @@ internal fun MailApplicationScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RegisterMailClose(
+    owner: AutoCloseable,
+    lifecycle: MailWindowLifecycle,
+    save: suspend () -> Boolean,
+    background: () -> Unit,
+) {
+    DisposableEffect(owner, lifecycle) {
+        val registration = lifecycle.register(save, background)
+        onDispose { registration.close() }
     }
 }
 

@@ -76,7 +76,7 @@ class LiveMailViewModelTest {
             testSubject.event(LiveMailEvent.OpenMessage(repository.summary.id))
             testSubject.state.first { !it.busy }
             testSubject.event(LiveMailEvent.ChangeFlag(Flag.SEEN, true))
-            testSubject.state.first { !it.busy }
+            assertThat(testSubject.flushForClose()).isTrue()
             assertThat(testSubject.state.value.content?.summary?.unread).isEqualTo(false)
             assertThat(testSubject.state.value.pendingActions).isEqualTo(1)
             assertThat(repository.refreshes).isEqualTo(0)
@@ -91,6 +91,12 @@ class LiveMailViewModelTest {
             testSubject.state.first { !it.busy }
             assertThat(testSubject.state.value.pendingActions).isEqualTo(0)
             assertThat(repository.refreshes).isEqualTo(0)
+            repository.failFlag = true
+            testSubject.event(LiveMailEvent.ChangeFlag(Flag.FLAGGED, true))
+            assertThat(testSubject.flushForClose()).isFalse()
+            assertThat(testSubject.state.value.content?.summary?.starred).isEqualTo(false)
+            assertThat(testSubject.state.value.notice != null).isTrue()
+            assertThat(testSubject.flushForClose()).isTrue()
         }
     }
 
@@ -124,12 +130,14 @@ class LiveMailViewModelTest {
 private class FakeLiveMailRepository : LiveMailRepository {
     val folder = MailFolder("INBOX", "Inbox")
     var summary = MailSummary("1", "Fixture", "Sender", true)
+    var failFlag = false
     var pending = 0
     override fun pendingFlags(account: AccountId) = pending
     override fun discardFlags(account: AccountId) {
         pending = 0
     }
     override fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) {
+        if (failFlag) error("Synthetic local write failure")
         summary = if (flag == Flag.SEEN) summary.copy(unread = !value) else summary.copy(starred = value)
         pending++
     }

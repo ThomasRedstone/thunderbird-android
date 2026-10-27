@@ -867,3 +867,13 @@ JVM application has no Android lint/device task.
 
 0.1.13 is the candidate version; packaging/native acceptance is pending at this source checkpoint. The phone still has
 0.1.12/schema6. Do not run schema7 probes against the older installed production JARs.
+
+
+Before deployment, the mailbox close path was tightened to await any just-started local action write, using the same
+window lifecycle registry as composer drafts. A failed local write holds the first close open to expose the error;
+a subsequent explicit close may leave the unchanged cache. Local write identity is rechecked after waiting, so a
+newer tap cannot be lost between completion and exit. Network operations retain their existing cancellation path.
+The model regression fails with immediate-close behaviour substituted (assertion failure retained in
+`build/evidence/flags/immediate-close-before.xml`), then passes with the wait restored. This is a model close-contract
+regression; no claim is made that it drove the phone window. Candidate14 was built but not deployed and is superseded
+by the forthcoming clean candidate containing this close fix.

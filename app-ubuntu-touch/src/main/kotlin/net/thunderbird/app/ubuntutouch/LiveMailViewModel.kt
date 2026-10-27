@@ -3,6 +3,7 @@ package net.thunderbird.app.ubuntutouch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +52,8 @@ internal class LiveMailViewModel(
     private val mutableState = MutableStateFlow(LiveMailState(manager.findAll()))
     val state = mutableState.asStateFlow()
     private var activeOperation: MailOperation? = null
+    private var localWrite: Job? = null
+    private var localWriteFailed = false
 
     fun event(event: LiveMailEvent) {
         val current = state.value
@@ -121,30 +124,15 @@ internal class LiveMailViewModel(
         download: Boolean = false,
         action: LiveMailEvent? = null,
     ) {
-        val account = initial.account ?: return
+        if (initial.account == null) return
         val operation = if (network || download) MailOperation() else null
         activeOperation = operation
         mutableState.value = initial.copy(busy = true, canCancel = operation != null, cancelling = false, notice = null)
-        scope.launch {
+        if (action != null) localWriteFailed = false
+        val work = scope.launch {
             try {
                 val loaded = withContext(Dispatchers.IO) {
-                    operation?.ensureActive()
-                    if (action is LiveMailEvent.ChangeFlag && uid != null) {
-                        repository.changeFlag(
-                            account,
-                            checkNotNull(initial.folder).id,
-                            uid,
-                            action.flag,
-                            action.enabled,
-                        )
-                    }
-                    if (action == LiveMailEvent.ConfirmDiscard) repository.discardFlags(account)
-                    if (network) repository.refresh(account, initial.folder?.id, checkNotNull(operation))
-                    if (download && uid != null) {
-                        repository.download(account, checkNotNull(initial.folder).id, uid, checkNotNull(operation))
-                    }
-                    operation?.ensureActive()
-                    readCache(initial, uid)
+                    perform(initial, uid, network, download, action, operation)
                 }
                 mutableState.value = loaded.copy(
                     canCancel = false,
@@ -160,6 +148,7 @@ internal class LiveMailViewModel(
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
+                if (action != null) localWriteFailed = true
                 val retained =
                     withContext(Dispatchers.IO) { runCatching { readCache(initial, uid) }.getOrDefault(initial) }
                 mutableState.value = retained.copy(
@@ -176,6 +165,35 @@ internal class LiveMailViewModel(
                 if (activeOperation === operation) activeOperation = null
             }
         }
+        if (action != null) localWrite = work
+    }
+
+    private fun perform(
+        initial: LiveMailState,
+        uid: String?,
+        network: Boolean,
+        download: Boolean,
+        action: LiveMailEvent?,
+        operation: MailOperation?,
+    ): LiveMailState {
+        val account = checkNotNull(initial.account)
+        operation?.ensureActive()
+        if (action is LiveMailEvent.ChangeFlag && uid != null) {
+            repository.changeFlag(
+                account,
+                checkNotNull(initial.folder).id,
+                uid,
+                action.flag,
+                action.enabled,
+            )
+        }
+        if (action == LiveMailEvent.ConfirmDiscard) repository.discardFlags(account)
+        if (network) repository.refresh(account, initial.folder?.id, checkNotNull(operation))
+        if (download && uid != null) {
+            repository.download(account, checkNotNull(initial.folder).id, uid, checkNotNull(operation))
+        }
+        operation?.ensureActive()
+        return readCache(initial, uid)
     }
 
     private fun readCache(initial: LiveMailState, uid: String?): LiveMailState {
@@ -190,6 +208,18 @@ internal class LiveMailViewModel(
             content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,
             busy = false,
         )
+    }
+
+    suspend fun flushForClose(): Boolean {
+        while (true) {
+            val pending = localWrite
+            pending?.join()
+            if (pending === localWrite) break
+        }
+        val saved = !localWriteFailed
+        // First close exposes a failed write; a subsequent explicit close may leave the unchanged cache.
+        localWriteFailed = false
+        return saved
     }
 
     override fun close() {

@@ -26,6 +26,11 @@ internal class PendingFlagStore(private val database: MailDatabase) {
     private fun enqueueOne(key: MailMessageKey, flag: Flag, enabled: Boolean) {
         val (account, folder, uid) = key
         require(flag in setOf(Flag.SEEN, Flag.FLAGGED))
+        check(
+            MailMoveStore(database).list(account).none {
+                it.source == folder && it.uid == uid && it.state != MailMoveState.COMPLETE
+            },
+        ) { "Review pending move before changing flags" }
         val cached = PersistentBackendStorage(database, account.toString()).getFolder(folder)
         check(cached.isMessagePresent(uid)) { "Message absent from cache" }
         val validity =

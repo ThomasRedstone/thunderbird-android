@@ -69,7 +69,7 @@ object ConfinedSignatureProbe {
 
     internal fun verifyFixture(directory: Path, create: Boolean) = runBlocking {
         MailDatabase(directory.resolve("mail.sqlite")).use { database ->
-            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 11L)
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 12L)
             check(database.query("PRAGMA quick_check") { getText(0) } == listOf("ok"))
             val accounts = UtAccountManager(AccountSettingsStorage(database), NoProbeCredentials)
             val signatures = MailSignatureStore(database)
@@ -150,7 +150,7 @@ object ConfinedSignatureProbe {
         }
         Files.delete(directory)
     }
-    private const val PROFILE = "mail-demo.thomasredstone_mail-demo_0.1.31"
+    private const val PROFILE = "mail-demo.thomasredstone_mail-demo_0.1.32"
 }
 
 internal fun requireSignatureFixtureDirectory(parent: Path, directory: Path): Path {

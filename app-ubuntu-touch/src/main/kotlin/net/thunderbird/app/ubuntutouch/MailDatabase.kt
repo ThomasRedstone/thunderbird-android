@@ -14,7 +14,8 @@ private const val FLAG_SCHEMA_VERSION = 7L
 private const val THREAD_SCHEMA_VERSION = 8L
 private const val SENT_SCHEMA_VERSION = 9L
 private const val OAUTH_SCHEMA_VERSION = 10L
-private const val CURRENT_SCHEMA_VERSION = 11L
+private const val SIGNATURE_SCHEMA_VERSION = 11L
+private const val CURRENT_SCHEMA_VERSION = 12L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -39,10 +40,12 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < THREAD_SCHEMA_VERSION) createThreadingSchema()
             if (version < SENT_SCHEMA_VERSION) createSentSchema()
             if (version < OAUTH_SCHEMA_VERSION) createOAuthAccountSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createSignatureSchema()
+            if (version < SIGNATURE_SCHEMA_VERSION) createSignatureSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createMoveSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
+            execute("UPDATE mail_moves SET state='UNKNOWN',uncertain=1 WHERE state='WORKING'")
         } catch (exception: Exception) {
             connection.close()
             throw exception
@@ -84,13 +87,28 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createMoveSchema() = transaction {
+        execute(
+            """CREATE TABLE IF NOT EXISTS mail_moves (
+                id TEXT PRIMARY KEY NOT NULL, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                source TEXT NOT NULL, uid TEXT NOT NULL, target TEXT NOT NULL,
+                source_validity INTEGER NOT NULL, target_validity INTEGER NOT NULL,
+                state TEXT NOT NULL, attempt INTEGER NOT NULL DEFAULT 0, uncertain INTEGER NOT NULL DEFAULT 0)""",
+        )
+        execute(
+            """CREATE UNIQUE INDEX IF NOT EXISTS one_pending_move ON mail_moves(account,source,uid)
+                WHERE state!='COMPLETE'""",
+        )
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createSignatureSchema() = transaction {
         execute(
             """CREATE TABLE IF NOT EXISTS signatures (
                 account TEXT PRIMARY KEY NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
                 text TEXT NOT NULL, enabled INTEGER NOT NULL, replies INTEGER NOT NULL, forwards INTEGER NOT NULL)""",
         )
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$SIGNATURE_SCHEMA_VERSION")
     }
 
     private fun createOAuthAccountSchema() = transaction {

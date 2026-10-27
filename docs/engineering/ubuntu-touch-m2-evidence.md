@@ -3260,3 +3260,38 @@ Physical signature keyboard/focus/editor/rotation and actual provider delivery
 remain unaccepted. Native tests exercise model/storage/composition, not touch UI.
 Outbound content_exchange_source questionq-jk4j and OAuth registrationq-ar74 remain
 unanswered; no permission/OAuth change. Large production SignOn reads remain open.
+
+### Move-intent journal foundation (0.1.32 development)
+
+Source32/schema12 adds an account-scoped move-intent/attempt journal. Enqueue
+requires a cached source, distinct existing destination and known positive source/
+destination UIDVALIDITY. It refuses pending flag conflicts; pending moves likewise
+block new flag assignments for that message. Cache bytes remain untouched.
+WORKING attempts recover as UNKNOWN on database reopen. UNKNOWN requires explicit
+duplicate-risk acknowledgement before another claim; retry increments its attempt,
+late callbacks cannot finish a newer attempt, and uncertainty history persists even
+after a later confirmation. Only an unsubmitted QUEUED intent can be cancelled.
+A confirmed source UID/generation cannot be requeued from stale cache (fail-before
+regression retained at `build/evidence/mail-moves/completed-requeue-before.xml`).
+
+**398 full app tests pass**, zero failures/errors/skips, plus detekt/installDist/
+spotlessCheck: `/tmp/thunderbird-move-journal-full.log`. Same JDK/SDK/Gradle flags
+above, unfiltered app test suite. Schema11→12 migration preserves signatures/mail;
+real SQLite tests cover interrupted-attempt recovery, explicit retry, late callback,
+duplicate source conflicts, UIDVALIDITY changes, flag conflicts and retained cache.
+The frozen31 package/driver remain unchanged. Current helper sources now target
+32/schema12; do not substitute newly compiled helpers for frozen31 artifacts.
+
+Engine investigation: ImapFolder.moveMessages uses UID MOVE when available,
+otherwise COPY + DELETED + UID expunge (without broad expunge under existing
+PreviewImapConfig.isExpungeImmediately=false). A lost reply can therefore represent
+a partial multi-step result. Keep durable UNKNOWN review and do not infer that
+all move failures are safe retries. GitNexus discovery found no Thunderbird index;
+source APIs were traced directly instead of using another repository's graph.
+
+No IMAP move runner, destination picker, archive/trash/copy/delete UI or native
+move acceptance is claimed. Required next work: generation/cancellation checks
+before submission, durable claim at handoff, result/review UI and explicit retry,
+source/destination sync and controlled-server interruption/independent state proof.
+Bulk/copy/delete/folder-management and history retention/performance remain open.
+Source32 is unpackaged; phone remains31/schema11. No policy/OAuth changes.

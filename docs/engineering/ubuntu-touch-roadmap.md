@@ -415,3 +415,10 @@ fresh-process recovery/cleanup. One owned main window exists under31(enforce), b
 the launch wrapper reported registry-connection loss after reporting Started;
 physical editor/input acceptance is not claimed. Source/artifact/JAR hashes match;
 local fleetb577816 pins31 without whole-fleet sync or push. See M2 evidence.
+
+Development0.1.32/schema12 adds a durable move-intent journal with account/folder/
+UID-generation guards, flag-conflict prevention and unknown-outcome review before
+retry. Full398 app tests and quality/distribution checks pass. This is foundation
+only: no user move action or IMAP move runner yet. Destination UI, controlled-server
+submission/interruption proof, cache reconciliation, archive/trash/copy/delete,
+bulk moves and native/physical acceptance remain required. Phone stays31/schema11.

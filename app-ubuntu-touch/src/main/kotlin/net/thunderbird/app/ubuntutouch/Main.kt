@@ -131,7 +131,7 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
                     get(),
                     get(),
                     mailDatabasePath().parent,
-                    System.getenv("APP_ID") ?: "mail-demo.thomasredstone_mail-demo_0.1.31",
+                    System.getenv("APP_ID") ?: "mail-demo.thomasredstone_mail-demo_0.1.32",
                 )
             }
             single { OutgoingMailStore(get()) }

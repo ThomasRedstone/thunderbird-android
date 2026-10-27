@@ -229,3 +229,12 @@ Wait for phone preparation success, stop the host and require its final assertio
 fresh-JVM probe against the retained fixture directory. It must verify SAVED copy state alongside cached mail,
 credentials and SENT state without servers, then remove its private account/fixture. Independently confirm cleanup.
 This passes on 0.1.15; physical/provider and actual transport APPEND-response-loss acceptance remain open.
+
+## Cached search on 0.1.16
+
+The existing STARTTLS/flags/reply/Sent protocol fixture now also checks offline cached search using installed production
+code: a positive subject/body query, a missing term and an empty query restoring the full folder. No extra probe
+argument is needed. After stopping the host and requiring its final independent assertions/exit 0, the fresh-JVM
+recovery probe repeats search with the servers absent. Both phases pass under the 0.1.16 enforcing profile.
+This checks the local repository/model boundary; the physical Search field, Maliit keyboard and result navigation
+still need the device UI journey. Account/unified/server scopes and large-mailbox performance remain open.

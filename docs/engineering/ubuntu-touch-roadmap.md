@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.15 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.16 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
 | Engineering | 128 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | Sent-copy recovery committed/pushed as `d38c691ea9`; installed 0.1.15 embeds that clean source | Further roadmap implementation and reproducible CI |
-| Phone delivery | Phone Manager install; fleet commit `06a59d2` pins installed 0.1.15/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
+| Source delivery | Cached search committed/pushed as `b24e4b3054`; installed 0.1.16 embeds that clean source | Further roadmap implementation and reproducible CI |
+| Phone delivery | Phone Manager install; fleet commit `c0f73ef` pins installed 0.1.16/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,7 +27,7 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.15 is installed on the FP4 with account
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.16 is installed on the FP4 with account
 setup, cached mailbox and composer/outbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
@@ -189,10 +189,10 @@ recipient/Sent mailbox assertions verify one delivery/copy; fresh-process recove
 Host TLS APPEND-response-loss recovery also passes after database reopen; phone/provider interruption, blocked writes,
 uncertain-copy retargeting and physical/provider acceptance remain open.
 
-Cached folder search is implemented for candidate 0.1.16: Unicode/case-insensitive literal terms span sender, subject
+Cached folder search is deployed in 0.1.16: Unicode/case-insensitive literal terms span sender, subject
 and cached viewable plain text; offline storage/model/UI tests pass. It excludes attachment bodies and HTML placeholders.
-Native candidate validation is pending. Account/unified scopes, server search, filters, HTML indexing and large-mailbox
-indexing/pagination/cancellation performance remain required; this slice does not complete the search gate.
+Confined native search and fresh-process recovery after server shutdown pass. Account/unified scopes, server search,
+filters, HTML indexing and large-mailbox indexing/pagination/cancellation performance remain required; this slice does not complete the search gate.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

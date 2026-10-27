@@ -1153,3 +1153,35 @@ The cancellation-disabled control fails with TimeoutException at the bounded wor
 All 128 app tests pass with zero failures/errors/skips, plus app detekt/spotlessCheck
 (`/tmp/thunderbird-auth-cancel-full.log`); final XML is retained under `build/evidence/interruptions/`.
 No production code or Android changes; Android assembly/device suites were not rerun.
+
+## Installed 0.1.16 and offline search verification
+
+Clean candidate 18 embeds production `b24e4b30545db01bc847e384f955ce37f2555b8c` with an empty SOURCE-CHANGES.patch.
+The ARM64 Click passed review and launcher/JVM/AWT/Skiko/SQLite checks using the pinned packager and verified reused
+runtime. Artifact: `app-ubuntu-touch/build/ut-candidate-18/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.16_arm64.click`,
+147258216 bytes, SHA256 `5f521db7c055562a9524035be14d6c4e5a511ede2547b929a59c5dd011001377`.
+Rsync completed after about eight minutes without restarting the advancing transfer. The phone checksum guard passed
+before Phone Manager installation. No existing application database was present at the standard data paths, so no
+backup was needed. Known development-signature/user-bus/old-profile-cache warnings occurred; independent checks
+confirmed current 0.1.16, embedded source, empty patch and new enforcing profile. Fleet scoped commit `c0f73ef` pins
+only this app's version/path/hash, preserving unrelated dirty work; no full-fleet converge or fleet push was run.
+
+Installed production JVM/JARs plus the matching test-only 36-class probe JAR passed under
+`mail-demo.thomasredstone_mail-demo_0.1.16`:
+
+- Composer schema3→9, Swing Main, draft/queue/history, response editing and graceful-close/Sent settings checks.
+- Protected SignOn credentials, unknown-certificate rejection under default trust, then controlled required STARTTLS
+  IMAP/SMTP with fixture-only trust injection. Cached sender/subject/body search checks positive, negative and empty queries.
+- Durable read/star reconciliation, real reply creation/threading, one SMTP delivery and automatic Sent filing;
+  repeated send/copy calls do not create another submission/copy.
+- Independent host Jakarta recipient and owner Sent mailboxes assert exactly one matching message each, correct
+  body/threading, and owner SEEN before body fetch. Independent source SEEN/FLAGGED assertions pass.
+- Host exits 0 after server shutdown before a fresh phone JVM reopens protected credentials, cache, SMTP SENT and copy
+  SAVED state, threading and offline search. Account/private-fixture cleanup passes; independent SSH confirms absence.
+
+All composer/prepare/server/restart/cleanup commands exit 0. Logs: `/tmp/thunderbird-016-native-composer.log`,
+`/tmp/thunderbird-016-phone.log`, `/tmp/thunderbird-016-server.log`, `/tmp/thunderbird-016-restart.log`.
+Host output: `app-ubuntu-touch/build/evidence/search/native-run-1/`. The package's 127-test implementation gate and later
+128-test host authenticated-cancellation gate are recorded above. Test-only later commits do not change installed
+production source. Physical Maliit/search UI, provider journeys, window/rotation/suspend, performance/large-mailbox
+search and native authenticated interruption remain open; no physical acceptance is inferred from these model probes.

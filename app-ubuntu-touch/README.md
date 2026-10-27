@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.15; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.16; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -130,10 +130,11 @@ threaded SMTP delivery and offline recovery pass. Attachment/HTML forwarding and
 Development 0.1.15 automatically saves accepted mail to the selected Sent folder. SMTP delivery and copy status are
 separate; uncertain copy attempts search first and require explicit acknowledgement before another APPEND. Confined
 FP4 tests and independent mailbox assertions verify one SMTP delivery and one matching read Sent copy, followed by
-fresh-process recovery with servers stopped. Installed clean source is `d38c691ea9`; fleet pin is `06a59d2`.
-Physical/provider acceptance, true APPEND-response-loss fixtures and background filing remain open.
+fresh-process recovery with servers stopped. Version 0.1.15 used clean source `d38c691ea9` and fleet pin `06a59d2`.
+Physical/provider acceptance, native/provider APPEND-response-loss fixtures and background filing remain open.
 
-Candidate 0.1.16 adds offline cached folder search across sender, subject and viewable plain text. Words are matched
+Development 0.1.16 adds offline cached folder search across sender, subject and viewable plain text. Words are matched
 literally, case-insensitively, across these fields. Search/Clear preserve the query while opening messages; leaving the
 folder resets it. HTML and attachment bodies are not searched. Account-wide/server search and large-mailbox indexing
-remain required. The installed FP4 remains 0.1.15 until the candidate's deployment checks pass.
+remain required. Installed FP4 source is `b24e4b3054`; confined search and fresh-process recovery with servers stopped pass.
+Fleet scoped commit `c0f73ef` pins the matching artifact. Physical/provider journeys remain open.

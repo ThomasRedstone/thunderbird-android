@@ -3192,3 +3192,22 @@ quote placement preferences and multiple sender identities remain required gaps.
 
 Source0.1.31 is prepared for its first immutable package. Phone remains27/schema10;
 no new policy or OAuth configuration was added. q-jk4j/q-ar74 remain unanswered.
+
+### Immutable 0.1.31 ARM64 artifact
+
+Candidate33 packages clean source6fe6def12b; SOURCE-CHANGES.patch is empty.
+Artifact:
+`app-ubuntu-touch/build/ut-candidate-33/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.31_arm64.click`.
+Size147947700 bytes; SHA256
+`bf8612d74086e91227874e76b4463ca687e802f1dc98a39fe1e1a3727c7d3e78`.
+Click review and launcher/JVM/AWT/Skiko ARM64 checks pass; build24572 exited0,
+log `/tmp/thunderbird-031-click.log`. Same pinned builder and candidate5 runtime
+reuse apply; not a cold-cache/CI reproducibility result. Preserve33 unchanged;
+future production changes need0.1.32 before packaging.
+
+Read-only FP4 revalidation: installed27 clean84f80558a8, mainPID245009 is stopped
+under27(enforce); production SQLite quick_checkok/schema10. No phone mutation or
+31 deployment yet. Prepare a matching frozen signature probe before scoped upgrade,
+retain pre-upgrade SQLite backup, verify schema11 with the actual installed runtime,
+then test signatures across fresh JVMs and physical input/composition separately.
+Permission q-jk4j remains unanswered and the31 policy still only accounts/networking.

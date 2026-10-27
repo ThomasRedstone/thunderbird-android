@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.31 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 407 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 412 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.31 embeds clean `6fe6def12b`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.31 install verified; local fleet `b577816` pins its exact artifact/hash | Physical foreground, launch-wrapper registry warning, broader cancellation and lifecycle verification |
 
@@ -440,3 +440,11 @@ add recoverable payload retention across source/destination resync failures, the
 destination/review/reconciliation UI and native/physical acceptance. Broader cache
 presentation/flag/reply behavior across account connection changes remains open.
 Phone stays31/schema11; no32 package/deploy or permission/OAuth changes.
+
+Development0.1.32/schema15 now retains cached move payloads atomically before wire
+submission. Account-scoped source paging survives source cache deletion/restart;
+cleanup requires a verified byte-identical destination cache. Full412 app tests and
+quality/distribution checks pass, including real TLS source removal/destination
+failure/recovery. Destination/review/reconciliation UI and retained-copy access,
+native/physical acceptance, large-payload behavior and retention policy remain open.
+This is not a completed user-facing Move feature. Phone remains31/schema11.

@@ -235,6 +235,39 @@ class ForegroundMailSessionTest {
         assertThat(logEvents).isEqualTo(0)
     }
 
+    @Test
+    fun `retained source survives failed destination sync and releases only after verified cached recovery`() {
+        val key = prepareMoveSource()
+        val source = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        val raw = database.query("SELECT mime FROM messages WHERE folder=? AND uid=?", source.id, key.uid) {
+            getBlob(0)
+        }.single()
+        val store = MailMoveStore(database)
+        val queued = store.enqueue(key, "Move fixture target")
+        val complete = MailMoveRunner(store, SessionMailMoveTransport(factory())).run(queued, MailOperation())
+        assertThat(complete.state).isEqualTo(MailMoveState.COMPLETE)
+        factory().open(account.id).use { it.sync("INBOX") }
+        assertThat(source.isMessagePresent(key.uid)).isFalse()
+        assertThat(
+            runCatching {
+                factory(trusted = false).open(account.id).use { it.sync("Move fixture target") }
+            }.isFailure,
+        ).isTrue()
+        withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(1) }
+        database.close()
+        database = MailDatabase(directory.root.toPath().resolve("mail.sqlite"))
+        val retained = MailMovePayloadStore(database)
+        assertThat(retained.page(account.id, complete.id, 0).text).isEqualTo(escapedSourceBytes(raw))
+        assertThat(retained.info(account.id, complete.id)?.complete).isEqualTo(true)
+        assertThat(runCatching { retained.releaseAfterDestinationCache(complete, "missing") }.isFailure).isTrue()
+        factory().open(account.id).use { it.sync("Move fixture target") }
+        val target = PersistentBackendStorage(database, account.id.toString()).getFolder("Move fixture target")
+        retained.releaseAfterDestinationCache(complete, target.getMessageServerIds().single())
+        assertThat(retained.info(account.id, complete.id)).isEqualTo(null)
+        assertThat(target.getMessageServerIds().size).isEqualTo(1)
+        assertThat(logEvents).isEqualTo(0)
+    }
+
     private fun prepareMoveSource(): MailMessageKey {
         deliver("Move fixture", "Move controlled body λ")
         withOracleInbox { inbox ->

@@ -17,7 +17,8 @@ private const val OAUTH_SCHEMA_VERSION = 10L
 private const val SIGNATURE_SCHEMA_VERSION = 11L
 private const val MOVE_SCHEMA_VERSION = 12L
 private const val MOVE_BINDING_SCHEMA_VERSION = 13L
-private const val CURRENT_SCHEMA_VERSION = 14L
+private const val CACHE_BINDING_SCHEMA_VERSION = 14L
+private const val CURRENT_SCHEMA_VERSION = 15L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -45,7 +46,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < SIGNATURE_SCHEMA_VERSION) createSignatureSchema()
             if (version < MOVE_SCHEMA_VERSION) createMoveSchema()
             if (version < MOVE_BINDING_SCHEMA_VERSION) createMoveBindingSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createCacheBindingSchema()
+            if (version < CACHE_BINDING_SCHEMA_VERSION) createCacheBindingSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createMovePayloadSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
@@ -91,6 +93,41 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createMovePayloadSchema() = transaction {
+        execute(
+            """CREATE TABLE IF NOT EXISTS move_payloads (
+                id TEXT PRIMARY KEY NOT NULL REFERENCES mail_moves(id) ON DELETE CASCADE,
+                mime BLOB NOT NULL, effective_date INTEGER, complete INTEGER NOT NULL, origin_binding TEXT NOT NULL)""",
+        )
+        execute(
+            """CREATE TABLE IF NOT EXISTS move_payload_flags (
+                id TEXT NOT NULL REFERENCES move_payloads(id) ON DELETE CASCADE,
+                flag TEXT NOT NULL, PRIMARY KEY(id,flag))""",
+        )
+        backfillMovePayloads()
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
+    private fun backfillMovePayloads() {
+        execute(
+            """INSERT OR IGNORE INTO move_payloads(id,mime,effective_date,complete,origin_binding)
+                SELECT a.id,m.mime,m.effective_date,
+                    EXISTS(SELECT 1 FROM flags WHERE folder=m.folder AND uid=m.uid AND flag='X_DOWNLOADED_FULL'),
+                    m.origin_binding FROM mail_moves a JOIN folders f ON f.account=a.account AND f.server_id=a.source
+                JOIN messages m ON m.folder=f.id AND m.uid=a.uid
+                JOIN metadata v ON v.account=a.account AND v.folder=f.id AND v.name='extra:imapUidValidity'
+                WHERE a.state!='QUEUED' AND a.binding!='' AND a.binding=m.origin_binding
+                    AND v.number_value=a.source_validity""",
+        )
+        execute(
+            """INSERT OR IGNORE INTO move_payload_flags(id,flag)
+                SELECT p.id,flags.flag FROM move_payloads p JOIN mail_moves a ON a.id=p.id
+                JOIN folders f ON f.account=a.account AND f.server_id=a.source
+                JOIN messages m ON m.folder=f.id AND m.uid=a.uid AND m.origin_binding=p.origin_binding AND m.mime=p.mime
+                JOIN flags ON flags.folder=m.folder AND flags.uid=m.uid""",
+        )
+    }
+
     private fun createCacheBindingSchema() = transaction {
         val columns = query("PRAGMA table_info(messages)") { getText(1) }
         if ("origin_binding" !in
@@ -98,7 +135,7 @@ internal class MailDatabase(path: Path) : AutoCloseable {
         ) {
             execute("ALTER TABLE messages ADD COLUMN origin_binding TEXT NOT NULL DEFAULT ''")
         }
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$CACHE_BINDING_SCHEMA_VERSION")
     }
 
     private fun createMoveBindingSchema() = transaction {

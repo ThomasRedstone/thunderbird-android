@@ -19,6 +19,144 @@ class MailMoveStoreTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `retained binary bytes flags and completeness survive source folder removal and database reopen`() {
+        val path = directory.root.toPath().resolve("mail.sqlite")
+        val raw = ByteArray(SOURCE_PAGE_BYTES * 2 + 17) { (it * 31).toByte() }
+        lateinit var account: AccountId
+        lateinit var id: String
+        MailDatabase(path).use { database ->
+            account = populate(database)
+            val folder = PersistentBackendStorage(database, account.toString()).getFolder("INBOX")
+            database.execute("UPDATE messages SET mime=?,effective_date=42 WHERE folder=? AND uid='1'", raw, folder.id)
+            database.execute("INSERT INTO flags(folder,uid,flag) VALUES(?,'1','X_DOWNLOADED_FULL')", folder.id)
+            database.execute("INSERT INTO flags(folder,uid,flag) VALUES(?,'1','SEEN')", folder.id)
+            val store = MailMoveStore(database)
+            val queued = store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+            id = queued.id
+            store.finish(store.claim(queued), confirmed = true)
+            PersistentBackendStorage(database, account.toString()).createFolderUpdater().use {
+                it.deleteFolders(listOf("INBOX"))
+            }
+        }
+        MailDatabase(path).use { database ->
+            val testSubject = MailMovePayloadStore(database)
+            assertThat(testSubject.info(account, id)).isEqualTo(MailMovePayloadInfo(raw.size.toLong(), true, 42L))
+            assertThat(testSubject.flags(account, id)).isEqualTo(setOf(Flag.X_DOWNLOADED_FULL, Flag.SEEN))
+            var offset: Long? = 0
+            val recovered = StringBuilder()
+            while (offset != null) {
+                val page = testSubject.page(account, id, offset)
+                recovered.append(page.text)
+                offset = page.nextOffset
+            }
+            assertThat(recovered.toString()).isEqualTo(escapedSourceBytes(raw))
+            val foreign = AccountIdFactory.create()
+            assertThat(testSubject.info(foreign, id)).isEqualTo(null)
+            assertThat(runCatching { testSubject.page(foreign, id, 0) }.isFailure).isTrue()
+            assertThat(runCatching { testSubject.page(account, id, Long.MAX_VALUE) }.isFailure).isTrue()
+        }
+    }
+
+    @Test
+    fun `payload release requires exact complete destination cache with original context and generation`() = fixture {
+            database,
+            account,
+            store,
+        ->
+        val cache = PersistentBackendStorage(database, account.toString())
+        val source = cache.getFolder("INBOX")
+        val target = cache.getFolder("Archive")
+        database.execute("INSERT INTO flags(folder,uid,flag) VALUES(?,'1','X_DOWNLOADED_FULL')", source.id)
+        val queued = store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+        val complete = store.finish(store.claim(queued), confirmed = true)
+        val testSubject = MailMovePayloadStore(database)
+        database.execute(
+            "INSERT INTO messages(folder,uid,mime,origin_binding) VALUES(?,'77',?,?)",
+            target.id,
+            "Wrong".toByteArray(),
+            complete.binding,
+        )
+        assertThat(runCatching { testSubject.releaseAfterDestinationCache(complete, "77") }.isFailure).isTrue()
+        database.execute(
+            "UPDATE messages SET mime=?,origin_binding='foreign' WHERE folder=?",
+            "Fixture".toByteArray(),
+            target.id,
+        )
+        assertThat(runCatching { testSubject.releaseAfterDestinationCache(complete, "77") }.isFailure).isTrue()
+        database.execute("UPDATE messages SET origin_binding=? WHERE folder=?", complete.binding, target.id)
+        target.setFolderExtraNumber("imapUidValidity", 99)
+        assertThat(runCatching { testSubject.releaseAfterDestinationCache(complete, "77") }.isFailure).isTrue()
+        target.setFolderExtraNumber("imapUidValidity", complete.targetValidity)
+        assertThat(runCatching { testSubject.releaseAfterDestinationCache(complete, "77") }.isFailure).isTrue()
+        database.execute("INSERT INTO flags(folder,uid,flag) VALUES(?,'77','X_DOWNLOADED_FULL')", target.id)
+        testSubject.releaseAfterDestinationCache(complete, "77")
+        testSubject.releaseAfterDestinationCache(complete, "77")
+        assertThat(testSubject.info(account, complete.id)).isEqualTo(null)
+        assertThat(testSubject.flags(account, complete.id)).isEqualTo(emptySet())
+        assertThat(store.get(account, complete.id).state).isEqualTo(MailMoveState.COMPLETE)
+    }
+
+    @Test
+    fun `failed snapshot write rolls back claim and retained data and prevents network submission`() = fixture {
+            database,
+            account,
+            store,
+        ->
+        val source = PersistentBackendStorage(database, account.toString()).getFolder("INBOX")
+        database.execute("INSERT INTO flags(folder,uid,flag) VALUES(?,'1','SEEN')", source.id)
+        database.execute(
+            "CREATE TRIGGER fail_payload BEFORE INSERT ON move_payload_flags " +
+                "BEGIN SELECT RAISE(ABORT,'sensitive'); END",
+        )
+        val queued = store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+        var calls = 0
+        val runner = MailMoveRunner(store) { _, _, submit ->
+            submit()
+            calls++
+        }
+        assertThat(runner.run(queued, MailOperation())).isEqualTo(queued)
+        assertThat(calls).isEqualTo(0)
+        assertThat(MailMovePayloadStore(database).info(account, queued.id)).isEqualTo(null)
+        assertThat(source.isMessagePresent("1")).isTrue()
+    }
+
+    @Test
+    fun `schema fourteen backfills only provable original source generations for existing attempts`() {
+        listOf(false, true).forEach { changedGeneration ->
+            val path = directory.root.toPath().resolve("legacy-$changedGeneration.sqlite")
+            lateinit var account: AccountId
+            lateinit var id: String
+            MailDatabase(path).use { database ->
+                account = populate(database)
+                val store = MailMoveStore(database)
+                id = store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive").id
+                store.claim(store.get(account, id))
+                if (changedGeneration) {
+                    PersistentBackendStorage(
+                        database,
+                        account.toString(),
+                    ).getFolder("INBOX").setFolderExtraNumber("imapUidValidity", 99)
+                }
+                database.execute("DROP TABLE move_payload_flags")
+                database.execute("DROP TABLE move_payloads")
+                database.execute("PRAGMA user_version=14")
+            }
+            MailDatabase(path).use { database ->
+                val info = MailMovePayloadStore(database).info(account, id)
+                assertThat(info != null).isEqualTo(!changedGeneration)
+                if (info != null) assertThat(info.complete).isEqualTo(false)
+                val action = MailMoveStore(database).get(account, id)
+                assertThat(action.state).isEqualTo(MailMoveState.UNKNOWN)
+                assertThat(
+                    runCatching {
+                        MailMovePayloadStore(database).releaseAfterDestinationCache(action, "1")
+                    }.isFailure,
+                ).isTrue()
+            }
+        }
+    }
+
+    @Test
     fun `schema thirteen cache bytes survive upgrade and are not implicitly assigned a current origin`() {
         val path = directory.root.toPath().resolve("mail.sqlite")
         lateinit var account: AccountId
@@ -222,7 +360,7 @@ class MailMoveStoreTest {
             database.execute("PRAGMA user_version=11")
         }
         MailDatabase(path).use { database ->
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(14L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(15L)
             assertThat(MailSignatureStore(database).read(account).text).isEqualTo("Fixture")
             assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
             assertThat(MailMoveStore(database).list(account)).isEqualTo(emptyList())

@@ -3377,3 +3377,47 @@ Move UI, retain a recoverable cached payload through the interval where source
 sync removes its row but destination sync fails; current journal stores intent
 metadata only. Unknown partial-move reconciliation, bulk/copy/archive/trash/delete,
 cache history retention/performance and broader cache-origin presentation remain open.
+
+### Retained move payloads (0.1.32/schema15)
+
+Claiming a move now copies the available cached MIME bytes, effective date,
+completeness, origin and flags into an immutable retained payload in the same SQL
+transaction as the WORKING transition. SQL INSERT…SELECT avoids reading the entire
+BLOB into a JVM byte array. A failed snapshot/flag write rolls back both snapshot
+and claim and prevents transport submission. Retry reuses the retained first-attempt
+copy instead of overwriting it. Payloads reference move intents rather than live
+folders/messages, so source cache reconciliation cannot cascade-delete them.
+Account removal intentionally cascades through the owning intent and payload.
+
+Recovery APIs provide account-scoped metadata/flags and bounded32KiB escaped source
+pages, including explicit incomplete status. Release requires a COMPLETE exact
+journal snapshot, current account binding, intended destination UIDVALIDITY, exact
+cached bytes/origin and a full-download marker when the retained copy was complete.
+Unverified or UNKNOWN outcomes retain their copy. Successful release is idempotent,
+removes only payload/flags and keeps move/uncertainty history. This proves cached
+copy availability, not every remote delivery/duplicate outcome.
+
+Migration14→15 backfills surviving provable cached data for existing submitted
+attempts only when source UID generation and origin match. It does not fabricate
+missing bytes or assign a different generation's message to an old attempt.
+Backfilled flags describe surviving cache at migration time, not an invented
+historical first-attempt state. New claims capture before submission.
+
+**412 full app tests pass**, zero failures/errors/skips, plus detekt/installDist/
+spotlessCheck: `/tmp/thunderbird-move-payload-full.log`, same JDK/SDK/Gradle flags
+above with unfiltered app tests. Removing capture from claim makes the binary
+source-removal/reopen regression fail; restored capture passes. XML retained at
+`build/evidence/mail-moves/without-retained-payload.xml`.
+Tests cover binary paging/flags/completeness after source-folder deletion/reopen,
+foreign-account denial, invalid offsets, transactional snapshot failure/no submission,
+wrong destination bytes/context/generation/completeness, idempotent verified release
+and migration mismatch. A real TLS engine test moves a message, syncs away the source,
+fails destination sync via rejected trust, reopens the database with retained bytes,
+then verifies actual destination cache and releases the copy after successful sync.
+
+Large-BLOB native memory/disk use, copy cancellation latency, power-loss/SIGKILL and
+native schema15/recovery acceptance remain unproven. Recovery/source APIs are not
+yet connected to a user view. Next: destination/review/reconciliation UI with retained
+copy access, native/physical acceptance and history/retention policy. Broader folder
+operations and cache-origin semantics stay on the roadmap. Source32 is unpackaged;
+phone remains31/schema11. No permissions or OAuth configuration changed.

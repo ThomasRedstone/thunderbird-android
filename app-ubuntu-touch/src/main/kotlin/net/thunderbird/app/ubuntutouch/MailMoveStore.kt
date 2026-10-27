@@ -88,6 +88,7 @@ internal class MailMoveStore(private val database: MailDatabase) {
         check(storage.getFolder(expected.target).getFolderExtraNumber("imapUidValidity") == expected.targetValidity)
         check(storage.getFolder(expected.source).isMessagePresent(expected.uid))
         check(expected.attempt < Long.MAX_VALUE)
+        MailMovePayloadStore(database).captureWithinClaim(expected, storage.getFolder(expected.source).id)
         database.execute(
             "UPDATE mail_moves SET state='WORKING',attempt=attempt+1 WHERE account=? AND id=?",
             expected.account.toString(),

@@ -69,7 +69,7 @@ object ConfinedSignatureProbe {
 
     internal fun verifyFixture(directory: Path, create: Boolean) = runBlocking {
         MailDatabase(directory.resolve("mail.sqlite")).use { database ->
-            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 14L)
+            check(database.query("PRAGMA user_version") { getLong(0) }.single() == 15L)
             check(database.query("PRAGMA quick_check") { getText(0) } == listOf("ok"))
             val accounts = UtAccountManager(AccountSettingsStorage(database), NoProbeCredentials)
             val signatures = MailSignatureStore(database)

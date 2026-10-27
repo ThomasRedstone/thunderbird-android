@@ -7,6 +7,8 @@ import com.sun.security.auth.module.UnixSystem
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -89,6 +91,51 @@ class DbusContentExportBrokerTest {
         }
     }
 
+    @Test
+    fun `previous app version is rejected and closing connection releases stalled state call`() {
+        val socket = directory.root.toPath().resolve("bus")
+        val daemon = ProcessBuilder(
+            "dbus-daemon",
+            "--session",
+            "--nofork",
+            "--print-address=1",
+            "--address=unix:path=$socket",
+        )
+            .redirectError(directory.newFile("daemon.log")).start()
+        val release = CountDownLatch(1)
+        val entered = CountDownLatch(1)
+        val worker = Executors.newSingleThreadExecutor()
+        try {
+            val address = checkNotNull(daemon.inputStream.bufferedReader().readLine())
+            connection(address).use { server ->
+                val fixture = WireExportFixture()
+                server.exportObject("/", fixture)
+                server.exportObject(TRANSFER_PATH, fixture.transfer)
+                server.requestBusName(CONTENT_HUB_SERVICE)
+                val root = directory.newFolder("exports").toPath()
+                DbusContentExportBroker(APP_ID, root, { connection(address) }, { "unconfined" }).use { testSubject ->
+                    val reference = testSubject.create(testSubject.destinations().single())
+                    val old = reference.copy(path = reference.path.replace("_2e30/", "_2e29/"))
+                    assertThat(runCatching { testSubject.state(old) }.isFailure).isTrue()
+                    assertThat(fixture.transfer.reads).isEqualTo(0)
+                    fixture.transfer.beforeRead = {
+                        entered.countDown()
+                        check(release.await(5, TimeUnit.SECONDS))
+                    }
+                    val pending = worker.submit<Boolean> { runCatching { testSubject.state(reference) }.isFailure }
+                    check(entered.await(5, TimeUnit.SECONDS))
+                    testSubject.close()
+                    assertThat(pending.get(2, TimeUnit.SECONDS)).isTrue()
+                }
+            }
+        } finally {
+            release.countDown()
+            worker.shutdownNow()
+            check(worker.awaitTermination(5, TimeUnit.SECONDS))
+            stopDaemon(daemon)
+        }
+    }
+
     private fun verifySignals(
         server: DBusConnection,
         address: String,
@@ -151,6 +198,7 @@ internal class WireExportFixture : ContentHubServiceWire {
 internal class WireTransferFixture : ContentHubTransferWire {
     var starts = 0
     var reads = 0
+    var beforeRead: () -> Unit = {}
     var current = 0
     var item: Variant<*>? = null
     override fun getObjectPath(): String = TRANSFER_PATH
@@ -160,6 +208,7 @@ internal class WireTransferFixture : ContentHubTransferWire {
     }
     override fun state(): Int {
         reads++
+        beforeRead()
         return current
     }
     override fun charge(items: List<Variant<*>>) {

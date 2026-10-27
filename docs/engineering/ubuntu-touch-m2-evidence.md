@@ -3100,3 +3100,24 @@ AGENTS.md says “Add permissions without explicit request and justification” 
 prohibited. Obtain explicit user approval before editing mail-demo.apparmor.
 Phone remains0.1.27; source0.1.30 is still unpackaged. Native package/receiver,
 restart/upgrade, large-message/native-memory and physical acceptance stay open.
+
+### Export status and upgrade-scope checks
+
+Save controls now show confirmed transfer-service completion/cancellation instead
+of an empty destination view after terminal cleanup. The UI regression failed
+before this change; XML retained in
+`build/evidence/message-save/terminal-status-before.xml`. Service status does not
+prove receiver persistence or constitute physical acceptance.
+
+A new private-bus test rejects a transfer reference from the previous app version
+before any remote State call. It then stalls the current transfer's State handler
+and proves closing the dedicated connection releases the caller within a two-second
+assertion bound. This proves adapter interruption only: window close currently
+waits for busy work and does not yet initiate this interruption automatically.
+The controlled server is released and owned executor/daemon are cleaned in finally.
+
+Five focused UI/private-wire tests plus detekt/spotless pass:
+`/tmp/thunderbird-export-status-close-final.log`, using the same Gradle flags above
+with filters `*MessageSaveScreenTest` and `*DbusContentExportBrokerTest`. Full379
+suite predates the terminal status change; no full381 result is claimed.
+Permission decision q-jk4j remains pending. No policy, phone or OAuth changes.

@@ -1,6 +1,7 @@
 package net.thunderbird.app.ubuntutouch
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import assertk.assertThat
@@ -12,6 +13,20 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class MessageSaveScreenTest : ComposeUiTestHarness() {
+    @Test
+    fun `terminal receiver states show their confirmed outcome rather than a blank picker`() = runComposeTest {
+        val current = mutableStateOf(
+            MessageSaveState(pending = ExportReconcileResult(null, ExportBrokerState.FINALIZED)),
+        )
+        setContent {
+            ThunderbirdBoltTheme { Surface { MessageSaveControls(current.value) {} } }
+        }
+        onNodeWithText("The transfer service confirmed completion.").assertIsDisplayed()
+        current.value = MessageSaveState(pending = ExportReconcileResult(null, ExportBrokerState.ABORTED))
+        onNodeWithText("The transfer service confirmed cancellation.").assertIsDisplayed()
+        onNodeWithText("The transfer service confirmed completion.").assertDoesNotExist()
+    }
+
     @Test
     fun `complete reader passes actual account folder and uid and busy disables save`() = runComposeTest {
         val account = AccountIdFactory.create()

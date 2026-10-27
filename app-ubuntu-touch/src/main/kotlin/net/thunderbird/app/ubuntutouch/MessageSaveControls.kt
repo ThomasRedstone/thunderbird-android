@@ -16,6 +16,7 @@ internal fun MessageSaveControls(state: MessageSaveState, onEvent: (MessageSaveE
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.notice?.let { TextBodyLarge(it) }
         if (state.busy) TextBodyLarge("Preparing or checking file transfer…")
+        SaveTransferOutcome(state)
         val record = state.pending?.record
         if (record != null) {
             TextBodyLarge(
@@ -76,4 +77,15 @@ internal fun LiveMailState.saveRequest(): MessageSaveEvent.Prepare? {
     } else {
         null
     }
+}
+
+@Composable
+private fun SaveTransferOutcome(state: MessageSaveState) {
+    if (state.pending?.record != null || state.busy) return
+    val message = when (state.pending?.state) {
+        ExportBrokerState.FINALIZED -> "The transfer service confirmed completion."
+        ExportBrokerState.ABORTED -> "The transfer service confirmed cancellation."
+        else -> if (state.notice == null) "No pending message transfer." else null
+    }
+    message?.let { TextBodyLarge(it) }
 }

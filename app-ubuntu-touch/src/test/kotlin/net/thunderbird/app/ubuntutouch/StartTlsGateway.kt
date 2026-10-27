@@ -8,6 +8,7 @@ import java.nio.file.Path
 import java.security.KeyStore
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -25,6 +26,7 @@ internal class StartTlsGateway(
     private val allowRejectedHandshake: Boolean = false,
     private val dropAppendAcknowledgement: Boolean = false,
     private val dropFetchBody: Boolean = false,
+    private val stallFetchBody: Boolean = false,
 ) : AutoCloseable {
     private val listener = ServerSocket(0, 10, address)
     private val workers = Executors.newCachedThreadPool()
@@ -33,6 +35,8 @@ internal class StartTlsGateway(
     val upgrades = AtomicInteger()
     val droppedAppendAcknowledgements = AtomicInteger()
     val truncatedFetchBodies = AtomicInteger()
+    val bodyTransferStarted = CountDownLatch(1)
+    val clientConnectionClosed = CountDownLatch(1)
     private val appendResponseDropped = AtomicBoolean()
     val port: Int get() = listener.localPort
 
@@ -80,11 +84,12 @@ internal class StartTlsGateway(
                 } catch (_: java.io.IOException) {
                     // Either endpoint can close an established session normally.
                 } finally {
+                    clientConnectionClosed.countDown()
                     backend.close()
                 }
             }
             try {
-                if (dropAppendAcknowledgement || dropFetchBody) {
+                if (dropAppendAcknowledgement || dropFetchBody || stallFetchBody) {
                     relayWithFault(backend, encrypted)
                 } else {
                     backend.inputStream.copyTo(encrypted.outputStream)
@@ -118,13 +123,20 @@ internal class StartTlsGateway(
     }
 
     private fun truncateFetch(backend: Socket, encrypted: Socket, response: String): Boolean {
-        if (dropFetchBody && Regex("""^\* .* FETCH .*BODY\[\].*\{[0-9]+\}$""").matches(response)) {
+        if ((dropFetchBody || stallFetchBody) && Regex("""^\* .* FETCH .*BODY\[\].*\{[0-9]+\}$""").matches(response)) {
             val prefix = backend.inputStream.readNBytes(16)
             check(prefix.size == 16)
             encrypted.outputStream.write(prefix)
             encrypted.outputStream.flush()
-            truncatedFetchBodies.incrementAndGet()
-            encrypted.close()
+            bodyTransferStarted.countDown()
+            if (stallFetchBody) {
+                check(clientConnectionClosed.await(5, TimeUnit.SECONDS)) {
+                    "Client did not close stalled body transfer"
+                }
+            } else {
+                truncatedFetchBodies.incrementAndGet()
+                encrypted.close()
+            }
             return true
         }
         return false

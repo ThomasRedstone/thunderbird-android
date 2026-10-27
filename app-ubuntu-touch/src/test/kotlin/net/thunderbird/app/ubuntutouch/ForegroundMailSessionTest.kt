@@ -23,6 +23,8 @@ import java.nio.file.Path
 import java.security.KeyStore
 import java.util.Properties
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import net.thunderbird.components.core.logging.DefaultLogger
 import net.thunderbird.components.core.logging.LogEvent
 import net.thunderbird.components.core.logging.LogLevel
@@ -603,6 +605,57 @@ class ForegroundMailSessionTest {
         val body = MimeUtility.findFirstPartByMimeType(recovered.readMessage(newUid)!!, "text/plain")
         assertThat(MessageExtractor.getTextFromPart(body).trim()).isEqualTo("New body λ ".repeat(100).trim())
         assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `cancellation closes authenticated stalled body transfer and retains complete cached mail`() {
+        deliver("Cached before cancel", "Retained complete body")
+        factory().open(account.id).use {
+            it.refreshFolders()
+            it.sync("INBOX")
+        }
+        val cached = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        val uid = cached.getMessageServerIds().single()
+        deliver("Stalled new mail", "Body λ ".repeat(100))
+        val material = StartTlsMaterial(directory.root.toPath())
+        StartTlsGateway(true, server.imap.port, material.context, stallFetchBody = true).use { gateway ->
+            accounts.updateSync(account.id) {
+                it.copy(
+                    incoming = settings(
+                        "imap",
+                        gateway.port,
+                    ).copy(connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED),
+                )
+            }
+            val sessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("cancel-body-mime"),
+            )
+            val operation = MailOperation()
+            val worker = Executors.newSingleThreadExecutor()
+            try {
+                val result = worker.submit<Throwable?> {
+                    runCatching { sessions.open(account.id, operation).use { it.sync("INBOX") } }.exceptionOrNull()
+                }
+                check(gateway.bodyTransferStarted.await(3, TimeUnit.SECONDS))
+                assertThat(result.isDone).isFalse()
+                operation.close()
+                assertThat(result.get(3, TimeUnit.SECONDS)).isNotNull()
+                check(gateway.clientConnectionClosed.await(3, TimeUnit.SECONDS))
+                assertThat(cached.readMessage(uid)?.subject).isEqualTo("Cached before cancel")
+                assertThat(Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid)).isTrue()
+                val body = MimeUtility.findFirstPartByMimeType(cached.readMessage(uid)!!, "text/plain")
+                assertThat(MessageExtractor.getTextFromPart(body).trim()).isEqualTo("Retained complete body")
+                assertThat(logEvents).isEqualTo(0)
+            } finally {
+                operation.close()
+                worker.shutdownNow()
+                check(worker.awaitTermination(3, TimeUnit.SECONDS))
+            }
+        }
     }
 
     @Test

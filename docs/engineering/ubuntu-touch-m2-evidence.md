@@ -1133,3 +1133,23 @@ scope is silently excluded. Candidate 0.1.16 is not installed until deployment e
 Final 127 app tests, detekt, installDist and spotlessCheck pass (`/tmp/thunderbird-search-final.log`); XML is retained
 under `build/evidence/search/`. No shared Android changes, new dependencies or permissions; Android assembly/device
 suites were not rerun. This JVM module has no Android lint/device task. Documentation formatting is checked separately.
+
+## Authenticated in-flight body cancellation
+
+The host STARTTLS fixture can now pause after forwarding the full-body literal header and 16 body bytes. The test
+waits for that actual authenticated transfer (not a guessed delay), confirms the engine worker is still running, then
+closes its production MailOperation. The worker must finish with failure within three seconds, and the independent
+gateway must observe closure of the client connection. The previously cached complete message retains its original
+subject/body/full-download flag, and the engine emits no log events. Finally blocks close the operation/executor and
+assert worker termination. Normal gateway traffic remains byte-stream forwarded.
+
+This verifies production session/socket cancellation after authentication and body transfer. Existing model tests
+cover Cancel/busy state, but this new host case does not establish the combined physical phone UI/provider journey.
+Blocked client writes, authenticated native phone cancellation and lifecycle/provider acceptance remain open.
+The candidate 0.1.16 package was built before these test-only changes; its production source remains `b24e4b3054`.
+
+The cancellation-disabled control fails with TimeoutException at the bounded worker wait; its XML is retained as
+`build/evidence/interruptions/authenticated-cancel-disabled.xml`. Restoring production cancellation passes.
+All 128 app tests pass with zero failures/errors/skips, plus app detekt/spotlessCheck
+(`/tmp/thunderbird-auth-cancel-full.log`); final XML is retained under `build/evidence/interruptions/`.
+No production code or Android changes; Android assembly/device suites were not rerun.

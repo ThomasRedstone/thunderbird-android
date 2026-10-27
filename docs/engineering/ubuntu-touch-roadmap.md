@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.15 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 127 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 128 app tests, 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Sent-copy recovery committed/pushed as `d38c691ea9`; installed 0.1.15 embeds that clean source | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager install; fleet commit `06a59d2` pins installed 0.1.15/hash | Physical foreground journeys, broader cancellation and lifecycle verification |
 
@@ -153,7 +153,8 @@ test account. Verify rejected credentials, invalid certificates, interrupted syn
 request or log production credentials to substitute for controlled tests. Measure package size, startup time and memory.
 This milestone is in progress. Storage, protected setup and controlled-server protocol integration are implemented;
 cached mailbox/composer UI, Cancel controls and persistent send history are implemented; required STARTTLS succeeds
-on the confined phone with controlled fixtures; host authenticated mid-body disconnect/cache recovery and lost-APPEND-response reconciliation pass; authenticated active cancellation,
+on the confined phone with controlled fixtures. Host tests cover authenticated mid-body disconnect/cache recovery,
+lost-APPEND-response reconciliation and bounded socket/worker cancellation;
 blocked writes and the complete physical/provider vertical slice remain incomplete.
 
 ## Milestone 3 Daily use in the foreground

@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.27 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 350 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 357 app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.27 embeds clean `84f80558a8`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.27 install verified; local fleet `e1adc10` pins its exact artifact/hash | Physical foreground, broader cancellation and lifecycle verification |
 
@@ -251,6 +251,12 @@ navigation across all cached bytes. It works offline with locked credentials, pr
 from unified results and returns to reader before search. Host binary/paging/isolation/model/rendered tests pass;
 ARM64 Click is built/reviewed and installed27; confined native binary paging, isolation and fresh-JVM recovery pass.
 Physical source-reader acceptance, exact-byte export and large-MIME/native-memory behaviour remain open. Source inspection does not complete HTML/privacy, attachment or export gates.
+
+Version0.1.28 adds the exact-byte cached message export core: complete messages are copied to private0600 `.eml`
+leases in bounded chunks under a consistent SQLite transaction, preserving binary bytes without MIME reserialization.
+Host tests cover replacement during export, cancellation, file failure, account/folder/UID isolation and lease lifetime;
+ARM64 Click is built/reviewed. This core is not connected to a user Save flow. Content Hub adapter/picker, transfer
+lifecycle/recovery, explicit permission approval and native/physical export acceptance remain required.
 
 Split delivery into reader/privacy, composer/drafts, folder/message actions, multi-account/search, provider authentication
 and platform integration work items. Each item needs its own server/fixture tests and phone journey; one large UI change

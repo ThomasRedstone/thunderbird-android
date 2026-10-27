@@ -2,7 +2,7 @@
 
 Reviewed against Thunderbird baseline `de8a03268415ce8e0c8b0327d3bbcb6b40a06a91` on 2026-10-27.
 Each source anchor below was checked to exist at that commit and to match the working tree byte-for-byte.
-UT implementation checkpoint: `84f80558a8` (0.1.27 source inspection); installed0.1.27 embeds `84f80558a8`. Deployment is recorded separately
+UT implementation checkpoint: `d28776ff32` (0.1.28 export core); installed0.1.27 embeds `84f80558a8`. Deployment is recorded separately
 in [milestone 2 evidence](ubuntu-touch-m2-evidence.md). A source/module anchor proves an implementation exists to
 investigate, not that it can be linked into the UT application or that its feature is complete upstream.
 
@@ -34,14 +34,14 @@ item, not automatic inclusion or exclusion. No architecture or provider configur
 | Search / filters / threading / sorting | [MessageSearchSpecification.kt](../../feature/search/impl-legacy/src/commonMain/kotlin/net/thunderbird/feature/search/legacy/api/MessageSearchSpecification.kt) | Partial | Folder/account/unified cached search, routing and offline sorting implemented; scoped sorting deployed26 with confined fresh-JVM preference checks | Physical/provider acceptance, server search, filters, thread navigation, locale-specific sorting, indexing/pagination and measured cancellation latency |
 | Background delivery / notification actions | [NotificationActionService.kt](../../legacy/core/src/main/java/com/fsck/k9/notification/NotificationActionService.kt) | Not started | UT session explicitly refuses wake-lock/push adapters | Supported background design, storage ownership/IPC if needed, notification privacy/actions and locked/reboot battery/latency tests |
 | OpenPGP / signing / key management | [OpenPgpApiFactory.java](../../legacy/ui/legacy/src/main/java/com/fsck/k9/ui/crypto/OpenPgpApiFactory.java) | Not started | Android Context/OpenPGP service boundary is explicit | Reviewed Linux provider/crypto design; known vectors and key/encrypt/decrypt/sign/verify/tamper journeys |
-| Export / import / retention | [SettingsExporter.kt](../../legacy/core/src/main/java/com/fsck/k9/preferences/SettingsExporter.kt) | Partial | UT versioned schema/recovery tests and private pre-upgrade backup exist | User export/import, retention/cache limits, disk pressure/corruption recovery, data-removal policy; Android ContentResolver cannot carry over |
+| Export / import / retention | [SettingsExporter.kt](../../legacy/core/src/main/java/com/fsck/k9/preferences/SettingsExporter.kt) | Partial | UT versioned schema/recovery, private backups and host-tested exact-byte export leases exist; user Save flow absent | Content Hub handoff and user export/import, retention/cache limits, disk pressure/corruption recovery, data-removal policy; Android ContentResolver cannot carry over |
 | Contacts / recipient completion | [ContactRepository.kt](../../core/android/common/src/main/kotlin/app/k9mail/core/android/common/contact/ContactRepository.kt) | Platform-specific / not started | Android contact repository needs UT equivalent | Supported contacts interface, permission/privacy handling and recipient completion tests |
 | Widgets / shortcuts | [BaseUnreadWidgetProvider.kt](../../feature/widget/unread/src/main/kotlin/app/k9mail/feature/widget/unread/BaseUnreadWidgetProvider.kt) | Platform-specific / not started | Android widget provider; unread/message-list/shortcut modules exist | Explicit UT equivalent or user-approved scope decision with documented consequence |
 
 ## Verification and release gates
 
 Current implementation tests are recorded in the milestone evidence and `app-ubuntu-touch/src/test/`; do not treat
-all350 app tests as coverage for every row. Native probes establish engine/model/confinement behaviour, not physical
+all357 app tests as coverage for every row. Native probes establish engine/model/confinement behaviour, not physical
 UI completion. Physical secure input, rotation, focus/keyboard avoidance, suspend/resume, accessibility and provider
 journeys remain open even when host tests pass. Cached search still lacks large-mailbox acceptance.
 

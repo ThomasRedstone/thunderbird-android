@@ -2882,3 +2882,65 @@ control, selection, paging or keyboard acceptance. Local fleet commit `e1adc10` 
 path manifest lint and local artifact hash pass. Temporary-index commit preserved unrelated work/index state and
 skipped whole-fleet sync/prune hook for that invocation; no fleet push/converge. Exact-byte export, large-MIME/native
 memory measurements, production SignOn repair and real OAuth/provider/physical journeys remain open.
+
+
+### 0.1.28 exact-byte export core, not a completed user Save flow
+
+Source `d28776ff32` adds CachedMessageExport.prepare for a complete cached message selected by full account/folder/UID.
+It copies the stored BLOB to a new private `message.eml` lease, using32KiB returned JVM chunks without MIME parsing or
+reserialization. A consistent existing SQLite transaction spans lookup and copy; it excludes competing writes while
+preparing the export. The file is forced before returning. The caller retains the lease through transfer completion;
+closing removes that file/directory only. Cancellation/IO failures clean provisional data and preserve the cache.
+No arbitrary message-size truncation was added. Holding a transaction during IO and SQLite native allocation still
+need large-message/disk-pressure performance acceptance. The file contains exact **cached** bytes, not a claim that
+prior MIME storage preserved original network-wire bytes. No UI, DI export binding or Content Hub transfer is wired yet.
+
+Five host tests cover binary exactness after database close, private0600/0700 modes, incomplete/foreign/missing refusal,
+mid-copy cancellation cleanup, concurrent replacement exclusion and file-system failure. A deliberate removal of the
+transaction makes the replacement-exclusion test fail; restored code passes. Evidence:
+`/tmp/thunderbird-message-export-snapshot-before.log`, XML
+`build/evidence/message-export/snapshot-without-transaction.xml`. Full **357 app tests, zero failures/errors/skips**,
+detekt, installDist and spotless pass (`/tmp/thunderbird-message-export-full.log`, XML
+`build/evidence/message-export/after/`). Command: JDK21/SDK, `./gradlew :app-ubuntu-touch:test :app-ubuntu-touch:detekt
+:app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck --no-configuration-cache
+-Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`. No shared Android/schema/dependency/permission/OAuth
+configuration changes; no Android lint/instrumentation task exists for this JVM app.
+
+Candidate30: `app-ubuntu-touch/build/ut-candidate-30/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.28_arm64.click`.
+Size147747906; SHA-256 `5ba4ec1bb5de5401afe9998f6b5e96384bf42bad7719fc44b741eafad92f5b84`.
+Embedded clean sourced28776ff32/empty changes verified. Click review and ARM64 launcher/JVM/AWT/Skiko pass
+(`/tmp/thunderbird-028-click.log`, terminal0). Same pinned builder/candidate5 runtime reused, not cold/CI proof.
+Phone remains27; no28 delivery/native export test yet. This package has no new user-facing Save control and does not
+contain the experimental SignOn repair. User export remains an open roadmap requirement.
+
+### Bounded next work: Content Hub destination handoff
+
+Primary references: [Lomiri Content API](https://ubports.gitlab.io/docs/api-docs/lomiri-content-qml-api/lomiri-content-qmlmodule.html)
+and [source](https://gitlab.com/ubports/development/core/lomiri-content-hub), read-only checkout
+`/tmp/thunderbird-content-hub-source` at `f9f0adf3e03fb1ba95a1d4473d7727fd57fcce3b`.
+The phone reports lomiri-content-hub2.2.3/ad6ea6. Read-only live introspection independently confirms service
+`com.lomiri.content.dbus.Service`, object `/`, methods KnownDestinationsForType(s)->av,
+CreateExportToPeer(s,s,s)->o and RegisterImportExportHandler(s,o). No peer was selected, transfer created or file sent.
+The installed2404.1 policy `content_exchange_source` explicitly grants outbound/export paths and handler/service
+messaging. The existing app grants only accounts/networking; **no permission was added**. Do not substitute broad
+Documents/home access. Policy source: `/usr/share/apparmor/easyprof/policygroups/ubuntu/2404.1/content_exchange_source`.
+
+Brief: implement an app-local Kotlin Content Hub adapter, destination picker and source-view/reader Save flow using
+the exact export lease. Keep account/folder/UID ownership and model IO/cancellation. Select a destination only after
+explicit user action; validate peer/type/transfer paths and app identity against the actual profile. Bind/register the
+handler and follow Start/Charge/state signals according to the verified API. Retain the private file until confirmed
+collection/finalization or abort, including suspend/service loss/model close; plan persisted recovery before orphan
+cleanup. Reuse this lifecycle for attachment Save later, without silently claiming attachment integration is complete.
+
+Acceptance: no transfer before destination selection; exact `.eml` bytes independently checked at a controlled receiver;
+real Content Hub/File Manager save under confinement; cancel-before/after-charge, late/duplicate callbacks, service
+restart, receiver abort, source suspend/close/reopen and permission-denial cases preserve data/leases correctly.
+Tests need fake lifecycle/model coverage, real private D-Bus wire tuples/signals and named phone journeys. No message,
+path/name or credential logging. Metadata wrappers remain redacted. Imported files, outgoing attachments, automatic
+sharing to messaging apps, broad storage permissions, OS services and OAuth configuration are excluded from this
+bounded adapter work but remain in the full roadmap where required.
+
+Permission review: prepare the concrete adapter/UI/tests before requesting the one outbound policy addition required
+for native transfer acceptance. AGENTS.md says “Add permissions without explicit request and justification” under
+“MUST NOT”. The proposed minimal policy is `content_exchange_source`; no source registration/hook or manifest grant
+is approved by this evidence. Continue authorized implementation/testing without assuming that approval.

@@ -122,6 +122,36 @@ class LiveMailViewModelTest {
         }
     }
 
+    @Test
+    fun `folder search finds cached body offline retains query on back and clears across folders`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("search.sqlite")).use { database ->
+            val manager = manager(database)
+            val repository = FakeLiveMailRepository()
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(manager.findAll().single().id))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenFolder(repository.folder))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.Search("BODY"))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.messages).isEqualTo(listOf(repository.summary))
+            testSubject.event(LiveMailEvent.OpenMessage(repository.summary.id))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.Back)
+            assertThat(testSubject.state.value.query).isEqualTo("BODY")
+            testSubject.event(LiveMailEvent.Search("absent"))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.messages).isEqualTo(emptyList())
+            testSubject.event(LiveMailEvent.Search(""))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.messages).isEqualTo(listOf(repository.summary))
+            testSubject.event(LiveMailEvent.Back)
+            assertThat(testSubject.state.value.query).isEqualTo("")
+            assertThat(repository.refreshes).isEqualTo(0)
+            assertThat(LiveMailEvent.Search("private words").toString()).isEqualTo("Search(redacted)")
+        }
+    }
+
     private fun manager(database: MailDatabase): UtAccountManager {
         val settings = ServerSettings(
             "imap",

@@ -125,7 +125,7 @@ private fun DemoMessageList(
 }
 
 @Composable
-private fun rememberMaliitEditor(
+internal fun rememberMaliitEditor(
     folderId: String,
     query: String,
     keyboard: MaliitKeyboard?,

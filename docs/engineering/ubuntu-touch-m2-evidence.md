@@ -1104,3 +1104,32 @@ blocked-write recovery and physical lifecycle testing remain open.
 All 122 app tests pass with zero failures/errors/skips, plus app detekt and spotlessCheck
 (`/tmp/thunderbird-fetch-full.log`). Final XML is retained in `build/evidence/sent-copies/`.
 No production/shared Android changes or new permissions; Android build/device suites were not rerun.
+
+## Cached folder text search
+
+Bounded work item: make cached mail searchable offline through the live mailbox UI, using the existing repository,
+MVI and Bolt field/button contracts and Maliit input. Acceptance: literal case-insensitive AND terms match decoded
+sender, subject and cached viewable plain text; input and clear controls work; opening/back preserves the applied
+query; leaving the folder clears it; search does not connect, request credentials or log its query/content. Keep
+account/folder boundaries, Unicode normalisation, attachment classification and cooperative cancellation explicit.
+
+Implementation: `CachedMailSearch.kt` scans summaries in their existing order, normalises NFC/case with Locale.ROOT,
+and checks missing terms against the reader's decoded plain text. Literal percent/underscore characters are not SQL
+wildcards. HTML placeholder text and MIME attachments are excluded. Queries are bounded to 512 characters. Explicit
+Search/Clear controls use the existing Maliit editor and keyboard inset. Query events/state redact toString output.
+Search runs on IO with cancellation checkpoints before/after the scan and between messages. Initial summary-list
+materialisation is not interruptible; large-mailbox indexing/pagination and cancellation latency remain required work.
+
+Tests cover Unicode decomposed/composed input, AND matches across fields, literal punctuation, empty/missing terms,
+oversized input, cooperative cancellation, model offline navigation/reset and actual Compose submission/clear controls.
+Real SQLite MIME storage is reopened without configured accounts/credentials: search finds the decoded body while
+excluding attachment text, another account's same UID and another folder. The native protocol probe also checks
+positive/negative/clear search during preparation and fresh-process offline recovery; phone execution follows packaging.
+
+This is a folder-scoped cached plain-text search slice. Account-wide/unified and server search, recipients/date/flag
+filters, HTML indexing, attachment search policy and large-mailbox performance remain on the full roadmap. No search
+scope is silently excluded. Candidate 0.1.16 is not installed until deployment evidence is recorded; FP4 remains 0.1.15.
+
+Final 127 app tests, detekt, installDist and spotlessCheck pass (`/tmp/thunderbird-search-final.log`); XML is retained
+under `build/evidence/search/`. No shared Android changes, new dependencies or permissions; Android assembly/device
+suites were not rerun. This JVM module has no Android lint/device task. Documentation formatting is checked separately.

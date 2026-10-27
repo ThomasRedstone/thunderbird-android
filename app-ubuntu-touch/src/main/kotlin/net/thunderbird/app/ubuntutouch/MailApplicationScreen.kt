@@ -109,7 +109,7 @@ private fun MailboxDestination(
         },
     ) {
         NavigationButtons(state.busy, navigate, keyboard)
-        LiveMailScreen(state, onEvent)
+        LiveMailScreen(state, keyboard, onEvent)
     }
 }
 

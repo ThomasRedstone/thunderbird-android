@@ -132,3 +132,8 @@ separate; uncertain copy attempts search first and require explicit acknowledgem
 FP4 tests and independent mailbox assertions verify one SMTP delivery and one matching read Sent copy, followed by
 fresh-process recovery with servers stopped. Installed clean source is `d38c691ea9`; fleet pin is `06a59d2`.
 Physical/provider acceptance, true APPEND-response-loss fixtures and background filing remain open.
+
+Candidate 0.1.16 adds offline cached folder search across sender, subject and viewable plain text. Words are matched
+literally, case-insensitively, across these fields. Search/Clear preserve the query while opening messages; leaving the
+folder resets it. HTML and attachment bodies are not searched. Account-wide/server search and large-mailbox indexing
+remain required. The installed FP4 remains 0.1.15 until the candidate's deployment checks pass.

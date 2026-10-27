@@ -14,16 +14,30 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleLarge
+import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldOutlined
 import net.thunderbird.core.common.mail.Flag
 
 @Composable
-internal fun LiveMailScreen(state: LiveMailState, onEvent: (LiveMailEvent) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+internal fun LiveMailScreen(state: LiveMailState, keyboard: MaliitKeyboard? = null, onEvent: (LiveMailEvent) -> Unit) {
+    val height = keyboard?.height?.collectAsState()?.value ?: 0
+    val windowHeight = LocalWindowInfo.current.containerSize.height.coerceAtLeast(0)
+    val inset = with(LocalDensity.current) { height.coerceIn(0, windowHeight).toDp() }
+    Column(
+        Modifier.fillMaxSize().padding(16.dp).padding(bottom = inset),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         TextTitleLarge("Mailboxes")
         TextBodyLarge("Foreground preview · Cached mail opens offline")
         MailboxControls(state, onEvent)
@@ -40,7 +54,7 @@ internal fun LiveMailScreen(state: LiveMailState, onEvent: (LiveMailEvent) -> Un
             }
 
             state.folder != null -> {
-                MailMessageList(state, onEvent, Modifier.weight(1f))
+                MailMessageList(state, onEvent, keyboard, Modifier.weight(1f))
             }
 
             state.account != null -> {
@@ -151,11 +165,37 @@ private fun MailReader(content: MailContent, modifier: Modifier = Modifier) {
 private fun MailMessageList(
     state: LiveMailState,
     onEvent: (LiveMailEvent) -> Unit,
+    keyboard: MaliitKeyboard?,
     modifier: Modifier = Modifier,
 ) {
+    var editing by rememberMaliitEditor("${state.account}/${state.folder?.id}", state.query, keyboard) {}
     Column(modifier) {
         TextTitleLarge(checkNotNull(state.folder).name)
-        if (state.messages.isEmpty() && !state.busy) TextBodyLarge("No cached messages. Sync to receive mail.")
+        TextFieldOutlined(
+            value = editing,
+            onValueChange = { editing = it.copy(text = it.text.take(MAX_SEARCH_LENGTH)) },
+            label = "Search cached sender, subject and text",
+            modifier = Modifier.fillMaxWidth().onFocusChanged { keyboard?.focus(it.isFocused) },
+            isEnabled = !state.busy,
+        )
+        Row {
+            ButtonText("Search", {
+                keyboard?.focus(false)
+                onEvent(LiveMailEvent.Search(editing.text))
+            }, enabled = !state.busy)
+            ButtonText("Clear search", {
+                editing = TextFieldValue("")
+                keyboard?.focus(false)
+                onEvent(LiveMailEvent.Search(""))
+            }, enabled = !state.busy)
+        }
+        if (state.query.isNotBlank()) TextBodyLarge("${state.messages.size} cached matches · This folder only")
+        TextBodyLarge("Offline search · Uncached text, HTML and attachments are not searched")
+        if (state.messages.isEmpty() && !state.busy) {
+            TextBodyLarge(
+                if (state.query.isBlank()) "No cached messages. Sync to receive mail." else "No cached matches",
+            )
+        }
         LazyColumn(Modifier.weight(1f)) {
             items(state.messages, key = { it.id }) { message ->
                 ButtonText(

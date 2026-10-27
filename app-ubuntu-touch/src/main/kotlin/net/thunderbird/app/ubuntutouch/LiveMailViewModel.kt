@@ -22,6 +22,7 @@ internal data class LiveMailState(
     val folder: MailFolder? = null,
     val messages: List<MailSummary> = emptyList(),
     val content: MailContent? = null,
+    val query: String = "",
     val composeRequest: ComposeRequest? = null,
     val pendingActions: Int = 0,
     val confirmDiscard: Boolean = false,
@@ -36,6 +37,9 @@ internal data class LiveMailState(
 internal sealed interface LiveMailEvent {
     data class OpenAccount(val id: AccountId) : LiveMailEvent
     data class OpenFolder(val folder: MailFolder) : LiveMailEvent
+    data class Search(val query: String) : LiveMailEvent {
+        override fun toString(): String = "Search(redacted)"
+    }
     data class OpenMessage(val uid: String) : LiveMailEvent
     data class Respond(val mode: ResponseMode) : LiveMailEvent
     data class ChangeFlag(val flag: Flag, val enabled: Boolean) : LiveMailEvent
@@ -74,7 +78,7 @@ internal class LiveMailViewModel(
 
             is LiveMailEvent.OpenFolder -> {
                 require(event.folder in current.folders)
-                load(current.copy(folder = event.folder, messages = emptyList(), content = null))
+                load(current.copy(folder = event.folder, messages = emptyList(), content = null, query = ""))
             }
 
             is LiveMailEvent.OpenMessage -> {
@@ -88,7 +92,7 @@ internal class LiveMailViewModel(
 
             LiveMailEvent.Back -> mutableState.value = when {
                 current.content != null -> current.copy(content = null, notice = null)
-                current.folder != null -> current.copy(folder = null, messages = emptyList(), notice = null)
+                current.folder != null -> current.copy(folder = null, messages = emptyList(), notice = null, query = "")
                 else -> LiveMailState(manager.findAll())
             }
 
@@ -106,6 +110,8 @@ internal class LiveMailViewModel(
 
     private fun handleActions(event: LiveMailEvent, current: LiveMailState): Boolean {
         when (event) {
+            is LiveMailEvent.Search -> search(current, event.query)
+
             is LiveMailEvent.Respond -> current.content?.let { load(current, uid = it.summary.id, action = event) }
 
             is LiveMailEvent.ChangeFlag -> current.content?.let { load(current, uid = it.summary.id, action = event) }
@@ -123,6 +129,15 @@ internal class LiveMailViewModel(
         return true
     }
 
+    private fun search(current: LiveMailState, query: String) {
+        if (current.folder == null || current.content != null) return
+        if (query.length > MAX_SEARCH_LENGTH) {
+            mutableState.value = current.copy(notice = "Search must be at most $MAX_SEARCH_LENGTH characters.")
+        } else {
+            load(current.copy(query = query, messages = emptyList()))
+        }
+    }
+
     private fun load(
         initial: LiveMailState,
         uid: String? = null,
@@ -131,7 +146,7 @@ internal class LiveMailViewModel(
         action: LiveMailEvent? = null,
     ) {
         if (initial.account == null) return
-        val operation = if (network || download) MailOperation() else null
+        val operation = if (network || download || initial.query.isNotBlank()) MailOperation() else null
         activeOperation = operation
         mutableState.value = initial.copy(busy = true, canCancel = operation != null, cancelling = false, notice = null)
         if (action != null) localWriteFailed = false
@@ -156,7 +171,13 @@ internal class LiveMailViewModel(
             } catch (_: Exception) {
                 if (action != null) localWriteFailed = true
                 val retained =
-                    withContext(Dispatchers.IO) { runCatching { readCache(initial, uid) }.getOrDefault(initial) }
+                    withContext(Dispatchers.IO) {
+                        if (operation?.cancellationRequested == true) {
+                            initial
+                        } else {
+                            runCatching { readCache(initial, uid) }.getOrDefault(initial)
+                        }
+                    }
                 mutableState.value = retained.copy(
                     busy = false,
                     canCancel = false,
@@ -212,10 +233,10 @@ internal class LiveMailViewModel(
         } else {
             initial
         }
-        return readCache(prepared, uid)
+        return readCache(prepared, uid, operation)
     }
 
-    private fun readCache(initial: LiveMailState, uid: String?): LiveMailState {
+    private fun readCache(initial: LiveMailState, uid: String?, operation: MailOperation? = null): LiveMailState {
         val account = checkNotNull(initial.account)
         val folders = repository.folders(account)
         val folder = initial.folder?.let { old -> folders.find { it.id == old.id } }
@@ -223,7 +244,9 @@ internal class LiveMailViewModel(
             folders = folders,
             pendingActions = repository.pendingFlags(account),
             folder = folder,
-            messages = folder?.let { repository.messages(account, it.id) }.orEmpty(),
+            messages = folder?.let {
+                repository.search(account, it.id, initial.query) { operation?.ensureActive() }
+            }.orEmpty(),
             content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,
             busy = false,
         )

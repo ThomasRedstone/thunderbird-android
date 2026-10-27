@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
@@ -13,6 +14,23 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class LiveMailScreenTest : ComposeUiTestHarness() {
+    @Test
+    fun `cached search input submits query and clear restores the folder`() = runComposeTest {
+        var event: LiveMailEvent? = null
+        val state = LiveMailState(
+            emptyList(),
+            account = AccountIdFactory.create(),
+            folder = MailFolder("INBOX", "Inbox"),
+        )
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state) { event = it } } }
+        onNodeWithText("Search cached sender, subject and text").performTextInput("Budget λ")
+        onNodeWithText("Search").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.Search("Budget λ"))
+        onNodeWithText("Clear search").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.Search(""))
+        onNodeWithText("Offline search · Uncached text, HTML and attachments are not searched").assertIsDisplayed()
+    }
+
     @Test
     fun `cancel requests teardown but keeps navigation disabled until the worker settles`() = runComposeTest {
         val state = mutableStateOf(

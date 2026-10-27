@@ -26,6 +26,13 @@ object ConfinedProtocolProbe {
         if (args.size == 2) verifyRestart(Path.of(args[1])) else prepare(args)
     }
 
+    private fun checkCachedSearch(repository: LiveMailRepository, account: net.thunderbird.feature.account.AccountId) {
+        check(repository.search(account, "INBOX", "CONTROLLED body", {}).size == 1)
+        check(repository.search(account, "INBOX", "absent-search-term", {}).isEmpty())
+        check(repository.search(account, "INBOX", "", {}).size == 1)
+        println("Native offline cached subject/body search: PASS")
+    }
+
     private fun parent() = Path.of(System.getProperty("user.home"), ".cache", "mail-demo.thomasredstone", "probes")
 
     private fun prepare(args: Array<String>) {
@@ -90,6 +97,7 @@ object ConfinedProtocolProbe {
                     directory.resolve("mime"),
                 )
                 val repository = PersistentLiveMailRepository(database, sessions)
+                checkCachedSearch(repository, id)
                 val message = repository.messages(id, "INBOX").single()
                 if (Files.exists(directory.resolve("flags.fixture"))) {
                     check(!message.unread && message.starred)
@@ -159,6 +167,7 @@ object ConfinedProtocolProbe {
                 it.sync("INBOX")
             }
             val repository = PersistentLiveMailRepository(database, sessions)
+            checkCachedSearch(repository, account.id)
             if (flags) checkFlagActions(repository, account.id)
             val message = repository.messages(account.id, "INBOX").single()
             check(message.subject == "Device controlled inbox")

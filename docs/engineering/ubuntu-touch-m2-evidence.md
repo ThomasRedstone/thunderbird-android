@@ -1611,3 +1611,41 @@ uses the full mail.google.com scope and describes public-app verification requir
 requires an app registration and Outlook-resource delegated scopes for IMAP and SMTP, with offline_access for
 refresh tokens. A Graph-only token must not be assumed suitable for IMAP/SMTP. These constraints are recorded for
 implementation; no production registration, tenant policy or upstream OAuth configuration has been changed.
+
+
+### OAuth token exchange/refresh client (later source, not candidate 0.1.18)
+
+OAuthTokenClient implements public-client code/PKCE exchange and refresh grants. It sends a matching redirect,
+verifier, code and client ID; refresh retains the previous refresh token only when the response omits a replacement.
+It requires HTTPS token endpoints without credentials/query/fragment. Bearer responses require valid bounded token
+text and positive expiry capped at seven days, calculated conservatively from request start with overflow checks.
+Invalid grants require reauthentication; invalid client/scope errors are configuration failures; rate limits and
+server failures are unavailable-service outcomes. No error description or remote exception cause is exposed.
+No client secret, provider registration or ID-token identity verification is implemented.
+
+The app now directly declares the existing catalog kotlinx-serialization-json 1.11.0 dependency, without a new
+version, plugin or shared-module change. A manual serializer rejects duplicate known token fields, including escaped
+names, while ignoring extensions. Input is strict UTF-8, at most 64 KiB; malformed fields/expiry/type/content type fail
+closed and response byte arrays are cleared. Parser debug input is disabled. Version 1.11's unknown-element skip
+uses an iterative stack; a deeply nested extension is exercised by a regression. This does not assert the behavior
+of the newer version shown by the current online API docs.
+
+JdkOAuthTokenHttp uses JVM trust/hostname verification, no redirects/cookies/authenticator, form encoding and explicit
+connect/request deadlines. A coroutine deadline also covers a body stalled after headers; cancellation cancels the
+HTTP future and closes its response stream. Actual response bytes are capped independently of headers. Its owner
+must close the client. Controlled TLS tests inject only their own fixture certificate; default trust is unchanged.
+Mutable response bytes are cleared, but immutable JVM request/token strings cannot promise secret-memory erasure.
+
+Tests cover exact grant parameters, refresh rotation/omission, expiry, duplicate/escaped fields, malformed/oversized
+and deep-extension JSON, error classification/redaction and cancellation. Real local HTTPS tests cover form encoding,
+certificate rejection, hostname mismatch, redirect refusal, chunked response limits and stalled-body cancellation/
+deadline; an integration test exchanges a synthetic code through the real client and transport. No real provider
+or production credentials are used. Granted-scope handling, provider-specific registration/client requirements,
+validated Microsoft account identity, serialized refresh/persistence and account/transport/UI wiring remain open.
+
+
+All 191 host app tests pass with zero failures/errors/skips, plus detekt/installDist/spotlessCheck
+(/tmp/thunderbird-oauth-http-full.log; XML build/evidence/oauth-http/). JDK 21/SDK, app-scoped Gradle tasks with
+no-configuration-cache/isolated-projects=false/max-workers=4. Shared Android code is unchanged; Android assembly/
+device suites were not rerun and this JVM module has no Android lint/device task. This token HTTP code and its
+new direct dependency are not included in the frozen 0.1.18 candidate and need a later version for native acceptance.

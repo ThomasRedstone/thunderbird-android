@@ -3609,3 +3609,13 @@ No permissions were added; q-jk4j still gates confined outbound Content Hub rece
 Source33/schema15 is not phone-accepted; frozen installed32 stays unchanged until a separately
 verified upgrade. Native decoded attachment/transfer and physical UI, Open, outgoing files,
 large-file performance and orphan-cache/power-loss coverage remain required.
+
+Immutable33 candidate35 is built from clean `b21d25e202ec06bc707a7642adfe8f8ba0e5be9a`
+with an empty SOURCE-CHANGES patch. Path:
+`app-ubuntu-touch/build/ut-candidate-35/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.33_arm64.click`.
+Size148101438 bytes; SHA256 `78b6b788c4a507f014ffeb5376ca1f9284fed5fa73e1a178b7522476803bcce7`.
+Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks pass; build87235 exited0,
+`/tmp/thunderbird-033-click.log`. It reuses the same pinned builder/verified runtime and
+is not cold-build/CI reproducibility proof. No33 install/native/physical acceptance yet;
+phone32 and its fleet pin remain unchanged. Preserve this artifact; further production
+changes must use a new version.

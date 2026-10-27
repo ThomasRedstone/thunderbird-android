@@ -492,3 +492,6 @@ selection; lost Charge replies retain bytes without replay. Full428 app tests an
 distribution checks pass. This does not complete attachment handling: outbound Content Hub
 permission/real receiver acceptance, Open, outgoing attachments and native/physical/large-file
 testing remain open. Installed phone32 is unchanged at this source checkpoint.
+
+The clean33 ARM64 Click is now built and reviewed (candidate35); it has not yet been
+installed or phone-accepted. The frozen32 phone and its fleet pin remain unchanged.

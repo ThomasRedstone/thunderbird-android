@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.7 installed on FP4; 0.1.4 sizing/typing confirmed; SQLite/SignOn confinement checks pass | Physical secure-input UI, rotation and lifecycle checks |
+| Platform | 0.1.8 installed on FP4; 0.1.4 sizing/typing confirmed; SQLite/SignOn confinement checks pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Persistent storage, manual account setup and protected credentials; cold JVM/upgrade/read/edit/removal pass under confinement | Cached foreground mailbox UI and controlled TLS IMAP/SMTP engine tests; phone journey pending |
 | Engineering | 49 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
-| Source delivery | SignOn fix committed/pushed as `d5764edd0f`; installed 0.1.7 embeds that clean source | Ongoing live-mail work and reproducible CI |
-| Phone delivery | Phone Manager install; fleet commit `268c562` pins installed 0.1.7/hash | Foreground journeys, recovery and lifecycle verification |
+| Source delivery | Mailbox UI committed/pushed as `6958418eac`; installed 0.1.8 embeds that clean source | Ongoing live-mail work and reproducible CI |
+| Phone delivery | Phone Manager install; fleet commit `a07d3ad` pins installed 0.1.8/hash | Foreground journeys, recovery and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,8 +27,8 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.7 is installed on the FP4 with account
-setup UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.8 is installed on the FP4 with account
+setup and cached mailbox UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
 remains open. Confined credential persistence and upgrade access now pass through SignOn. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
 for the initial scope, and [milestone 2 evidence](ubuntu-touch-m2-evidence.md) for current build/device results and gaps.

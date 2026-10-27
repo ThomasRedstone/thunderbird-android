@@ -360,3 +360,23 @@ Remaining gates: phone build/install and controlled-server journey, meaningful t
 STARTTLS interoperability, active cancellation, subject filtering/search and efficient envelope-only list reads.
 Current lists parse cached MIME and are suitable for the bounded preview window, not a measured large-mailbox solution.
 Message reading does not yet mark mail seen. Composition/drafts/outbox, sending UI and all later roadmap features stay open.
+
+
+### 0.1.8 package and installation
+
+Built clean from `6958418eaca1a98c07f47694ba482a15e6ce3a63` using the pinned packager image recorded above.
+`SOURCE-CHANGES.patch` is empty. Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite checks pass.
+Artifact: `app-ubuntu-touch/build/ut-candidate-9/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.8_arm64.click`.
+Size: 146,967,938 bytes. SHA-256: `2493682cb9e04ab87526a5da828f5d03a2e5b660eb02647ed2e4deb3340f6f3b`.
+
+Rsync completed before the independent phone checksum check. Phone Manager installed the exact file on FP4.
+Post-install reads confirm `current` is 0.1.8, the embedded source matches the commit and the generated app profile
+exists with accounts/networking permissions. The installer reports unsigned-development-package, user-bus hook and
+old AppArmor-cache removal warnings; independent installation checks passed. No launch or live-mail UI acceptance
+is inferred from those results. Logs are retained under `app-ubuntu-touch/build/evidence/mailbox/`.
+Phone-fleet commit `a07d3ad` pins only this app's version/path/hash; unrelated work is preserved and no full-fleet
+convergence was run. Source commits are pushed to `feat/ubuntu-touch-demo`.
+
+Next: verify actual confined protocol operations on FP4 with controlled fixtures, complete the phone mailbox journey,
+and implement persistent composition/drafts/outbox. Physical secure-field input, rotation and lifecycle checks remain
+open. Existing installed 0.1.7 credential proofs are historical evidence, not a substitute for new 0.1.8 device checks.

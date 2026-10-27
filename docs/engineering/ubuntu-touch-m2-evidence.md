@@ -464,3 +464,36 @@ termination during that window can lose the latest input. Draft deletion/discard
 identity/signature controls, typed error guidance, Sent-folder filing/reconciliation and active cancellation remain
 later requirements. Large drafts/outboxes still require measured layout/performance work. Version 0.1.9 has not yet
 been installed; FP4 remains on 0.1.8 until the next verified deployment.
+
+
+### 0.1.9 deployment and confined runtime proof
+
+Built clean from `131b9b801200410095c5267e0a8aa9c2568d826c`, including dispatcher fix `e19062da14`.
+`SOURCE-CHANGES.patch` is empty. Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite verification pass.
+Artifact: `app-ubuntu-touch/build/ut-candidate-10/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.9_arm64.click`.
+Size: 147,062,004 bytes. SHA-256: `2749e44b000c6d8ab9965bd97c0a95658c24e49f62d00add00373878d41b15c8`.
+The pinned packager and reused ARM64 runtime are unchanged from the previous candidates.
+
+Rsync reached exit 0 before the phone checksum guard and installation. Phone Manager installed the matching package;
+independent reads confirm current 0.1.9, embedded source `131b9b8012` and the generated profile. No application database
+existed at the standard data path, so no user database backup/migration was needed. The guarded installer would create
+and quick-check a private SQLite backup before upgrading an existing database. Installer warnings remain the same
+unsigned-development/user-bus/old-profile-cache warnings documented above; no GUI acceptance is inferred from installation.
+
+The test-only `ConfinedComposerProbe` ran with the installed bundled JVM and installed production JARs, plus a JAR
+containing only its own test classes. It verified `/proc/self/attr/current` exactly matches the 0.1.9 enforcing profile,
+then exercised the production Swing Main dispatcher in headless mode. A newly created private cache fixture verifies
+schema-3 to schema-4 migration preserving synthetic account and local secret-index data, UTF-8 draft/queue storage,
+single claim, reopen after SENDING to UNCERTAIN, refusal to retry without acknowledgement, and explicit requeue.
+It makes no network requests, touches no real SignOn identities and emits no engine log events. Fixture deletion is
+checked before success. Result/exit 0: `Enforcing profile, Swing Main dispatcher, SQLite draft/queue and uncertain
+recovery: PASS`. This does not verify a GUI window, Maliit or protected-service lifecycle on 0.1.9.
+
+All 63 app tests and detekt/spotlessCheck pass again after adding the probe; log
+`/tmp/thunderbird-composer-probe-build.log`. Package/install/probe logs and screenshots are retained under
+`app-ubuntu-touch/build/evidence/composer/`. Phone-fleet commit `62bc1a1` pins the matching version/path/hash with
+unrelated changes preserved and no full-fleet convergence. Source is pushed on `feat/ubuntu-touch-demo`.
+
+Next gate: controlled real IMAP/SMTP through this installed enforcing profile, then the actual phone configure/sync/
+read/draft/send/offline-reopen journey. The physical unlock/input question remains unanswered; independent engine,
+recovery and later roadmap work can continue. No claim is made that milestone 2 or the full mail application is complete.

@@ -37,7 +37,7 @@ object SecretServiceProbe {
             check(testSubject.read(key) == null)
             println("Secret Service create/read/replace/delete and namespace isolation passed")
         } finally {
-            if (!lockFixture) testSubject.delete(key)
+            if (!lockFixture) runCatching { testSubject.delete(key) }
         }
     }
 

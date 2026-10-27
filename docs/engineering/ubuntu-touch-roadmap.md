@@ -12,11 +12,11 @@ and a reproducible supported release.
 
 | Area | Verified position | Remaining work |
 | --- | --- | --- |
-| Platform | 0.1.4 installed on FP4; user confirms correctly sized window and on-screen typing | Remaining input, rotation and lifecycle checks |
-| Mail | Bundled demo folders and messages only | All live-account flows, persistence, sync and sending |
-| Engineering | Eight tests, static checks, ARM64 package and Clickable review pass | Integration/provider/device suites and CI |
-| Source delivery | Offline preview committed and pushed as `b715212616` on `feat/ubuntu-touch-demo` | Fresh package from committed source; ongoing live-mail changes |
-| Phone delivery | Phone Manager install; fleet commit `1c380a5` pins installed 0.1.4/hash | Clean-source package alignment, upgrade and recovery workflow |
+| Platform | 0.1.5 installed on FP4; 0.1.4 sizing/typing confirmed; new SQLite confinement check passes | New secure-input UI, rotation and lifecycle checks |
+| Mail | Demo UI plus persistent storage and manual account setup; Secret Service works unconfined | Confined credentials blocked (`b-zxbi`); live IMAP/SMTP, composition and daily-use features |
+| Engineering | 30 app tests, 108 Bolt JVM tests, Android compilation, ARM64 package and Click review pass | Protocol/provider/device suites, CI and existing Bolt static-analysis baseline gap |
+| Source delivery | Account setup committed/pushed as `1ff8647b80`; installed 0.1.5 embeds that clean source | Ongoing live-mail work and reproducible CI |
+| Phone delivery | Phone Manager install; fleet commit `289394a` pins installed 0.1.5/hash | Foreground journeys, recovery and lifecycle verification |
 
 The completion target includes account setup and secure credentials, IMAP/SMTP and agreed additional protocols,
 multiple accounts and unified views, offline storage, folders and message operations, search and threading,
@@ -27,10 +27,12 @@ than guessed. A feature is not removed from scope merely because its Android imp
 
 ## Implementation evidence
 
-The first offline demo builds as an ARM64 Click and passes Clickable review. Version 0.1.4 is installed on the FP4;
-the user confirms correct full-screen sizing and working on-screen typing. See the
+The preview builds as an ARM64 Click and passes Clickable review. Version 0.1.5 is installed on the FP4 with account
+setup UI; the user previously confirmed full-screen sizing and on-screen typing for 0.1.4. New secure-input acceptance
+remains open, and confined credentials currently fail. See the
 [dependency audit](ubuntu-touch-dependency-audit.md) and [milestone 1 evidence](ubuntu-touch-m1-evidence.md)
-for the verified scope, build commands and remaining device acceptance. Live mail remains a later milestone.
+for the initial scope, and [milestone 2 evidence](ubuntu-touch-m2-evidence.md) for current build/device results and gaps.
+Live receiving/sending remain unfinished.
 
 ## Starting point
 
@@ -69,7 +71,9 @@ Before expanding the demo into live mail:
   preview available while developing the next candidate.
 
 Acceptance: source is recoverable from the remote, another checkout can locate the build instructions, and the
-preview's source/package/fleet/device versions can be traced to one another. This checkpoint is currently open.
+preview's source/package/fleet/device versions can be traced to one another. The source-preservation and alignment
+checkpoint is evidenced for 0.1.5 in the milestone 2 record. Physical input/relaunch checks remain explicitly open
+under the device gates; a clean-source package is not proof of those checks or cold-cache reproducibility.
 
 ## Application structure
 

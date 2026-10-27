@@ -161,3 +161,36 @@ Verification:
 Version 0.1.5 is prepared in source and packaging metadata. Packaging, Click review, confined SQLite/Secret Service,
 physical secure input and phone account setup acceptance remain pending. The phone still has 0.1.4 installed.
 Live IMAP/SMTP, controlled-server integration and the rest of the roadmap remain open work.
+
+## Installed 0.1.5 and confinement gate
+
+The clean-source ARM64 build completed and passed Click review plus launcher/JVM/AWT/Skiko/SQLite architecture checks.
+Package: `app-ubuntu-touch/build/ut-candidate-6/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.5_arm64.click`.
+Size: 146,479,732 bytes. SHA256: `e01a00a6972aae676aec27ccb707800a6b0f6eef993ade0084f1c27812b407f2`.
+Embedded source: `1ff8647b8042a5bebdcbc1beb2e71136867313fc`; `SOURCE-CHANGES.patch` is empty. This build reused the
+previously verified ARM64 runtime, so it does not prove an independent cold-cache build.
+
+The package was uploaded with rsync and its phone checksum verified before installation through Phone Manager.
+The install hook emitted the previously observed user-bus/old-AppArmor-cache warnings. Independent reads confirmed
+the installed current link is `0.1.5` and its embedded source matches. Phone-fleet commit `289394a` records the matching
+version/path/hash while preserving unrelated edits; its whole-fleet hook was skipped to avoid unrelated convergence.
+
+The test-only `ConfinedStorageProbe` ran via `aa-exec -p mail-demo.thomasredstone_mail-demo_0.1.5` using the installed
+bundled JVM and runtime classpath. It reads `/proc/self/attr/current` and refuses to run unless the expected profile is
+enforcing. **Confined SQLite native loading, persistence/reopen and account isolation passed.**
+
+**Protected credentials fail under confinement.** The same probe's Secret Service operation returns UNAVAILABLE.
+The phone journal confirms an AppArmor denial of `org.freedesktop.Secret.Service.OpenSession` at
+`/org/freedesktop/secrets`. This is blocker `b-zxbi`; it blocks phone account-save acceptance, not independent JVM
+protocol/composer work. There is no plaintext fallback and the app has not been unconfined. Evidence is retained in
+`app-ubuntu-touch/build/evidence/account-ui/{confined-result,secret-service-denial}.txt`.
+
+Next investigation: the sibling Lightning port uses SignOn/Online Accounts with the standard `accounts` policy group
+(`../lightning/src/storage/SignonSecretStore.cpp`), rather than Secret Service, for confined credentials. The FP4's
+SignOn AuthService interface was introspected and retained as `signon-service-interface.txt` in the same evidence
+directory. Implement and test that supported adapter/permission path without weakening app confinement. Never call
+the service's global clear operation or broaden another app's credential access.
+
+The screen was off during installation/headless checks. An unlock request is pending; physical password entry,
+foreground setup, rotation/lifecycle and reboot acceptance remain open. No visual phone acceptance is inferred from
+these probes. Live receiving/sending and later roadmap requirements remain unimplemented.

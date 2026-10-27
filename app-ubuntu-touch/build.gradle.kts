@@ -18,6 +18,7 @@ application {
 }
 
 dependencies {
+    implementation(libs.apache.httpclient5)
     implementation(libs.androidx.sqlite.bundled)
     implementation(libs.dbus.java.core)
     runtimeOnly(libs.dbus.java.transport.junixsocket)

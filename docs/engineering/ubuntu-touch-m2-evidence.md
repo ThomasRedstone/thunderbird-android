@@ -53,3 +53,22 @@ The phone probe ran outside Click confinement. It proves target-native driver co
 it does not prove confined application storage, account setup or live mail. The adapter is not yet wired into the UI.
 Shared account/domain repositories and upstream Room integration remain open. Android application and instrumented
 tests were not run: changes are confined to this new JVM app and its catalog dependency declaration.
+
+## Account prerequisite: JVM TLS adapter
+
+`JvmTrustedSocketFactory` implements the mail engine's socket contract for both unconnected direct-TLS sockets
+and connected STARTTLS wrapping. It uses the JVM trust store and Apache's hostname verifier already used by
+`mail:common`; TLS 1.2/1.3 remain enabled. Chain trust, leaf validity and the configured server hostname must all pass.
+Certificate failures retain the engine's `CertificateChainException` so callers can classify them correctly. There
+is no trust-all mode or certificate override. Client-certificate authentication is explicitly unavailable pending its
+own platform implementation.
+
+Verification: all 16 app tests pass, including the three TLS tests; detekt and spotlessCheck pass.
+The unknown-certificate test also asserts that the engine can extract the rejected certificate chain from the
+handshake exception. Evidence: `app-ubuntu-touch/build/test-results/test/TEST-net.thunderbird.app.ubuntutouch.JvmTrustedSocketFactoryTest.xml`.
+
+Real loopback TLS tests generate an ephemeral localhost certificate using the JDK keytool. They test success for
+trusted direct TLS and STARTTLS, rejection of trusted certificates for another hostname in both modes, and rejection
+of an unknown self-signed certificate by the system trust store. Test credentials are temporary fixture values.
+This is a prerequisite for account setup, not a completed account flow: Secret Service, server settings persistence,
+secure input, UI and protocol wiring remain open.

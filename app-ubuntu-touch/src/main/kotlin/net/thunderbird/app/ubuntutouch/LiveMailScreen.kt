@@ -50,7 +50,7 @@ internal fun LiveMailScreen(state: LiveMailState, keyboard: MaliitKeyboard? = nu
                 }
                 MessageFlagButtons(content.summary, state.busy, onEvent)
                 ResponseButtons(content, state.busy, onEvent)
-                MailReader(content, Modifier.weight(1f))
+                MailReader(content, state.accounts.find { it.id == state.account }?.displayName, Modifier.weight(1f))
             }
 
             state.folder != null -> {
@@ -151,10 +151,11 @@ private fun MessageFlagButtons(summary: MailSummary, busy: Boolean, onEvent: (Li
 }
 
 @Composable
-private fun MailReader(content: MailContent, modifier: Modifier = Modifier) {
+private fun MailReader(content: MailContent, accountName: String?, modifier: Modifier = Modifier) {
     SelectionContainer(modifier) {
         Column(Modifier.verticalScroll(rememberScrollState()), Arrangement.spacedBy(12.dp)) {
             TextTitleLarge(content.summary.subject)
+            accountName?.let { TextBodyLarge("Account: $it") }
             TextBodyLarge(content.summary.sender)
             TextBodyLarge(content.body)
         }
@@ -170,11 +171,14 @@ private fun MailMessageList(
 ) {
     var editing by rememberMaliitEditor("${state.account}/${state.folder?.id}", state.query, keyboard) {}
     Column(modifier) {
-        TextTitleLarge(if (state.searchAllFolders) "All cached folders" else checkNotNull(state.folder).name)
-        Row {
-            ButtonText("This folder", { onEvent(LiveMailEvent.SearchScope(false)) }, enabled = !state.busy)
-            ButtonText("All folders in account", { onEvent(LiveMailEvent.SearchScope(true)) }, enabled = !state.busy)
-        }
+        TextTitleLarge(
+            when (state.searchScope) {
+                CachedSearchScope.FOLDER -> checkNotNull(state.folder).name
+                CachedSearchScope.ACCOUNT -> "All cached folders"
+                CachedSearchScope.ALL_ACCOUNTS -> "All cached accounts"
+            },
+        )
+        SearchScopeButtons(state.busy, onEvent)
         TextFieldOutlined(
             value = editing,
             onValueChange = { editing = it.copy(text = it.text.take(MAX_SEARCH_LENGTH)) },
@@ -196,7 +200,7 @@ private fun MailMessageList(
         val count = if (state.searchAllFolders) state.searchHits.size else state.messages.size
         if (state.query.isNotBlank()) {
             TextBodyLarge(
-                "$count cached matches · ${if (state.searchAllFolders) "This account" else "This folder only"}",
+                "$count cached matches · ${state.searchScope.label()}",
             )
         }
         TextBodyLarge("Offline search · Uncached text, HTML and attachments are not searched")
@@ -207,12 +211,7 @@ private fun MailMessageList(
         }
         LazyColumn(Modifier.weight(1f)) {
             items(state.searchHits, key = { listOf(it.account.toString(), it.folder.id, it.message.id) }) { hit ->
-                ButtonText(
-                    "${hit.folder.name}\n${messageLabel(hit.message)}",
-                    { onEvent(LiveMailEvent.OpenSearchResult(hit)) },
-                    Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                    enabled = !state.busy,
-                )
+                SearchResultButton(state, hit, onEvent)
             }
             items(state.messages, key = { it.id }) { message ->
                 ButtonText(
@@ -229,3 +228,38 @@ private fun MailMessageList(
 private fun messageLabel(message: MailSummary): String =
     "${if (message.starred) "Starred · " else ""}${if (message.unread) "Unread · " else ""}" +
         "${message.subject}\n${message.sender}"
+
+@Composable
+private fun SearchResultButton(state: LiveMailState, hit: CachedMailHit, onEvent: (LiveMailEvent) -> Unit) {
+    ButtonText(
+        "${if (state.searchScope == CachedSearchScope.ALL_ACCOUNTS) accountLabel(state, hit) else ""}" +
+            "${hit.folder.name}\n${messageLabel(hit.message)}",
+        { onEvent(LiveMailEvent.OpenSearchResult(hit)) },
+        Modifier.fillMaxWidth().heightIn(min = 64.dp),
+        enabled = !state.busy,
+    )
+}
+
+@Composable
+private fun SearchScopeButtons(busy: Boolean, onEvent: (LiveMailEvent) -> Unit) {
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        ButtonText("This folder", {
+            onEvent(LiveMailEvent.SearchScope(CachedSearchScope.FOLDER))
+        }, enabled = !busy)
+        ButtonText("This account", {
+            onEvent(LiveMailEvent.SearchScope(CachedSearchScope.ACCOUNT))
+        }, enabled = !busy)
+        ButtonText("All accounts", {
+            onEvent(LiveMailEvent.SearchScope(CachedSearchScope.ALL_ACCOUNTS))
+        }, enabled = !busy)
+    }
+}
+
+private fun CachedSearchScope.label(): String = when (this) {
+    CachedSearchScope.FOLDER -> "This folder only"
+    CachedSearchScope.ACCOUNT -> "This account"
+    CachedSearchScope.ALL_ACCOUNTS -> "All accounts"
+}
+
+private fun accountLabel(state: LiveMailState, hit: CachedMailHit): String =
+    "${state.accounts.find { it.id == hit.account }?.displayName ?: "Unavailable account"}\n"

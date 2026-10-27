@@ -1209,3 +1209,48 @@ remain required work. This source change is not yet the installed phone candidat
 All 130 app tests pass with zero failures/errors/skips, alongside app detekt, installDist and spotlessCheck
 (`/tmp/thunderbird-account-search-full.log`). XML is retained under `build/evidence/account-search/`.
 No new dependencies/permissions or shared Android changes; Android assembly/device suites were not rerun.
+
+## Unified-account cached search
+
+Bounded work item: extend contextual cached results to all configured accounts, with explicit folder/account/all-account
+scopes. Acceptance: same folder names and UIDs across accounts remain distinct, result rows identify the account,
+reader/flag/reply actions use the selected account, and Back restores the original account/folder/query/scope. Only
+current configured accounts may be enumerated; clicked hits must belong to the current result set and a current account.
+
+`CachedSearchScope` replaces the account-only Boolean with FOLDER/ACCOUNT/ALL_ACCOUNTS. Account enumeration is deduplicated
+by ID. The model keeps the origin account/folder separately while reading another account's result; Back reloads the
+origin account's folder list. Result keys retain account/folder/UID and unified rows show account/folder names. The
+reader also identifies its account. Results are grouped by account/folder using existing ordering; global chronology,
+threading and sorting remain required work. This is unified cached search, not a completed unified inbox.
+
+Tests cover duplicate IDs in real reopened SQLite and model/UI routing across two accounts. The shared runtime fixture
+uses a CredentialStore that fails on every access and a logger that fails on every event. It opens the secondary
+account's cached body, queues only that account's flag and creates only that account's reply draft, then restores the
+origin on Back. A deliberately wrong-account route fails this fixture at the body assertion; restored production
+routing passes. Before XML: `build/evidence/unified-search/wrong-account-control.xml`.
+
+The same fixture is available as opt-in `ConfinedSearchProbe`, which requires the expected enforcing profile and uses
+only its own newly created private directory. Its synthetic SQL account records have no protected secrets; it verifies
+that this offline journey does not request them. It does not replace the separate SignOn/account-setup tests. Native
+execution follows the next package; the currently installed 0.1.16 lacks these source increments.
+
+All 133 app tests pass with zero failures/errors/skips, plus app detekt/installDist/spotlessCheck
+(`/tmp/thunderbird-unified-final.log`); XML is retained in `build/evidence/unified-search/`. No new dependencies,
+permissions or shared Android changes; Android assembly/device suites were not rerun. Server search, filters, HTML
+indexing, indexed/paged large-mailbox search and measured cancellation latency remain open, as do physical/provider
+acceptance and the rest of the full-app roadmap.
+
+### Installed 0.1.16 launch diagnostic
+
+An additional Phone Manager apptest reports launched=true, alive=true, focused=false, locked=false, with no passing
+screenshot (`/tmp/thunderbird-016-apptest.log`). The app initially appeared stopped; a diagnostic SIGCONT was sent only
+to its identified Java PID, without changing suspension policy. The GL-context warning is followed by a Skiko fallback;
+it alone is not proof of a rendering failure. X11 inspection by `_NET_WM_PID` finds the Mail demo window at 1080×2259.
+The X11 input-focus child is a descendant of that window, despite Lomiri's PID focus predicate reporting false.
+The title-only X11 query missed the UTF-8 `_NET_WM_NAME`; the PID/property/ancestry query corrected that weak evidence.
+
+Logs: `/tmp/thunderbird-016-window-diagnosis.log`, `/tmp/thunderbird-016-x11-focus.log` and
+`/tmp/thunderbird-016-threads-later.log`. This is a concrete focus-verifier discrepancy to investigate in the phone
+integration. Neither an app-dead claim nor physical launch/keyboard acceptance follows from the current evidence.
+No lifecycle exemption, AppArmor expansion or global display change was made. Physical UI and normal suspend/resume
+acceptance remain open; the existing 0.1.16 protocol/search confinement evidence is unchanged.

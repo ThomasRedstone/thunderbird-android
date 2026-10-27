@@ -7,6 +7,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import com.fsck.k9.mail.AuthType
+import com.fsck.k9.mail.ConnectionSecurity
+import com.fsck.k9.mail.ServerSettings
 import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
 import net.thunderbird.components.ui.testing.ComposeUiTestHarness
 import net.thunderbird.core.common.mail.Flag
@@ -14,6 +17,42 @@ import net.thunderbird.feature.account.AccountIdFactory
 import org.junit.Test
 
 class LiveMailScreenTest : ComposeUiTestHarness() {
+    @Test
+    fun `unified search labels and selects the account when mailbox UIDs collide`() = runComposeTest {
+        val first = searchAccount("Primary")
+        val second = searchAccount("Secondary")
+        val folder = MailFolder("INBOX", "Inbox")
+        val message = MailSummary("1", "Found", "Sender", false)
+        val hits = listOf(first, second).map { CachedMailHit(it.id, folder, message) }
+        var event: LiveMailEvent? = null
+        val state = LiveMailState(
+            listOf(first, second),
+            account = first.id,
+            folder = folder,
+            searchScope = CachedSearchScope.ALL_ACCOUNTS,
+            searchHits = hits,
+        )
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state) { event = it } } }
+        onNodeWithText("Primary\nInbox\nFound\nSender").assertIsDisplayed()
+        onNodeWithText("Secondary\nInbox\nFound\nSender").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.OpenSearchResult(hits.last()))
+    }
+
+    private fun searchAccount(name: String): UtMailAccount {
+        val id = AccountIdFactory.create()
+        val settings = ServerSettings(
+            "imap",
+            "localhost",
+            993,
+            ConnectionSecurity.SSL_TLS_REQUIRED,
+            AuthType.PLAIN,
+            "fixture",
+            null,
+            null,
+        )
+        return UtMailAccount(id, name, "fixture@example.invalid", settings, settings.copy(type = "smtp"), id.toString())
+    }
+
     @Test
     fun `account search renders duplicate UIDs as separate folder results`() = runComposeTest {
         val account = AccountIdFactory.create()
@@ -25,7 +64,7 @@ class LiveMailScreenTest : ComposeUiTestHarness() {
             emptyList(),
             account = account,
             folder = first.folder,
-            searchAllFolders = true,
+            searchScope = CachedSearchScope.ACCOUNT,
             searchHits = listOf(first, second),
             query = "Found",
         )
@@ -34,7 +73,7 @@ class LiveMailScreenTest : ComposeUiTestHarness() {
         onNodeWithText("Archive\nFound\nSender").performClick()
         assertThat(event).isEqualTo(LiveMailEvent.OpenSearchResult(second))
         onNodeWithText("This folder").performClick()
-        assertThat(event).isEqualTo(LiveMailEvent.SearchScope(false))
+        assertThat(event).isEqualTo(LiveMailEvent.SearchScope(CachedSearchScope.FOLDER))
     }
 
     @Test

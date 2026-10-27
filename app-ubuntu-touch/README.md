@@ -143,3 +143,7 @@ The next source increment adds an All folders in account search scope. Results s
 account/folder/UID identity when reading or changing flags, including duplicate UIDs in separate folders. Back restores
 the original search. Host storage/model/UI checks pass; this scope is not yet installed on FP4. Unified/server search
 and performance work remain required.
+
+Source now also adds All accounts cached search, with account/folder labels, account-safe result reading and local
+flag/reply actions, and Back restoring the original search account. This is host-tested; native/physical acceptance
+for these new scopes is pending. Server search, filters/indexing and a unified inbox remain required.

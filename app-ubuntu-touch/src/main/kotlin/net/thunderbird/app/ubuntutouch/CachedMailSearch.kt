@@ -58,3 +58,14 @@ internal fun LiveMailRepository.searchAccount(
         search(account, folder.id, query, checkActive).map { CachedMailHit(account, folder, it) }
     }.also { checkActive() }
 }
+
+internal enum class CachedSearchScope { FOLDER, ACCOUNT, ALL_ACCOUNTS }
+
+internal fun LiveMailRepository.searchAccounts(
+    accounts: List<AccountId>,
+    query: String,
+    checkActive: () -> Unit,
+): List<CachedMailHit> = accounts.distinct().flatMap { account ->
+    checkActive()
+    searchAccount(account, query, checkActive)
+}.also { checkActive() }

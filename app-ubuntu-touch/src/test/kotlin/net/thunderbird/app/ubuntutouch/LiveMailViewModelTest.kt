@@ -165,7 +165,7 @@ class LiveMailViewModelTest {
             testSubject.state.first { !it.busy }
             testSubject.event(LiveMailEvent.Search("cached"))
             testSubject.state.first { !it.busy }
-            testSubject.event(LiveMailEvent.SearchScope(true))
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ACCOUNT))
             testSubject.state.first { !it.busy }
             val hits = testSubject.state.value.searchHits
             assertThat(hits.map { it.message.id }).isEqualTo(listOf("1", "1"))
@@ -188,10 +188,49 @@ class LiveMailViewModelTest {
             assertThat(testSubject.state.value.searchAllFolders).isTrue()
             assertThat(testSubject.state.value.query).isEqualTo("cached")
             assertThat(testSubject.state.value.searchHits.size).isEqualTo(2)
-            testSubject.event(LiveMailEvent.SearchScope(false))
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.FOLDER))
             testSubject.state.first { !it.busy }
             assertThat(testSubject.state.value.searchHits).isEqualTo(emptyList())
             assertThat(testSubject.state.value.messages.size).isEqualTo(1)
+            assertThat(repository.refreshes).isEqualTo(0)
+        }
+    }
+
+    @Test
+    fun `unified search routes identical folder UIDs to the selected account and restores origin`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("unified-search.sqlite")).use { database ->
+            val manager = manager(database)
+            val origin = manager.findAll().single()
+            val other = origin.copy(id = AccountIdFactory.create(), credentialKey = UUID.randomUUID().toString())
+            manager.createWithPasswords(other, AccountPasswords("fixture", "fixture"))
+            val repository = FakeLiveMailRepository().apply { separateAccount = other.id }
+            val testSubject = LiveMailViewModel(manager, repository, backgroundScope)
+            testSubject.event(LiveMailEvent.OpenAccount(origin.id))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.OpenFolder(repository.folder))
+            testSubject.state.first { !it.busy }
+            testSubject.event(LiveMailEvent.SearchScope(CachedSearchScope.ALL_ACCOUNTS))
+            testSubject.state.first { !it.busy }
+            val hits = testSubject.state.value.searchHits
+            assertThat(hits.map { it.account }).isEqualTo(listOf(origin.id, other.id))
+            assertThat(hits.map { it.message.id }).isEqualTo(listOf("1", "1"))
+            testSubject.event(LiveMailEvent.OpenSearchResult(hits.last()))
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.account).isEqualTo(other.id)
+            assertThat(testSubject.state.value.content?.body).isEqualTo("Other account cached body")
+            testSubject.event(LiveMailEvent.ChangeFlag(Flag.FLAGGED, true))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(repository.lastFlagAccount).isEqualTo(other.id)
+            testSubject.event(LiveMailEvent.Respond(ResponseMode.REPLY))
+            assertThat(testSubject.flushForClose()).isTrue()
+            assertThat(repository.lastResponseAccount).isEqualTo(other.id)
+            assertThat(testSubject.state.value.composeRequest?.account).isEqualTo(other.id)
+            testSubject.event(LiveMailEvent.Back)
+            testSubject.state.first { !it.busy }
+            assertThat(testSubject.state.value.account).isEqualTo(origin.id)
+            assertThat(testSubject.state.value.folder).isEqualTo(repository.folder)
+            assertThat(testSubject.state.value.searchScope).isEqualTo(CachedSearchScope.ALL_ACCOUNTS)
+            assertThat(testSubject.state.value.searchHits.size).isEqualTo(2)
             assertThat(repository.refreshes).isEqualTo(0)
         }
     }
@@ -226,8 +265,12 @@ class LiveMailViewModelTest {
 private class FakeLiveMailRepository : LiveMailRepository {
     val folder = MailFolder("INBOX", "Inbox")
     var summary = MailSummary("1", "Fixture", "Sender", true)
+    var lastResponseAccount: AccountId? = null
+    var lastFlagAccount: AccountId? = null
+    var separateAccount: AccountId? = null
     var responses = 0
     override fun respond(account: AccountId, folder: String, uid: String, mode: ResponseMode): String {
+        lastResponseAccount = account
         responses++
         return "response-draft"
     }
@@ -238,6 +281,7 @@ private class FakeLiveMailRepository : LiveMailRepository {
         pending = 0
     }
     override fun changeFlag(account: AccountId, folder: String, uid: String, flag: Flag, value: Boolean) {
+        lastFlagAccount = account
         lastFlagFolder = folder
         if (failFlag) error("Synthetic local write failure")
         summary = if (flag == Flag.SEEN) summary.copy(unread = !value) else summary.copy(starred = value)
@@ -257,7 +301,11 @@ private class FakeLiveMailRepository : LiveMailRepository {
         uid: String,
     ) = MailContent(
         messages(account, folder).single(),
-        if (folder == "Archive") "Archive cached body" else "Cached body",
+        when {
+            account == separateAccount -> "Other account cached body"
+            folder == "Archive" -> "Archive cached body"
+            else -> "Cached body"
+        },
         downloaded,
     )
     override fun refresh(account: AccountId, folder: String?) {

@@ -23,9 +23,10 @@ internal data class LiveMailState(
     val messages: List<MailSummary> = emptyList(),
     val content: MailContent? = null,
     val query: String = "",
-    val searchAllFolders: Boolean = false,
+    val searchScope: CachedSearchScope = CachedSearchScope.FOLDER,
     val searchHits: List<CachedMailHit> = emptyList(),
     val returnFolder: MailFolder? = null,
+    val returnAccount: AccountId? = null,
     val composeRequest: ComposeRequest? = null,
     val pendingActions: Int = 0,
     val confirmDiscard: Boolean = false,
@@ -34,6 +35,7 @@ internal data class LiveMailState(
     val cancelling: Boolean = false,
     val notice: String? = null,
 ) {
+    val searchAllFolders: Boolean get() = searchScope != CachedSearchScope.FOLDER
     override fun toString(): String = "LiveMailState(redacted)"
 }
 
@@ -43,7 +45,7 @@ internal sealed interface LiveMailEvent {
     data class Search(val query: String) : LiveMailEvent {
         override fun toString(): String = "Search(redacted)"
     }
-    data class SearchScope(val allFolders: Boolean) : LiveMailEvent
+    data class SearchScope(val scope: CachedSearchScope) : LiveMailEvent
     data class OpenSearchResult(val hit: CachedMailHit) : LiveMailEvent
     data class OpenMessage(val uid: String) : LiveMailEvent
     data class Respond(val mode: ResponseMode) : LiveMailEvent
@@ -89,9 +91,10 @@ internal class LiveMailViewModel(
                         messages = emptyList(),
                         content = null,
                         query = "",
-                        searchAllFolders = false,
+                        searchScope = CachedSearchScope.FOLDER,
                         searchHits = emptyList(),
                         returnFolder = null,
+                        returnAccount = null,
                     ),
                 )
             }
@@ -112,24 +115,29 @@ internal class LiveMailViewModel(
     }
 
     private fun back(current: LiveMailState) {
-        mutableState.value = when {
-            current.content != null -> current.copy(
-                content = null,
-                folder = current.returnFolder ?: current.folder,
-                returnFolder = null,
-                notice = null,
-            )
+        val restored = current.copy(
+            content = null,
+            account = current.returnAccount ?: current.account,
+            folder = current.returnFolder ?: current.folder,
+            returnFolder = null,
+            returnAccount = null,
+            notice = null,
+        )
+        when {
+            current.content != null && restored.account != current.account -> load(restored)
 
-            current.folder != null -> current.copy(
+            current.content != null -> mutableState.value = restored
+
+            current.folder != null -> mutableState.value = current.copy(
                 folder = null,
                 messages = emptyList(),
                 notice = null,
                 query = "",
-                searchAllFolders = false,
+                searchScope = CachedSearchScope.FOLDER,
                 searchHits = emptyList(),
             )
 
-            else -> LiveMailState(manager.findAll())
+            else -> mutableState.value = LiveMailState(manager.findAll())
         }
     }
 
@@ -147,7 +155,7 @@ internal class LiveMailViewModel(
 
             is LiveMailEvent.SearchScope -> if (current.folder != null && current.content == null) {
                 load(
-                    current.copy(searchAllFolders = event.allFolders, messages = emptyList(), searchHits = emptyList()),
+                    current.copy(searchScope = event.scope, messages = emptyList(), searchHits = emptyList()),
                 )
             }
 
@@ -181,8 +189,17 @@ internal class LiveMailViewModel(
 
     private fun openSearchResult(current: LiveMailState, hit: CachedMailHit) {
         require(current.searchAllFolders && current.content == null)
-        require(hit in current.searchHits && hit.account == current.account)
-        load(current.copy(folder = hit.folder, returnFolder = current.folder), uid = hit.message.id)
+        require(hit in current.searchHits && manager.findById(hit.account) != null)
+        require(current.searchScope == CachedSearchScope.ALL_ACCOUNTS || hit.account == current.account)
+        load(
+            current.copy(
+                account = hit.account,
+                folder = hit.folder,
+                returnAccount = current.account,
+                returnFolder = current.folder,
+            ),
+            uid = hit.message.id,
+        )
     }
 
     private fun load(
@@ -289,6 +306,7 @@ internal class LiveMailViewModel(
         val folders = repository.folders(account)
         val folder = initial.folder?.let { old -> folders.find { it.id == old.id } }
         return initial.copy(
+            accounts = manager.findAll(),
             folders = folders,
             pendingActions = repository.pendingFlags(account),
             folder = folder,
@@ -299,10 +317,17 @@ internal class LiveMailViewModel(
                     repository.search(account, it.id, initial.query) { operation?.ensureActive() }
                 }.orEmpty()
             },
-            searchHits = if (initial.searchAllFolders) {
-                repository.searchAccount(account, initial.query) { operation?.ensureActive() }
-            } else {
-                emptyList()
+            searchHits = when (initial.searchScope) {
+                CachedSearchScope.FOLDER -> emptyList()
+
+                CachedSearchScope.ACCOUNT -> repository.searchAccount(account, initial.query) {
+                    operation?.ensureActive()
+                }
+
+                CachedSearchScope.ALL_ACCOUNTS -> repository.searchAccounts(
+                    manager.findAll().map { it.id },
+                    initial.query,
+                ) { operation?.ensureActive() }
             },
             content = if (uid != null && folder != null) repository.content(account, folder.id, uid) else null,
             busy = false,

@@ -22,7 +22,18 @@ import org.junit.rules.TemporaryFolder
 class CachedMailSearchTest {
     @get:Rule val directory = TemporaryFolder()
     private val account = AccountIdFactory.create()
+    private val otherAccount = AccountIdFactory.create()
     private val summary = MailSummary("1", "Café plans", "Alice <alice@example.invalid>", true)
+
+    @Test
+    fun `reopened SQLite unified reader flags and reply stay in the selected account`() = runTest {
+        val previous = BinaryTempFileBody.getTempDirectory()
+        try {
+            SearchRuntimeFixture.check(directory.root.toPath())
+        } finally {
+            BinaryTempFileBody.setTempDirectory(previous)
+        }
+    }
 
     @Test
     fun `Unicode literal AND terms span sender subject and decoded body without network`() {
@@ -85,6 +96,10 @@ class CachedMailSearchTest {
                 assertThat(testSubject.searchAccount(account, "Otherneedle", {}).single().folder.id).isEqualTo("Other")
                 assertThat(testSubject.searchAccount(account, "Foreignneedle", {})).isEqualTo(emptyList())
                 assertThat(hits.first().toString()).isEqualTo("CachedMailHit(redacted)")
+                val unified = testSubject.searchAccounts(listOf(account, otherAccount, account), "", {})
+                assertThat(unified.size).isEqualTo(3)
+                assertThat(unified.map { it.account }).isEqualTo(listOf(account, account, otherAccount))
+                assertThat(testSubject.searchAccounts(listOf(otherAccount), "Otherneedle", {})).isEqualTo(emptyList())
             }
         } finally {
             BinaryTempFileBody.setTempDirectory(previous)
@@ -114,7 +129,7 @@ class CachedMailSearchTest {
                 .apply { uid = "1" },
             MessageDownloadState.FULL,
         )
-        val other = PersistentBackendStorage(database, AccountIdFactory.create().toString())
+        val other = PersistentBackendStorage(database, otherAccount.toString())
         other.createFolderUpdater().use {
             it.createFolders(listOf(FolderInfo("INBOX", "Inbox", FolderType.INBOX)))
         }

@@ -31,6 +31,7 @@ internal class ForegroundMailSessionFactory(
     private val sockets: TrustedSocketFactory,
     logger: Logger,
     mimeDirectory: Path = Path.of(System.getProperty("java.io.tmpdir"), "mail-mime"),
+    private val oauth: OAuthMailAuthentication? = null,
 ) {
     init {
         initializeMailRuntime(logger, mimeDirectory)
@@ -41,20 +42,29 @@ internal class ForegroundMailSessionFactory(
     @Suppress("TooGenericExceptionCaught") // Release owned resources on every construction failure; rethrow unchanged.
     fun open(id: AccountId, operation: MailOperation?): ForegroundMailSession {
         val ownedSockets = CancellableSocketFactory(sockets)
+        val resources = MailSessionResources(ownedSockets)
         try {
-            operation?.register(ownedSockets)
+            operation?.register(resources)
             operation?.ensureActive()
             val account = checkNotNull(accounts.findById(id)) { "Account not found" }
-            val passwords = accounts.passwords(id)
+            val authentication = if (account.isOAuth) {
+                checkNotNull(oauth) { "OAuth authentication unavailable" }.credentials(account, resources)
+            } else {
+                val passwords = accounts.passwords(id)
+                MailSessionAuthentication(
+                    account.incoming.newPassword(passwords.incoming),
+                    account.outgoing.newPassword(passwords.outgoing),
+                )
+            }
             operation?.ensureActive()
             val storage = PersistentBackendStorage(database, id.toString())
             val imap = ImapStore.create(
-                account.incoming.newPassword(passwords.incoming),
+                authentication.incoming,
                 PreviewImapConfig,
                 ownedSockets,
-                null,
+                authentication.incomingProvider,
             )
-            val smtp = SmtpTransport(account.outgoing.newPassword(passwords.outgoing), ownedSockets, null)
+            val smtp = SmtpTransport(authentication.outgoing, ownedSockets, authentication.outgoingProvider)
             val backend = ImapBackend(
                 accountName = id.toString(),
                 backendStorage = storage,
@@ -64,10 +74,15 @@ internal class ForegroundMailSessionFactory(
                 pushConfigProvider = ForegroundOnlyPlatform,
                 smtpTransport = smtp,
             )
-            return ForegroundMailSession(backend, imap, smtp, ownedSockets, operation)
+            return ForegroundMailSession(backend, imap, smtp, resources, operation)
         } catch (failure: Throwable) {
-            ownedSockets.close()
-            operation?.release(ownedSockets)
+            try {
+                resources.close()
+            } catch (cleanup: Throwable) {
+                failure.addSuppressed(cleanup)
+            } finally {
+                operation?.release(resources)
+            }
             throw failure
         }
     }
@@ -77,7 +92,7 @@ internal class ForegroundMailSession(
     private val backend: ImapBackend,
     private val imap: ImapStore,
     private val smtp: SmtpTransport,
-    private val sockets: CancellableSocketFactory,
+    private val resources: MailSessionResources,
     private val operation: MailOperation?,
 ) : AutoCloseable {
     fun checkSettings() {
@@ -148,9 +163,12 @@ internal class ForegroundMailSession(
     }
 
     override fun close() {
-        sockets.close()
-        operation?.release(sockets)
-        imap.closeAllConnections()
+        try {
+            resources.close()
+        } finally {
+            operation?.release(resources)
+            imap.closeAllConnections()
+        }
     }
 
     private companion object {

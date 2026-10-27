@@ -1897,3 +1897,35 @@ Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/An
 Log: /tmp/thunderbird-oauth-ownership-full.log; test XML: build/evidence/oauth-ownership/.
 No shared engine or Android source changed; prior SMTP and Android consumer checks remain applicable.
 Android instrumentation was not run for this JVM-only slice, and native deployment acceptance remains open.
+
+
+### Foreground OAuth session routing (source only)
+
+ForegroundMailSessionFactory now selects OAuth before password access. Its injected OAuthMailAuthentication validates
+the provider's approved server settings and constructs separate IMAP/SMTP token providers sharing one coordinator.
+The application composition binds that coordinator to OAuthTokenStore over ManagedOAuthCredentialStore, while
+retaining the raw protected store for the account manager's journaled initial writes. The provider registry remains
+empty in production; this wiring does not enable a Gmail or Microsoft registration or expose sign-in UI.
+
+Mail operations can now own closeable token providers alongside sockets. Session resources reject and immediately
+close resources added after cancellation; session close and construction failure release owned resources. Teardown
+attempts every resource before propagating a failure. OAuth HTTP client lifetime is owned by Koin.
+
+Account removal/replacement still needs operation-generation cancellation: the existing ownership fence prevents
+retired credential writes but cannot revoke an already issued token or stop every existing authenticated connection.
+Provider identity validation, setup UI, real-provider journeys and native acceptance remain open.
+
+A new controlled STARTTLS factory-level test creates an OAuth account through the manager, refreshes once through
+managed protected storage, checks both protocol settings, receives/caches an Inbox message, sends MIME through SMTP
+and verifies the rotated refresh token. Since the password API rejects OAuth accounts, this also exercises the
+authentication-mode selection. Missing OAuth composition fails closed. Three resource tests cover teardown failure,
+idempotent close/late registration and cancellation interrupting a pending refresh.
+
+Verification: all 234 app tests pass with zero failures/errors/skips, plus detekt/installDist/spotlessCheck.
+Command: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ANDROID_HOME=/home/tom/Android/Sdk ./gradlew
+:app-ubuntu-touch:test :app-ubuntu-touch:detekt :app-ubuntu-touch:installDist :app-ubuntu-touch:spotlessCheck
+--no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4`.
+Full log: /tmp/thunderbird-oauth-session-full.log; XML: build/evidence/oauth-session/.
+Focused tests and checks also pass (/tmp/thunderbird-oauth-session-focused.log). No shared engine/Android changes;
+prior shared SMTP and Android assemblies remain applicable. No Android instrumentation or phone deployment was run
+for this JVM slice. Installed phone/fleet remain 0.1.18; the next package must use 0.1.19.

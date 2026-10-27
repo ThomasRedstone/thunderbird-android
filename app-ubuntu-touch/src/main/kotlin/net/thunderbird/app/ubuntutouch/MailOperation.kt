@@ -9,7 +9,7 @@ import kotlinx.coroutines.launch
 /** Cancellation request is immediate; blocking resource teardown runs on IO, including during model disposal. */
 internal class MailOperation : AutoCloseable {
     private val monitor = Any()
-    private val owners = mutableSetOf<CancellableSocketFactory>()
+    private val owners = mutableSetOf<AutoCloseable>()
 
     @Volatile var cancellationRequested = false
         private set
@@ -18,7 +18,7 @@ internal class MailOperation : AutoCloseable {
         if (cancellationRequested) throw MailOperationCancelledException()
     }
 
-    fun register(owner: CancellableSocketFactory) {
+    fun register(owner: AutoCloseable) {
         synchronized(monitor) {
             if (!cancellationRequested) {
                 owners += owner
@@ -29,7 +29,7 @@ internal class MailOperation : AutoCloseable {
         throw MailOperationCancelledException()
     }
 
-    fun release(owner: CancellableSocketFactory) {
+    fun release(owner: AutoCloseable) {
         synchronized(monitor) { owners -= owner }
     }
 
@@ -44,9 +44,23 @@ internal class MailOperation : AutoCloseable {
             cancellationRequested = true
             owners.toList().also { owners.clear() }
         }
-        pending.forEach { it.close() }
+        closeMailResources(pending)
     }
 }
 
 /** Thrown only by preparation checks, before a transport can submit message data. */
 internal class MailOperationCancelledException : InterruptedIOException("Mail operation cancelled before submission")
+
+/** Close every owned resource even when one teardown fails. */
+@Suppress("TooGenericExceptionCaught") // Teardown must release every owned resource before propagating a failure.
+internal fun closeMailResources(resources: List<AutoCloseable>) {
+    var failure: Throwable? = null
+    resources.forEach { resource ->
+        try {
+            resource.close()
+        } catch (problem: Exception) {
+            if (failure == null) failure = problem else failure!!.addSuppressed(problem)
+        }
+    }
+    failure?.let { throw it }
+}

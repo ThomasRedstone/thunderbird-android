@@ -35,6 +35,7 @@ import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
+import org.koin.dsl.onClose
 
 private const val FP4_UI_DENSITY = 2.75f
 
@@ -107,9 +108,16 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single<CredentialStore> {
                 if (isUbuntuTouch) SignonCredentialStore(SignonIdentityIndex(get())) else SecretServiceCredentialStore()
             }
-            single { UtAccountManager(get(), get()) }
+            single { OAuthProviderRegistry() }
+            single { UtAccountManager(get(), get(), get()) }
+            single { ManagedOAuthCredentialStore(get()) }
+            single { OAuthTokenStore(get<ManagedOAuthCredentialStore>()) }
+            single { JdkOAuthTokenHttp() } onClose { it?.close() }
+            single { OAuthTokenClient(get<JdkOAuthTokenHttp>()) }
+            single { OAuthTokenCoordinator(get(), get()) }
+            single { OAuthMailAuthentication(get(), get()) }
             factory { AccountSetupViewModel(get()) }
-            single { ForegroundMailSessionFactory(get(), get(), JvmTrustedSocketFactory(), get()) }
+            single { ForegroundMailSessionFactory(get(), get(), JvmTrustedSocketFactory(), get(), oauth = get()) }
             single<LiveMailRepository> { PersistentLiveMailRepository(get(), get()) }
             factory { LiveMailViewModel(get(), get()) }
             single { OutgoingMailStore(get()) }

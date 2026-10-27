@@ -123,6 +123,93 @@ class OAuthEngineIntegrationTest {
         }
     }
 
+    @Test
+    fun `foreground session routes OAuth through managed credentials and receives and sends over TLS`() {
+        fixture { server, sockets, imapPort, smtpPort ->
+            val user = server.setUser(PRIMARY, PRIMARY, "accepted-access")
+            val incoming = settings("imap", imapPort)
+            val outgoing = settings("smtp", smtpPort)
+            val registry = registry(incoming, outgoing)
+            MailDatabase(directory.root.toPath().resolve("session.sqlite")).use { database ->
+                val accounts = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore(), registry)
+                val metadata = UtMailAccount(
+                    account.accountId,
+                    "Controlled",
+                    PRIMARY,
+                    incoming,
+                    outgoing,
+                    account.credentialKey,
+                    "controlled",
+                )
+                accounts.createWithOAuth(metadata, OAuthTokens("expired", "refresh", 0))
+                val calls = AtomicInteger()
+                val coordinator = sessionCoordinator(accounts, calls)
+                val testSubject = ForegroundMailSessionFactory(
+                    accounts,
+                    database,
+                    sockets,
+                    silentLogger(),
+                    directory.root.toPath().resolve("session-mime"),
+                    OAuthMailAuthentication(registry, coordinator),
+                )
+                val raw = "From: $PRIMARY\r\nTo: $PRIMARY\r\nSubject: OAuth session\r\n\r\nControlled body"
+                user.deliver(
+                    jakarta.mail.internet.MimeMessage(
+                        jakarta.mail.Session.getInstance(java.util.Properties()),
+                        raw.byteInputStream(),
+                    ),
+                )
+                testSubject.open(metadata.id).use { session ->
+                    session.checkSettings()
+                    session.refreshFolders()
+                    session.sync("INBOX")
+                    session.send(com.fsck.k9.mail.internet.MimeMessage.parseMimeMessage(raw.byteInputStream(), true))
+                }
+                assertThat(calls.get()).isEqualTo(1)
+                val inbox = PersistentBackendStorage(database, metadata.id.toString()).getFolder("INBOX")
+                assertThat(inbox.getMessageServerIds().size).isEqualTo(1)
+                assertThat(inbox.readMessage(inbox.getMessageServerIds().single())!!.subject).isEqualTo("OAuth session")
+                assertThat(server.waitForIncomingEmail(5000, 2)).isTrue()
+                assertThat(
+                    OAuthTokenStore(ManagedOAuthCredentialStore(accounts)).read(account, configuration)!!.refreshToken,
+                ).isEqualTo("rotated")
+                val unavailable = ForegroundMailSessionFactory(accounts, database, sockets, silentLogger())
+                assertThat(runCatching { unavailable.open(metadata.id) }.isFailure).isTrue()
+            }
+        }
+    }
+
+    private fun registry(incoming: ServerSettings, outgoing: ServerSettings) = OAuthProviderRegistry(
+        listOf(
+            OAuthProviderSpec(
+                "controlled",
+                configuration,
+                OAuthMailServer(incoming.host, incoming.port, incoming.connectionSecurity),
+                OAuthMailServer(outgoing.host, outgoing.port, outgoing.connectionSecurity),
+            ),
+        ),
+    )
+
+    private fun sessionCoordinator(accounts: UtAccountManager, calls: AtomicInteger) = OAuthTokenCoordinator(
+        OAuthTokenStore(ManagedOAuthCredentialStore(accounts)),
+        OAuthTokenClient(
+            OAuthTokenHttp { _, _ ->
+                calls.incrementAndGet()
+                OAuthHttpReply(
+                    200,
+                    "application/json",
+                    """{"access_token":"accepted-access","refresh_token":"rotated",
+                        "token_type":"Bearer","expires_in":3600}""".toByteArray(),
+                )
+            },
+        ) { 0 },
+    ) { 0 }
+
+    private fun silentLogger() = DefaultLogger(object : LogSink {
+        override val level = LogLevel.VERBOSE
+        override fun log(event: LogEvent) = error("OAuth session must not log authentication or mail data")
+    })
+
     private fun fixture(
         expectImap: Boolean = true,
         checkMail: (GreenMail, CancellableSocketFactory, Int, Int) -> Unit,

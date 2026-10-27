@@ -102,5 +102,6 @@ screen/input acceptance or change production certificate trust.
 
 Development 0.1.10 adds Cancel controls for receiving/body download and sending. The UI waits for the worker’s saved
 outcome; cancellation never claims that an uncertain send was not accepted. Schema 5 preserves earlier uncertain
-attempts across retries and requires review of pending messages from older previews. Device acceptance of this
-candidate remains separate from the installed 0.1.9 evidence.
+attempts across retries and requires review of pending messages from older previews. 0.1.10 is installed on FP4 with
+confined model cancellation, schema recovery and TLS protocol/restart checks passing.
+Physical input/provider journeys and broader interruption coverage remain open.

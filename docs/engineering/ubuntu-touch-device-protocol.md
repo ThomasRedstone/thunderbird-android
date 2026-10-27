@@ -44,7 +44,9 @@ python3 - <<'PY'
 from pathlib import Path
 from zipfile import ZipFile
 root = Path('app-ubuntu-touch/build/classes/kotlin/test')
-classes = list(root.rglob('ConfinedProtocolProbe*.class'))
+patterns = ['ConfinedProtocolProbe*.class', 'ConfinedCancellationProbe*.class',
+            'ObservedPlainSockets*.class', 'ConfinedComposerProbe*.class']
+classes = sorted({path for pattern in patterns for path in root.rglob(pattern)})
 assert classes
 with ZipFile('/tmp/mail-protocol-probe.jar', 'w') as jar:
     for path in classes:
@@ -65,7 +67,7 @@ profile/version, the observed host/ports and the uploaded certificate path:
 ```sh
 export XDG_RUNTIME_DIR=/run/user/32011
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/32011/bus
-mail_probe_profile=mail-demo.thomasredstone_mail-demo_0.1.9
+mail_probe_profile=mail-demo.thomasredstone_mail-demo_0.1.10
 mail_probe_app=/opt/click.ubuntu.com/mail-demo.thomasredstone/current/mail-demo
 mail_probe_cache=/home/phablet/.cache/mail-demo.thomasredstone/probes
 
@@ -121,3 +123,46 @@ one process. This is useful for a smoke check, but it does not prove fresh-proce
 
 The expected negative-certificate handshake can produce GreenMail server-side closed-socket diagnostics. The positive
 assertions, cleanup and process exit statuses still have to pass; diagnostic output alone is not a success signal.
+
+## Model-driven cancellation fixture
+
+For 0.1.10, the same test-only JAR also contains `ConfinedCancellationProbe`. Start a separate controlled host TCP
+listener that accepts one connection but never supplies its greeting. Substitute the host's local test IP:
+
+```sh
+python3 - HOST_LOCAL_IP <<'PY'
+import socket, sys
+with socket.socket() as server:
+    server.bind((sys.argv[1], 0))
+    server.listen(1)
+    server.settimeout(120)
+    print('PORT=' + str(server.getsockname()[1]), flush=True)
+    peer, _ = server.accept()
+    with peer:
+        peer.settimeout(15)
+        assert peer.recv(1) == b''
+    print('EOF with zero protocol/credential bytes: PASS')
+PY
+```
+
+Run the installed enforcing-profile JVM exactly as above, replacing the entry point/arguments:
+
+```sh
+aa-exec -p "$mail_probe_profile" -- "$mail_probe_app/lib/runtime/bin/java" \
+  -Djava.awt.headless=true -Djava.io.tmpdir="$mail_probe_cache" \
+  -cp "$mail_probe_cache/mail-protocol-probe.jar:$mail_probe_app/lib/app/*" \
+  net.thunderbird.app.ubuntutouch.ConfinedCancellationProbe \
+  "$mail_probe_profile" HOST_LOCAL_IP STALL_PORT
+```
+
+The probe checks schema 5, creates a disposable protected account and drives the default Swing-dispatched mailbox
+model. Once a passive test socket observer confirms real TCP establishment, it requests Cancel, checks that busy and
+cancelling remain set initially, then requires settled state within five seconds. It removes its own account,
+credential and private fixture. Both the phone and host checks must exit 0; host EOF alone could also result from a
+failed/killed client. No real mail database/account or production TLS configuration is used.
+
+2026-10-27: cancellation and schema recovery pass on installed 0.1.10/source `080d86f30cbb32e9010747fd2933686d58d4bb07`.
+The complete controlled TLS/protected-account receive/send and fresh-JVM reopen after server teardown also pass again.
+79 app tests/quality checks pass; prior 863 shared-mail tests/quality checks remain unchanged. Results are retained
+under `app-ubuntu-touch/build/evidence/cancel-ui/native/`. Physical UI, successful STARTTLS, provider and broader
+interruption/lifecycle gates remain open.

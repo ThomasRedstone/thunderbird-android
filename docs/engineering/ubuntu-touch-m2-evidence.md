@@ -622,3 +622,39 @@ checked. It has not yet been run on the phone at this source checkpoint; do not 
 Remaining gates: build/install 0.1.10, native cancellation and schema-5 checks, authenticated IMAP sync/body interruption,
 blocked payload-write cancellation, successful STARTTLS interoperability and the complete physical/provider journey.
 These remain explicit requirements; 0.1.9's earlier confined protocol proof does not verify this new code.
+
+### 0.1.10 package, installation and confined verification
+
+Built clean from `080d86f30cbb32e9010747fd2933686d58d4bb07`; `SOURCE-CHANGES.patch` is empty.
+Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite verification pass. The port source archive also contains
+`PlainSocketFactory.kt`, `RealImapConnection.kt` and `SmtpTransport.kt` as intended.
+Artifact: `app-ubuntu-touch/build/ut-candidate-11/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.10_arm64.click`.
+Size: 147,111,350 bytes. SHA-256: `618eb03410da299851b61a8aa11bcc7b91231a0e2bcd1572e5c4e73674e11d19`.
+Pinned packager/runtime inputs are unchanged from previous candidates.
+
+Rsync completed before phone checksum verification and installation. Phone Manager installed the matching artifact;
+independent reads confirm current 0.1.10, embedded source `080d86f30c` and the generated profile. No database existed at
+the checked standard/doubled application data paths, so the guarded backup step had no user data to back up.
+The installer retains the previously documented unsigned-development, user-bus hook and old-profile-cache warnings.
+No GUI acceptance is inferred from installation. Phone-fleet `9e08d03` pins only this app's version/path/hash; unrelated
+changes were preserved and no full-fleet convergence ran.
+
+`ConfinedCancellationProbe` ran using the installed bundled JVM/production JARs, test-only probe classes, and the exact
+0.1.10 enforcing profile. It verified schema 5 and a real disposable SignOn account, drove the default Swing-dispatched
+mailbox model into a controlled TCP wait before STARTTLS, requested Cancel and observed settled state within five
+seconds. The independent host peer saw EOF with zero protocol/credential bytes. Both processes exit 0; cleanup is
+checked. The test-only plain-socket observer signals establishment while preserving production model/token/socket-owner
+logic. No alternate production implementation, trust bypass or confinement exemption is used.
+
+The updated confined composer probe also passes dispatcher, schema-3 to schema-5 migration, draft/queue single claim,
+uncertain history and explicit requeue checks. The controlled TLS IMAP/SMTP/protected-account flow was replayed on
+0.1.10: the phone passes and the host independently observes exactly one intended outgoing message. After host server
+teardown/exit 0, a fresh phone JVM passes protected credential, cached-body and SENT-row reopen, then cleans its
+account/credential/index/fixture. Independent SSH confirms the retained protocol fixture is absent. All involved phone
+and server handles reached exit 0; no fixture listeners remain running.
+
+Evidence: `app-ubuntu-touch/build/evidence/cancel-ui/native/`, including installed-source, cancellation, independent
+peer, schema recovery and `protocol-run-010` phone/server/cleanup results. This is a headless model/protocol proof,
+not a physical Compose/Maliit journey or a suspend/background-delivery proof. Native cancellation during authenticated
+IMAP body fetch or SMTP DATA/blocked writes is not claimed; the DATA response-wait cancellation proof above is a host
+JVM test. Successful STARTTLS/provider interoperability and the physical journey remain open.

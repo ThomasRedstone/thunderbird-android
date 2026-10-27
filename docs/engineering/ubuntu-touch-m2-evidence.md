@@ -2712,3 +2712,43 @@ Artifacts: `app-ubuntu-touch/build/evidence/signon-native-private/`; logs
 `/tmp/thunderbird-signon-arm64-build{,-final}.log` (the first compilation needed an include-path correction for the
 combined file; the final build succeeds). The fix now has a concrete ARM64 artifact and reviewable minimal source
 patch, but integration into the real credential service still needs its own bounded deployment/recovery plan.
+
+
+### Confined identity flow exposes and verifies repeated-read repair
+
+The first enforcing-profile identity run against the private patched service reached controlled HTTPS verification
+and the first39997-byte raw read, then failed the second read of that credential. Thus the previous one-read-per-size
+service passes did not prove repeated reads. Log `/tmp/thunderbird-025-confined-private-identity.log` retains this
+fail-before regression; it is not a completed identity acceptance result.
+
+Size-only instrumentation had shown a queued read callback running after the frame was already complete. That
+callback attempts another read and can leave the helper waiting for data instead of accepting its next request.
+The experimental patch now also ignores callbacks for an already-completed frame:
+
+```diff
+ void BlobIOHandler::readBlob()
+ {
++    if (m_blobSize >= 0 && m_blobBuffer.size() == m_blobSize)
++        return;
+```
+
+The revised ARM64 library SHA-256 is
+`a6dcf84184e5510841b22defedf0d0bc24496833eadc2e41fedee8cc613f791f`, matched after upload to the separate immutable
+own-cache directory `probes/signon-ipc-native-repeat/`. The exact frozen0.1.25 identity driver then passes under
+`mail-demo.thomasredstone_mail-demo_0.1.25 (enforce)`: trusted controlled HTTPS profile/default-trust rejection,
+protected verified account commit, rotation/invalidation, repeated maximum39997-byte payload, legacyv2/v3 formats
+and SQL non-leakage. A **second JVM** passes protected identity recovery and exact fixture cleanup. Both exit0;
+`/tmp/thunderbird-025-confined-private-identity-repeat.log` records results.
+
+The private daemon uses a separate session bus and temporary own-cache storage, explicitly requesting the installed
+`apparmor-ac` access manager; unlike the earlier unconfined size harness, the frozen app driver adds no wildcard ACL.
+Default synthetic storage/crypto remain fixture-only. This proves controlled app identity paths under the existing
+kernel confinement with the experimental private service; it does not establish production-keyring deployment,
+real provider flows or system-service upgrade acceptance. No app permission or normal credential service changed.
+Zero retained identity and private-service fixture directories were independently verified after exit.
+The host fixture received two valid requests across before/after attempts; it was then stopped, with terminal143.
+
+Artifacts: `app-ubuntu-touch/build/evidence/signon-confined-private/`, including before/after runners/logs, revised
+source, ARM64 library and `notifier-and-completed-read.patch` on top of current upstream. Cross-build log
+`/tmp/thunderbird-signon-arm64-repeat-build.log`. No app source/version bump was needed because only isolated service
+fixtures changed. Normal0.1.25 keyring reads remain failing until a separately reviewed integration path is implemented.

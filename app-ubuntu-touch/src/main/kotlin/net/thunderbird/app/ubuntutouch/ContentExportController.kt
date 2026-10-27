@@ -31,7 +31,7 @@ internal class ContentExportController(
     private val broker: ContentExportBroker,
     private val accountExists: (AccountId) -> Boolean,
 ) {
-    private val active = mutableMapOf<UUID, () -> Boolean>()
+    private val active = mutableMapOf<UUID, ExportAuthorization>()
 
     @Synchronized
     @Suppress("TooGenericExceptionCaught") // Keep durable cleanup metadata on preparation failure.
@@ -41,6 +41,7 @@ internal class ContentExportController(
         uid: String,
         authorized: () -> Boolean,
         checkActive: () -> Unit = {},
+        handoff: (() -> Unit) -> Unit = { it() },
     ): ExportLeaseRecord {
         check(accountExists(account) && authorized())
         check(journal.records().isEmpty()) { "Review pending exports before starting another" }
@@ -49,7 +50,7 @@ internal class ContentExportController(
         try {
             lease = exporter.prepare(account, folder, uid, reserved = { file ->
                 record = journal.reserve(file, account)
-                active[checkNotNull(record).id] = authorized
+                active[checkNotNull(record).id] = ExportAuthorization(authorized, handoff)
             }, checkActive = checkActive)
             check(accountExists(account) && authorized())
             return journal.ready(checkNotNull(record))
@@ -85,7 +86,10 @@ internal class ContentExportController(
                 // Persist before sending. No recovery path retries an ambiguous Charge.
                 journal.charging(attached)
                 if (allowed(record)) {
-                    broker.charge(reference, journal.file(attached))
+                    checkNotNull(active[record.id]).handoff {
+                        check(allowed(record))
+                        broker.charge(reference, journal.file(attached))
+                    }
                     poll(record.id)
                 } else {
                     cancel(record.id)
@@ -166,7 +170,7 @@ internal class ContentExportController(
     }
 
     private fun allowed(record: ExportLeaseRecord): Boolean =
-        accountExists(record.account) && active[record.id]?.invoke() == true
+        accountExists(record.account) && active[record.id]?.allowed?.invoke() == true
 
     private fun release(record: ExportLeaseRecord) {
         journal.release(record)
@@ -184,3 +188,5 @@ internal class ContentExportController(
 }
 
 private fun ContentExportJournal.currentRecord(id: UUID): ExportLeaseRecord? = records().singleOrNull { it.id == id }
+
+private class ExportAuthorization(val allowed: () -> Boolean, val handoff: (() -> Unit) -> Unit)

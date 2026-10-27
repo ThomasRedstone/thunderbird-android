@@ -3031,3 +3031,36 @@ Save model/picker/DI/lifecycle wiring, permission approval, native transfer test
 and physical acceptance remain open. No new permission was added; phone remains
 0.1.27 and source0.1.30 remains unpackaged. This supersedes the adapter compilation
 checkpoint's pending constructor/subscription cleanup and private-bus test gaps.
+
+### Save model and controls checkpoint
+
+Added an app-local MVI Save model and Bolt destination/review controls. The model
+recovers pending records, prepares only on an explicit event, requires a listed
+receiver, supports polling/cancellation, and requires an explicit cleanup review
+before deleting uncertain local copies. Receiver-discovery failure reloads the
+journal so a prepared export remains visible for retry/cancellation; the regression
+test failed before that fix (`build/evidence/message-save/discovery-before.xml`).
+All observable status/error text omits raw exception details. Closing the model
+cancels its UI scope without deleting durable transfer metadata.
+
+Each preparation captures the current immutable account instance. Controller
+handoff now runs through the manager's synchronized account identity check, so
+account mutation and Charge cannot cross the final authorization boundary. The
+blocking handoff belongs on IO and can delay account mutation until the broker
+call returns; it never runs on the UI thread. This conservatively invalidates
+exports after even a display-name/account-list reload. Broader cancellation and
+native stalled-broker acceptance remain open.
+
+Eight focused model/controller tests pass, including discovery failure/retry and
+account mutation preventing Charge. `detekt` and `spotlessCheck` pass:
+`/tmp/thunderbird-message-save-model-test-3.log`. The new Bolt controls then pass
+compile/detekt/spotless (`/tmp/thunderbird-message-save-controls.log`). Commands
+use the same JDK/SDK/Gradle flags above; the test filters are
+`*MessageSaveViewModelTest` and `*ContentExportControllerTest`. The full suite has
+not been rerun after these production changes.
+
+These components are not yet bound to Koin or the reader/window lifecycle. No
+user-facing Save action, new permissions, phone deployment or receiver acceptance
+is claimed. Remaining integration must prevent overlapping model owners, handle
+export-root cache eviction, recover/review old-version transfers and preserve
+pending metadata on close/suspend. Source stays0.1.30 until its first package.

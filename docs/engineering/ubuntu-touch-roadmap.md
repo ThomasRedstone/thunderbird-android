@@ -545,3 +545,9 @@ work continues while the phone gate is unavailable.
 Development36/schema17 snapshots message subject/date for filing history and shows them
 after source removal/restart. Legacy identities stay explicitly unavailable. Full454 tests,
 detekt, spotlessCheck and installDist pass; package/native/physical acceptance remain open.
+
+The clean36 candidate38 ARM64 Click is built/reviewed, SHA256
+`ac5a4afc1dff19b75f55130642638a08d88674e992c194077229b3fd48a999df`,
+148153344 bytes, clean199977597f. It is not installed: SSH still times out. M2 evidence
+contains the next bounded protected-chunk storage brief and native production acceptance
+gates; no workaround or system credential-service change has been implemented.

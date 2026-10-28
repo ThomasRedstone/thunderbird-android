@@ -3866,3 +3866,64 @@ schema16 assertion in the signature fixture; current probe schema assertions now
 Production36 is not packaged or installed; frozen35 and its matching native-driver JAR stay
 unchanged. New native migration/history and physical acceptance remain open. Provider
 registration, Content Hub permission and offline phone gates remain unchanged.
+
+
+Immutable36 candidate38 is built from clean `199977597fe5c76a09f19b906d5e496187436aff`,
+with an empty SOURCE-CHANGES patch. Artifact:
+`app-ubuntu-touch/build/ut-candidate-38/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.36_arm64.click`.
+Size148153344 bytes; SHA256 `ac5a4afc1dff19b75f55130642638a08d88674e992c194077229b3fd48a999df`.
+`/tmp/thunderbird-036-click.log`, build24288 exit0: Click review and ARM64 launcher/JVM/AWT/
+Skiko verification pass. Same pinned builder and verified candidate5 runtime reuse; this is
+not cold/CI reproducibility evidence. A fresh SSH ConnectTimeout10 check still times out.
+No36 transfer/install/native test occurred; installed34/fleet pin remain last verified.
+Preserve36 unchanged; subsequent production changes require37.
+
+### Next bounded work: protected large-payload storage (implementation not started)
+
+The production SignOn transport accepts small secrets but times out reading8192/39997-byte
+payloads. An isolated service-library repair is proven only in private probes, not deployed.
+OAuthTokenStore accepts up to40000 encoded bytes (binary formats2–4); AccountPasswords uses
+DataOutput.writeUTF twice. CredentialStore itself accepts arbitrary bytes. Consequently a
+new manifest must not be detected by guessing that caller bytes have a particular prefix.
+
+Implement an app-local protected chunk owner around the existing SignonCredentialStore,
+keeping public CredentialStore read/write/delete semantics. Use a separate, reserved internal
+manifest alias namespace, disjoint from account/OAuth keys, and immutable random-generation
+chunk aliases. All chunks and the manifest stay in SignOn. Start with at most1024 raw bytes
+per chunk, based on native baseline evidence; the repeated production native test is the
+acceptance gate, not an assumption that chunking fixes the transport. Keep logical payload
+limits compatible with existing codecs; reject oversized input before allocating identities.
+
+A private SQLite ownership journal must durably record root/generation/chunk aliases before
+creating protected secrets. It may store identifiers and lengths, never payloads or hashes
+of secret bytes. Put payload digest, count, total length, format and root binding inside the
+protected manifest. Validate root ownership, exact count/length, digest and no trailing data;
+missing/mixed/foreign chunks fail closed. Clear temporary byte arrays on all paths. Preserve
+legacy reads without interpreting arbitrary old bytes as manifests. Legacy large reads may
+still require reauthentication; do not claim an impossible automatic migration.
+
+Write all new immutable chunks before replacing the small protected manifest. That replacement
+is the commit point. A lost write reply can mean it committed: reopen the protected manifest
+to identify the active generation, retain all ownership records when unavailable/locked, and
+never delete a possibly active generation or replay an ambiguous write automatically. The
+single account-owner monitor must cover replacement/removal/refresh. Keep old generations
+until the new pointer is confirmed; journal retirement before cleanup. Failed retirement must
+remain discoverable and retryable, including for active accounts. Root deletion must retain
+owned-generation metadata until all owned secrets are deleted; integrate existing pending
+credential cleanup instead of silently forgetting children. Establish how an uncertain manifest
+write is surfaced to the caller before integrating account setup; do not turn an unconfirmed
+write into apparent success. No background/multiple-process ownership claim.
+
+Acceptance: fake Signon backend refusing reads above1024 supports complete8192/39997-byte
+round trips and replacement across fresh store/database instances. Failure tests cover partial
+chunk write, root write before/after commit with lost acknowledgement, locked/missing/corrupt
+manifest or chunk, mixed generations, legacy bytes including manifest-like prefixes, interrupted
+delete and cleanup retry. Assert no secret bytes/digests in SQLite/logs and no orphan metadata
+loss on failure. Run full app/quality/distribution checks, then package a new immutable version.
+On reachable FP4, use the normal enforcing profile and unmodified production keyring for
+repeated fresh-JVM8192/39997 reads, rotation and cleanup; private-service success is insufficient.
+
+Exclusions: system SignOn/library replacement, plaintext fallbacks, new permissions, provider
+OAuth registrations, fleet-wide changes, protocol/shared-module changes and release acceptance.
+This brief records intended implementation and gates, not a completed workaround or security
+review. Continue other roadmap requirements if the native gate remains unavailable.

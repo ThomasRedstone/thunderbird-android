@@ -2,6 +2,20 @@
 
 Updated 2026-10-28. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture. The user requested this handover and a fresh context after a long session. The handover captured an intentionally incomplete prototype; subsequent progress is recorded in the resume update below.
 
+## Fresh session starting point
+
+This section supersedes historical prototype failures and next-action lists below. Stop implementation here for the user's requested context reset.
+
+- Branch `feat/ubuntu-touch-demo`; last implementation commit `25d8ed7d7f0363043c892f826e0573104f28453e`, pushed. API conversion `2e0595420f` and canonical favourite fix are complete: JVM15 and Android host15 tests pass; full legacy Android consumer compiles; detekt and spotlessCheck pass.
+- **Current unfinished work is the internal list module**, not the API. Its working-tree migration uses KMP Compose, moves the canonical state machine, side-effect handlers, GetAccountFolders/GetMessageListPreferences, UID-prefix provider and MessageListItem into commonMain, and adds shared Koin wiring. Android page/resources/dialogs/platform adapters remain androidMain. Canonical machine tests and RecordingFunctions helper moved to commonTest; other tests are androidHostTest. Preserve all moves and the changed dependency audit.
+- Latest command is terminal **failed**, `/tmp/thunderbird-mobile-list-state-kmp-2.log`, BUILD FAILED in16s,1023 tasks. Android host-test compilation cannot resolve `preview` in `src/androidHostTest/kotlin/net/thunderbird/feature/mail/message/list/internal/ui/MessageListScreenRendererTest.kt:43`. The earlier missing common RecordingFunctions helper was moved, resolving that earlier test compile issue. Do not claim this invocation passed or infer test totals from old XML. Process handle17414 is gone; no Gradle wrapper/worker process was found at handover.
+- Next inspect the preview import and KMP source-set/test dependencies, preserving the real renderer test. Then rerun internal JVM tests, Android host tests, detekt, spotlessApply and legacy UI compile with the standard flags below; inspect XML and final spotlessCheck. Do not edit source while those dependent tasks run. No implementation fix was attempted during this handover.
+- The actual canonical page still needs portable accessibility strings and swipe theme/resource adapters. Full canonical screen rendering, UT assembly and phone acceptance remain undone. Reuse the existing mobile UI; do not extend the separate preview UI by default.
+- Eight app-local search files remain intentionally dirty and separately preserved on `checkpoint/ut-search-ui-before-reuse-review` (`b9bd9c4d2da1ae15105411a7a08ba899ea25fd4f`). Do not stage/reset them with the internal migration. The historical API checkpoint is superseded by completed API commits.
+- Pending decisions remain `q-ar74` (OAuth ownership/client registrations), `q-jk4j` (Content Hub permission); phone blocker `b-omq6` remains. Last phone34/schema15; immutable37/schema19 is packaged but uninstalled. No provider or native acceptance is implied.
+
+Read Desk first, AGENTS.md, this section, corrected dependency audit and roadmap. Review git status before any checkout or staging. The full roadmap is unfinished; earlier percentages and timelines are unvalidated. No active implementation/build is intentionally left running.
+
 ## Resume update after the handover
 
 Work resumed under the continuing goal. The API conversion is now committed as `2e0595420f`; the favourite callback

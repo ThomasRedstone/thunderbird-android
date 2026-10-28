@@ -1,23 +1,34 @@
 plugins {
-    id(ThunderbirdPlugins.Library.androidCompose)
+    id(ThunderbirdPlugins.Library.kmpCompose)
 }
 
-android {
-    namespace = "net.thunderbird.feature.mail.message.list"
-}
+kotlin {
+    android {
+        namespace = "net.thunderbird.feature.mail.message.list"
+        androidResources.enable = true
+    }
 
-dependencies {
-    api(libs.tb.mobile.components.core.outcome)
+    sourceSets {
+        commonMain.dependencies {
+            api(libs.tb.mobile.components.core.outcome)
+            api(projects.core.ui.contract)
 
-    implementation(projects.core.android.account)
-    implementation(projects.core.common)
-    implementation(projects.core.featureflag)
-    implementation(projects.core.preference.api)
-    implementation(projects.core.ui.compose.common)
-    implementation(projects.feature.account.api)
-    implementation(projects.feature.mail.account.api)
-    implementation(projects.feature.mail.folder.api)
-    implementation(projects.feature.notification.api)
+            implementation(projects.core.common)
+            implementation(projects.core.featureflag)
+            implementation(projects.core.preference.api)
+            implementation(projects.feature.account.api)
+            implementation(projects.feature.mail.account.api)
+            implementation(projects.feature.mail.folder.api)
+            implementation(projects.feature.notification.api)
+        }
+        commonTest.dependencies {
+            implementation(libs.tb.mobile.components.ui.testing)
+        }
+        androidMain.dependencies {
+            implementation(projects.core.android.account)
+            implementation(libs.androidx.fragment)
+        }
+    }
 }
 
 codeCoverage {

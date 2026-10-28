@@ -130,7 +130,8 @@ internal class UtAccountManager(
     }
 
     @Synchronized
-    fun hasPendingCredentialCleanup(): Boolean = storage.unusedCredentialKeys().isNotEmpty()
+    fun hasPendingCredentialCleanup(): Boolean =
+        storage.unusedCredentialKeys().isNotEmpty() || credentials.hasPendingCleanup()
 
     @Synchronized
     fun cleanupUnusedCredentials(): Boolean {
@@ -143,7 +144,7 @@ internal class UtAccountManager(
             // The active account remains committed; report pending cleanup rather than a failed password change.
             return false
         }
-        return true
+        return credentials.cleanupPending()
     }
 
     private fun writePasswords(key: String, passwords: AccountPasswords) {

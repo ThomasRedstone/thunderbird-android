@@ -12,6 +12,8 @@ internal interface CredentialStore {
     fun read(key: String): ByteArray?
     fun write(key: String, value: ByteArray)
     fun delete(key: String)
+    fun hasPendingCleanup(): Boolean = false
+    fun cleanupPending(): Boolean = true
 }
 
 internal enum class SecretFailure { UNAVAILABLE, LOCKED, PROMPT_REQUIRED, INVALID_REPLY }

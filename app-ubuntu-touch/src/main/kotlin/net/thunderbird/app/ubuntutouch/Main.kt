@@ -109,7 +109,14 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single { MailDatabase(mailDatabasePath()) }
             single { AccountSettingsStorage(get()) }
             single<CredentialStore> {
-                if (isUbuntuTouch) SignonCredentialStore(SignonIdentityIndex(get())) else SecretServiceCredentialStore()
+                if (isUbuntuTouch) {
+                    ChunkedCredentialStore(
+                        SignonCredentialStore(SignonIdentityIndex(get())),
+                        ProtectedPayloadJournal(get()),
+                    )
+                } else {
+                    SecretServiceCredentialStore()
+                }
             }
             single { OAuthProviderRegistry() }
             single { UtAccountManager(get(), get(), get()) }

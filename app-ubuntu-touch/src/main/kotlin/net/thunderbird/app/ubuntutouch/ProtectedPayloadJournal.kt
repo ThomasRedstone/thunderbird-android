@@ -7,12 +7,17 @@ internal data class ProtectedPayloadGeneration(val id: UUID, val chunks: Int) {
 }
 
 /** Ownership only. No secret bytes or secret-derived digests enter this database. */
+@Suppress("TooManyFunctions") // Explicit durable lifecycle steps keep secret operations outside SQLite transactions.
 internal class ProtectedPayloadJournal(private val database: MailDatabase) {
     fun begin(root: String, bytes: Int): ProtectedPayloadGeneration = database.transaction {
         protectedManifestKey(root)
         require(bytes in 0..MAX_PROTECTED_PAYLOAD_BYTES)
         check(!isDeleting(root)) { "Protected deletion pending" }
-        database.execute("INSERT OR IGNORE INTO protected_payload_roots(root,deleting) VALUES(?,0)", root)
+        database.execute(
+            "INSERT INTO protected_payload_roots(root,deleting) VALUES(?,0) " +
+                "ON CONFLICT(root) DO UPDATE SET cleanup_pending=1",
+            root,
+        )
         val generation = ProtectedPayloadGeneration(
             UUID.randomUUID(),
             (bytes + PROTECTED_CHUNK_BYTES - 1) / PROTECTED_CHUNK_BYTES,
@@ -36,12 +41,41 @@ internal class ProtectedPayloadJournal(private val database: MailDatabase) {
         root,
     ) { getLong(0) != 0L }.singleOrNull() == true
 
+    fun contains(root: String): Boolean = database.query(
+        "SELECT count(*) FROM protected_payload_roots WHERE root=?",
+        root,
+    ) { getLong(0) }.single() != 0L
+
+    fun markPointerAttempt(root: String) {
+        check(contains(root) && !isDeleting(root))
+        database.execute("UPDATE protected_payload_roots SET pointer_attempted=1 WHERE root=?", root)
+    }
+
+    fun pointerAttempted(root: String): Boolean = database.query(
+        "SELECT pointer_attempted FROM protected_payload_roots WHERE root=?",
+        root,
+    ) { getLong(0) != 0L }.singleOrNull() == true
+
+    fun pendingRoots(): List<String> = database.query(
+        "SELECT root FROM protected_payload_roots WHERE cleanup_pending=1 ORDER BY rowid",
+    ) { getText(0) }
+
+    fun markClean(root: String) {
+        database.execute("UPDATE protected_payload_roots SET cleanup_pending=0 WHERE root=? AND deleting=0", root)
+    }
+
+    /** Only after observing no protected manifest and deleting all uncommitted owned generations. */
+    fun abandon(root: String) = database.transaction {
+        check(!isDeleting(root) && !pointerAttempted(root) && generations(root).isEmpty())
+        database.execute("DELETE FROM protected_payload_roots WHERE root=?", root)
+    }
+
     /** Commit before deleting the protected pointer so a crash cannot resurrect the legacy value. */
     fun markDeleting(root: String) {
         protectedManifestKey(root)
         database.execute(
             "INSERT INTO protected_payload_roots(root,deleting) VALUES(?,1) " +
-                "ON CONFLICT(root) DO UPDATE SET deleting=1",
+                "ON CONFLICT(root) DO UPDATE SET deleting=1,cleanup_pending=1",
             root,
         )
     }

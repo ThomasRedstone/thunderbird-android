@@ -125,7 +125,7 @@ class ProtectedPayloadTest {
             val testSubject = ProtectedPayloadJournal(database)
             assertThat(SignonIdentityIndex(database).find("legacy")).isEqualTo(42L)
             assertThat(testSubject.begin("fixture", 8192).chunks).isEqualTo(8)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(18L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(19L)
         }
     }
 }

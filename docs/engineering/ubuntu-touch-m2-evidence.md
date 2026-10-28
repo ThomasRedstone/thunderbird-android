@@ -3962,3 +3962,53 @@ reads capped1024, partial writes, lost pointer acknowledgements before/after com
 missing/corrupt chunks and interrupted deletion; then native production-keyring round trips.
 No37 package or phone changes. Frozen36 remains unchanged. No new permissions, provider
 registration, system-service/library replacement or plaintext fallback.
+
+
+### Integrated protected chunk owner (development37/schema19)
+
+ChunkedCredentialStore now wraps SignonCredentialStore in Ubuntu Touch Main/Koin wiring.
+Each new write durably owns immutable generation aliases before sending at-most1024-byte
+chunks. The small protected manifest commits last; acknowledgement is followed by protected
+readback and root/generation/length/digest validation. A lost acknowledgement propagates
+failure without automatic replay or apparent success. Reads assemble exact chunk lengths,
+validate the full digest and clear intermediate chunk/manifest buffers; assembled values
+clear on failed reads. Legacy arbitrary byte payloads remain readable from their old alias
+when no chunk owner exists, without format-prefix guessing. A journal-owned missing pointer
+fails closed instead of silently falling back to an older legacy credential.
+
+Schema18→19 adds durable cleanup_pending and pointer_attempted markers, preserving18 ownership
+rows. Mark pointer_attempted BEFORE any manifest write. If a pointer is missing after that
+boundary, retirement retains every generation and reports pending failure; it cannot assume
+that a commit never happened. Partial chunk failures before the pointer boundary can be
+cleaned to restore the unchanged legacy path. Explicit deletion tombstones before removing
+pointer/legacy/chunks, retaining ownership until every native delete succeeds; retries are
+idempotent and cannot resurrect a legacy credential. No cross-process/background safety claim.
+
+Confirmed replacements survive a temporarily unavailable retirement operation. Pending cleanup
+is discoverable through CredentialStore lifecycle methods and UtAccountManager's existing
+credential-cleanup UI, including retired generations for active accounts. Retry classifies
+the protected active pointer before deleting other generations and clears ownership only
+after native deletion. This does not automatically rewrite any root pointer. Existing manager
+replacement/deletion/refresh serialization owns all production access.
+
+Full473 app tests pass, zero failures/errors/skips, plus detekt, spotlessCheck and installDist:
+`/tmp/thunderbird-037-chunk-full.log`. Thirteen new tests cover8192/39997-byte round trips
+against a backend refusing reads above1024, database reopen, intermediate-buffer zeroing,
+no payload/digest sequence in SQLite, partial chunks, lost pointer reply before/after commit,
+missing committed pointer, missing/wrong-size/mixed chunks and foreign manifests, interrupted
+delete/reopen/retry, retirement retry preserving another root, arbitrary legacy bytes/locked
+storage, account cleanup discovery, initial pointer failure retention, actual account password
+replacement through the capped backend and schema18 migration. Focused owner/foundation/UI
+cleanup run passed before the additional account/migration cases; full run covers all cases.
+Earlier development checks caught style issues and a mistaken test method name, corrected.
+
+This is host verification, not production-native acceptance. No37 package/install yet;36 is
+still the latest frozen package and34 the last verified phone installation. Existing native
+protocol probes use raw SignonCredentialStore and do not prove the new Main adapter. Prepare
+a matching37 enforcing-profile synthetic chunk probe, including fresh-JVM repeated8192/39997
+reads, rotation, pending cleanup and keyring/index emptiness after removal, then build/review
+and deploy37 with backup/migration guards when FP4 is reachable. Measure per-chunk identity/
+connection overhead and restart/lock behaviour before acceptance. Large legacy raw credentials
+may still time out; explicit reauthentication/overwrite is needed, not a fictitious automatic
+migration. Lost first-pointer outcomes remain retained until explicit deletion/replacement.
+No system SignOn replacement, new permission, OAuth registry entry or plaintext fallback.

@@ -166,7 +166,7 @@ class MailMoveStoreTest {
             assertThat(recovered.kind).isEqualTo(MailMoveKind.MOVE)
             assertThat(recovered.state).isEqualTo(MailMoveState.UNKNOWN)
             assertThat(MailMovePayloadStore(database).info(account, recovered.id)?.bytes).isEqualTo(7L)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(18L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(19L)
         }
     }
 
@@ -512,7 +512,7 @@ class MailMoveStoreTest {
             database.execute("PRAGMA user_version=11")
         }
         MailDatabase(path).use { database ->
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(18L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(19L)
             assertThat(MailSignatureStore(database).read(account).text).isEqualTo("Fixture")
             assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
             assertThat(MailMoveStore(database).list(account)).isEqualTo(emptyList())

@@ -21,7 +21,8 @@ private const val CACHE_BINDING_SCHEMA_VERSION = 14L
 private const val MOVE_PAYLOAD_SCHEMA_VERSION = 15L
 private const val COPY_KIND_SCHEMA_VERSION = 16L
 private const val MOVE_IDENTITY_SCHEMA_VERSION = 17L
-private const val CURRENT_SCHEMA_VERSION = 18L
+private const val PROTECTED_PAYLOAD_SCHEMA_VERSION = 18L
+private const val CURRENT_SCHEMA_VERSION = 19L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -53,7 +54,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < MOVE_PAYLOAD_SCHEMA_VERSION) createMovePayloadSchema()
             if (version < COPY_KIND_SCHEMA_VERSION) createCopyKindSchema()
             if (version < MOVE_IDENTITY_SCHEMA_VERSION) createMoveIdentitySchema()
-            if (version < CURRENT_SCHEMA_VERSION) createProtectedPayloadSchema()
+            if (version < PROTECTED_PAYLOAD_SCHEMA_VERSION) createProtectedPayloadSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createProtectedPointerSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
@@ -99,6 +101,17 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createProtectedPointerSchema() = transaction {
+        val columns = query("PRAGMA table_info(protected_payload_roots)") { getText(1) }
+        if ("cleanup_pending" !in columns) {
+            execute("ALTER TABLE protected_payload_roots ADD COLUMN cleanup_pending INTEGER NOT NULL DEFAULT 1")
+        }
+        if ("pointer_attempted" !in columns) {
+            execute("ALTER TABLE protected_payload_roots ADD COLUMN pointer_attempted INTEGER NOT NULL DEFAULT 0")
+        }
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createProtectedPayloadSchema() = transaction {
         execute(
             """CREATE TABLE IF NOT EXISTS protected_payload_roots (
@@ -109,7 +122,7 @@ internal class MailDatabase(path: Path) : AutoCloseable {
                 root TEXT NOT NULL REFERENCES protected_payload_roots(root), generation TEXT NOT NULL,
                 chunks INTEGER NOT NULL CHECK(chunks BETWEEN 0 AND 40), PRIMARY KEY(root,generation))""",
         )
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$PROTECTED_PAYLOAD_SCHEMA_VERSION")
     }
 
     private fun createMoveIdentitySchema() = transaction {

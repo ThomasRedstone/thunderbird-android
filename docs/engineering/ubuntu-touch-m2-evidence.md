@@ -4012,3 +4012,24 @@ connection overhead and restart/lock behaviour before acceptance. Large legacy r
 may still time out; explicit reauthentication/overwrite is needed, not a fictitious automatic
 migration. Lost first-pointer outcomes remain retained until explicit deletion/replacement.
 No system SignOn replacement, new permission, OAuth registry entry or plaintext fallback.
+
+
+### Matching37 native chunk driver preparation
+
+ConfinedChunkedCredentialProbe requires the exact37 enforcing profile and normal production
+SignOn service. Prepare creates a private synthetic fixture with two owned roots, writes8192
+and39997-byte values and repeats each read three times. A fresh JVM verify-remove reopens
+both roots, repeats reads, rotates the8192 root to39997 and back, deletes both, and checks
+pending cleanup, owned journal/index emptiness and SQLite quick_check. Cleanup mode permits
+recovery after a failed prepare; the root marker precedes secrets, and failures retain the
+fixture. No credential payload or reply is printed. Before deleting local fixture files,
+validation rejects symlinks, foreign paths and unexpected files.
+
+Two host tests pass for full prepare/reopen/rotation/removal and fixture path safety. Full475
+app tests, zero failures/errors/skips, detekt/installDist/spotlessApply pass in
+`/tmp/thunderbird-037-chunk-driver-full.log`. Exact37 profile guards were then updated for
+migration/Copy/recovery, with compileTestKotlin/detekt/spotlessCheck pass in
+`/tmp/thunderbird-037-driver-profile-check.log` (no production logic change).
+Frozen driver: `build/evidence/native-037/candidate-037-native-probes.jar`, 6 classes,
+SHA256 `3295a548eee77dac4c7a782b72f4b3e90cdff5b99e2b2594cf2341de3078cd87`. Older frozen35 drivers remain unchanged. This is prepared host evidence,
+not a native pass. SSH ConnectTimeout10 still timed out; no37 deployment occurred.

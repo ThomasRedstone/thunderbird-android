@@ -28,7 +28,7 @@ object ConfinedMoveProtocolProbe {
             "trash" -> MailFolderRole.TRASH
             else -> null
         }
-        val profile = "mail-demo.thomasredstone_mail-demo_0.1.35"
+        val profile = "mail-demo.thomasredstone_mail-demo_0.1.37"
         check(args[0] == profile)
         check(Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000') == "$profile (enforce)")
         val parent = Path.of(System.getProperty("user.home"), ".cache", "mail-demo.thomasredstone", "probes")

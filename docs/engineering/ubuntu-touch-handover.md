@@ -1,30 +1,34 @@
 # Ubuntu Touch mail port handover
 
-Updated 2026-10-28. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture. The user requested this handover and a fresh context after a long session. The handover captured an intentionally incomplete prototype; subsequent progress is recorded in the resume update below.
+Updated 2026-10-28. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
 ## Fresh session starting point
 
-This section supersedes historical prototype failures and next-action lists below. Stop implementation here for the user's requested context reset.
+This section supersedes historical prototype failures and next-action lists below.
 
-- Branch `feat/ubuntu-touch-demo`; last implementation commit `25d8ed7d7f0363043c892f826e0573104f28453e`, pushed. API conversion `2e0595420f` and canonical favourite fix are complete: JVM15 and Android host15 tests pass; full legacy Android consumer compiles; detekt and spotlessCheck pass.
-- **Current unfinished work is the internal list module**, not the API. Its working-tree migration uses KMP Compose, moves the canonical state machine, side-effect handlers, GetAccountFolders/GetMessageListPreferences, UID-prefix provider and MessageListItem into commonMain, and adds shared Koin wiring. Android page/resources/dialogs/platform adapters remain androidMain. Canonical machine tests and RecordingFunctions helper moved to commonTest; other tests are androidHostTest. Preserve all moves and the changed dependency audit.
-- Latest command is terminal **failed**, `/tmp/thunderbird-mobile-list-state-kmp-2.log`, BUILD FAILED in16s,1023 tasks. Android host-test compilation cannot resolve `preview` in `src/androidHostTest/kotlin/net/thunderbird/feature/mail/message/list/internal/ui/MessageListScreenRendererTest.kt:43`. The earlier missing common RecordingFunctions helper was moved, resolving that earlier test compile issue. Do not claim this invocation passed or infer test totals from old XML. Process handle17414 is gone; no Gradle wrapper/worker process was found at handover.
-- Next inspect the preview import and KMP source-set/test dependencies, preserving the real renderer test. Then rerun internal JVM tests, Android host tests, detekt, spotlessApply and legacy UI compile with the standard flags below; inspect XML and final spotlessCheck. Do not edit source while those dependent tasks run. No implementation fix was attempted during this handover.
-- The actual canonical page still needs portable accessibility strings and swipe theme/resource adapters. Full canonical screen rendering, UT assembly and phone acceptance remain undone. Reuse the existing mobile UI; do not extend the separate preview UI by default.
-- Eight app-local search files remain intentionally dirty and separately preserved on `checkpoint/ut-search-ui-before-reuse-review` (`b9bd9c4d2da1ae15105411a7a08ba899ea25fd4f`). Do not stage/reset them with the internal migration. The historical API checkpoint is superseded by completed API commits.
-- Pending decisions remain `q-ar74` (OAuth ownership/client registrations), `q-jk4j` (Content Hub permission); phone blocker `b-omq6` remains. Last phone34/schema15; immutable37/schema19 is packaged but uninstalled. No provider or native acceptance is implied.
+- Branch `feat/ubuntu-touch-demo`; last implementation commit `008e3d111e0e85387d559814402633005cb37719`, pushed.
+- Both the **API module** (`feature/mail/message/list/api`, commit `2e0595420f` + `25d8ed7d7f`) and the **internal list module** (`feature/mail/message/list/internal`, commit `008e3d111e`) are now fully migrated to KMP Compose.
+- The `preview` package resolution failure in `MessageListScreenRendererTest.kt` was resolved by moving the Compose previews and preview helpers from `src/debug` into `src/androidMain` where KMP source-set conventions make them accessible to `androidHostTest`.
+- Verification passed cleanly:
+  - `api`: 15 JVM tests, 15 Android host tests pass.
+  - `internal`: 25 JVM tests, 140 Android host tests pass (1 upstream test skipped with `@Ignore`).
+  - Code quality: `detekt` and `spotlessCheck` pass.
+  - Legacy UI consumer: `:legacy:ui:legacy:compileDebugKotlin` compiles cleanly.
+- Eight app-local search files remain intentionally dirty and separately preserved on `checkpoint/ut-search-ui-before-reuse-review` (`b9bd9c4d2da1ae15105411a7a08ba899ea25fd4f`). Do not stage or reset them.
+- **Next milestone**: Continue canonical mobile list page rendering. The canonical page (`MessageListPage.kt` / `MessageList.kt`) still requires portable accessibility string resources and swipe theme/action resource adapters to render on Compose Desktop/JVM. Then wire via shared composition, assemble for Ubuntu Touch, and run device acceptance.
+- Pending decisions remain `q-ar74` (OAuth ownership/client registrations), `q-jk4j` (Content Hub permission); phone blocker `b-omq6` remains. Last phone34/schema15; immutable37/schema19 is packaged but uninstalled.
 
-Read Desk first, AGENTS.md, this section, corrected dependency audit and roadmap. Review git status before any checkout or staging. The full roadmap is unfinished; earlier percentages and timelines are unvalidated. No active implementation/build is intentionally left running.
+## Resume update after internal list migration
 
-## Resume update after the handover
+Work resumed under the continuing goal. The internal list module migration is now committed as `008e3d111e`:
+1. Converted `feature/mail/message/list/internal` to `thunderbird.library.kmp.compose`.
+2. Extracted canonical state machine, side-effect handlers, `GetAccountFolders`, `GetMessageListPreferences`, `LocalMessageUidPrefixProvider`, and `MessageListItem` to `commonMain`.
+3. Added `sharedMessageListModule` Koin module in `commonMain` and included it in Android's `featureMessageListModule`.
+4. Moved Compose preview helpers and previews from `src/debug` into `src/androidMain`.
+5. Moved state machine unit tests and `RecordingFunctions` to `commonTest`.
+6. Verified: internal jvmTest (25 passed), internal testAndroidHostTest (140 passed, 1 pre-existing ignored), detekt passed, spotlessCheck passed, legacy UI consumer compiled.
 
-Work resumed under the continuing goal. The API conversion is now committed as `2e0595420f`; the favourite callback
-failure described below is resolved by forwarding the new Boolean in the canonical MessageItem. JVM15 and Android
-host15 tests pass, including read/unread star toggles both ways and long-press selection. The legacy Android UI consumer
-compiles; detekt and final spotlessCheck pass. See `/tmp/thunderbird-mobile-list-api-interactions-2.log` and
-`/tmp/thunderbird-mobile-list-api-final-check.log`. The historical failing evidence is retained. The separate custom
-search UI is still untouched. Next continue canonical internal list/page/state-machine extraction; the full screen
-and UT/device integration remain incomplete. Read the historical sections below with this update taking precedence.
+Next action is adapting the canonical list page (`MessageListPage`, `MessageListScreenRenderer`) and its platform resources/accessibility strings for shared desktop/JVM rendering.
 
 ## Objective and user correction
 

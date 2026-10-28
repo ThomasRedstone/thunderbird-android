@@ -14,6 +14,22 @@ import org.junit.Test
 
 class MailMoveScreenTest : ComposeUiTestHarness() {
     @Test
+    fun `reader copy request keeps the actual message context and COPY kind`() = runComposeTest {
+        val account = AccountIdFactory.create()
+        val key = MailMessageKey(account, "Archive", "42")
+        val state = LiveMailState(
+            emptyList(),
+            account = account,
+            folder = MailFolder("Archive", "Archive"),
+            content = MailContent(MailSummary("42", "Fixture", "Sender", false), "Preview", false),
+        )
+        val events = mutableListOf<MailMoveEvent.Open>()
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state, onMove = events::add, onEvent = {}) } }
+        onNodeWithText("Copy message").performScrollTo().performClick()
+        assertThat(events).isEqualTo(listOf(MailMoveEvent.Open(key, kind = MailMoveKind.COPY)))
+    }
+
+    @Test
     fun `queue requires verified source and synced destination`() = runComposeTest {
         val key = MailMessageKey(AccountIdFactory.create(), "INBOX", "1")
         val initial = MoveOverview(
@@ -63,9 +79,9 @@ class MailMoveScreenTest : ComposeUiTestHarness() {
             folder = MailFolder("Archive", "Archive"),
             content = MailContent(MailSummary("42", "Fixture", "Sender", false), "Preview", false),
         )
-        val events = mutableListOf<MailMessageKey>()
+        val events = mutableListOf<MailMoveEvent.Open>()
         setContent { ThunderbirdBoltTheme { LiveMailScreen(state, onMove = events::add, onEvent = {}) } }
         onNodeWithText("Move message").performScrollTo().performClick()
-        assertThat(events).isEqualTo(listOf(MailMessageKey(account, "Archive", "42")))
+        assertThat(events).isEqualTo(listOf(MailMoveEvent.Open(MailMessageKey(account, "Archive", "42"))))
     }
 }

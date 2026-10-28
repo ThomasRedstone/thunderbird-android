@@ -7,7 +7,7 @@ Partial messages offer an explicit full download. Networking is foreground-only.
 and guarded SMTP attempts are connected to Write: choose an account, create/reopen a draft, edit To/subject/body,
 save or autosave locally, queue offline, then explicitly Send now. Uncertain delivery requires a duplicate-risk
 confirmation before retrying. Background delivery, HTML, attachments and broader daily-use features remain roadmap work. The current development
-version is 0.1.34; device acceptance is recorded separately in the milestone evidence.
+version is 0.1.35; device acceptance is recorded separately in the milestone evidence.
 
 ## Desktop build
 
@@ -162,3 +162,7 @@ and real receiver/phone acceptance remain open; this is not outgoing attachment 
 Development 0.1.34 adds Archive/Move to Trash reader actions. Configure a destination in the
 review flow before queueing; the account's incoming connection binds that choice. These
 actions reuse the explicit move/recovery controls. Permanent deletion is not implemented.
+
+Development 0.1.35 adds Copy message to another folder. Copy keeps its source; review the
+queued operation before Copy now. A previously completed copy to the same destination
+requires explicit duplicate review. Native/physical Copy acceptance is recorded separately.

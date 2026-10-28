@@ -29,13 +29,13 @@ internal fun MailMoveUiState.roleMatchesTarget(): Boolean = role == null || over
 @Composable
 internal fun ReaderFolderRoleActions(
     state: LiveMailState,
-    onOrganize: ((MailMessageKey, MailFolderRole) -> Unit)?,
+    onMove: ((MailMoveEvent.Open) -> Unit)?,
 ) {
     val key = state.moveRequest() ?: return
-    if (onOrganize == null) return
+    if (onMove == null) return
     MailFolderRole.entries.forEach { role ->
         ButtonText(if (role == MailFolderRole.TRASH) "Move to Trash" else role.title, {
-            onOrganize(key, role)
+            onMove(MailMoveEvent.Open(key, role))
         }, enabled = !state.busy)
     }
 }

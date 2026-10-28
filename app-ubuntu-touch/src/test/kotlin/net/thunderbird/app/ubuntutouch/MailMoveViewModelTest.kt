@@ -15,6 +15,59 @@ import org.junit.Test
 
 class MailMoveViewModelTest {
     @Test
+    fun `failed history recovery cannot restore an already consumed repeat copy confirmation`() = runTest {
+        val operations = MoveUiFixture().apply {
+            verified = true
+            ready = true
+            priorCopy = MailMove(
+                "prior", key.account, key.folder, key.uid, "Archive", 1, 2,
+                MailMoveState.COMPLETE, 1, false, "binding", MailMoveKind.COPY,
+            )
+        }
+        val testSubject = MailMoveViewModel(operations, backgroundScope)
+        testSubject.event(MailMoveEvent.Open(operations.key, kind = MailMoveKind.COPY))
+        testSubject.state.first { !it.busy }
+        testSubject.event(MailMoveEvent.Target("Archive"))
+        testSubject.event(MailMoveEvent.ReviewCopyAgain)
+        operations.failOverview = true
+        testSubject.event(MailMoveEvent.ConfirmCopyAgain)
+        val recovered = testSubject.state.first { !it.busy }
+        assertThat(recovered.confirmCopyAgain).isFalse()
+        assertThat(operations.queues).isEqualTo(1)
+        testSubject.event(MailMoveEvent.ConfirmCopyAgain)
+        testSubject.state.first { !it.busy }
+        assertThat(operations.queues).isEqualTo(1)
+        assertThat(operations.submissions).isEqualTo(0)
+    }
+
+    @Test
+    fun `another copy needs a fresh review and queues COPY without submitting it`() = runTest {
+        val operations = MoveUiFixture().apply {
+            verified = true
+            ready = true
+            priorCopy = MailMove(
+                "prior", key.account, key.folder, key.uid, "Archive", 1, 2,
+                MailMoveState.COMPLETE, 1, false, "binding", MailMoveKind.COPY,
+            )
+        }
+        val testSubject = MailMoveViewModel(operations, backgroundScope)
+        testSubject.event(MailMoveEvent.Open(operations.key, kind = MailMoveKind.COPY))
+        testSubject.state.first { !it.busy }
+        testSubject.event(MailMoveEvent.Target("Archive"))
+        testSubject.event(MailMoveEvent.ReviewCopyAgain)
+        testSubject.event(MailMoveEvent.Target("Archive"))
+        testSubject.event(MailMoveEvent.ConfirmCopyAgain)
+        testSubject.state.first { !it.busy }
+        assertThat(operations.queues).isEqualTo(0)
+        testSubject.event(MailMoveEvent.ReviewCopyAgain)
+        testSubject.event(MailMoveEvent.ConfirmCopyAgain)
+        val queued = testSubject.state.first { !it.busy }
+        assertThat(queued.selected?.kind).isEqualTo(MailMoveKind.COPY)
+        assertThat(operations.queues).isEqualTo(1)
+        assertThat(operations.submissions).isEqualTo(0)
+    }
+
+    @Test
     fun `archive and trash require configured destinations and never submit while configuring`() = runTest {
         val operations = MoveUiFixture().apply {
             verified = true
@@ -133,13 +186,18 @@ private class MoveUiFixture : MailMoveOperations {
     var stall = false
     val started = CountDownLatch(1)
     private val stopped = CountDownLatch(1)
+    var failOverview = false
+    var priorCopy: MailMove? = null
     private var saved: MailMove? = null
-    override fun overview(source: MailMessageKey?) = MoveOverview(
-        source?.let { MoveSource(it, "Fixture", verified) },
-        listOf(MoveDestination(MailFolder("Archive", "Archive"), ready)),
-        listOfNotNull(saved?.let { MoveView(it, MailMovePayloadInfo(7, true, null), true) }),
-        roles.toMap(),
-    )
+    override fun overview(source: MailMessageKey?): MoveOverview {
+        check(!failOverview) { "Controlled history failure" }
+        return MoveOverview(
+            source?.let { MoveSource(it, "Fixture", verified, 1) },
+            listOf(MoveDestination(MailFolder("Archive", "Archive"), ready, 2)),
+            listOfNotNull(priorCopy, saved).map { MoveView(it, MailMovePayloadInfo(7, true, null), true) },
+            roles.toMap(),
+        )
+    }
     override fun verify(source: MailMessageKey, operation: MailOperation) {
         verified = true
     }
@@ -153,11 +211,18 @@ private class MoveUiFixture : MailMoveOperations {
     override fun configureRole(source: MailMessageKey, role: MailFolderRole, target: String?) {
         if (target == null) roles.remove(role) else roles[role] = target
     }
-    override fun enqueue(source: MailMessageKey, target: String, role: MailFolderRole?): MailMove {
+    override fun enqueue(
+        source: MailMessageKey,
+        target: String,
+        role: MailFolderRole?,
+        kind: MailMoveKind,
+        acknowledgeDuplicateRisk: Boolean,
+    ): MailMove {
         if (role != null) check(roles[role] == target)
+        if (kind == MailMoveKind.COPY && priorCopy != null) check(acknowledgeDuplicateRisk)
         queues++
         return MailMove(
-            "fixture", key.account, key.folder, key.uid, target, 1, 2, MailMoveState.QUEUED, 0, false, "binding",
+            "fixture", key.account, key.folder, key.uid, target, 1, 2, MailMoveState.QUEUED, 0, false, "binding", kind,
         )
             .also { saved = it }
     }

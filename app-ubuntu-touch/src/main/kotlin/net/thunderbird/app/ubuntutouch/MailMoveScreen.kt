@@ -20,8 +20,8 @@ import net.thunderbird.components.ui.bolt.atom.text.TextTitleLarge
 @Composable
 internal fun MailMoveScreen(state: MailMoveUiState, onEvent: (MailMoveEvent) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextTitleLarge(state.role?.let { "${it.title} message" } ?: "Move messages")
-        MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel move operation") {
+        TextTitleLarge(state.operationTitle())
+        MailOperationStatus(state.busy, state.canCancel, state.cancelling, "Cancel message operation") {
             onEvent(MailMoveEvent.Cancel)
         }
         state.notice?.let { TextBodyLarge(it) }
@@ -29,7 +29,7 @@ internal fun MailMoveScreen(state: MailMoveUiState, onEvent: (MailMoveEvent) -> 
         val selected = state.selected
         when {
             page != null -> {
-                ButtonText("Back to move", { onEvent(MailMoveEvent.Back) }, enabled = !state.busy)
+                ButtonText("Back to review", { onEvent(MailMoveEvent.Back) }, enabled = !state.busy)
                 TextBodyLarge("Retained local copy · Opening these bytes works offline")
                 MailSourceScreen(page, state.busy, {
                     if (it is LiveMailEvent.Source) onEvent(MailMoveEvent.Source(it.offset))
@@ -42,17 +42,17 @@ internal fun MailMoveScreen(state: MailMoveUiState, onEvent: (MailMoveEvent) -> 
                         it.move.account == selected.account
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    ButtonText("Back to move list", { onEvent(MailMoveEvent.Back) }, enabled = !state.busy)
+                    ButtonText("Back to operations", { onEvent(MailMoveEvent.Back) }, enabled = !state.busy)
                     if (view != null) MoveDetails(state, view, onEvent)
                 }
             }
 
             else -> LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { MoveSetup(state, onEvent) }
-                item { TextTitleLarge("Saved moves") }
+                item { TextTitleLarge("Saved operations") }
                 items(state.overview.history, key = { it.move.id }) { view ->
                     ButtonText(
-                        "${view.accountName}: ${view.move.source} → ${view.move.target} · " +
+                        "${view.move.kind.title}: ${view.accountName}: ${view.move.source} → ${view.move.target} · " +
                             view.move.state.displayName(),
                         {
                             onEvent(MailMoveEvent.Select(view.move))
@@ -88,17 +88,13 @@ private fun MoveSetup(state: MailMoveUiState, onEvent: (MailMoveEvent) -> Unit) 
     if (target != null && !target.ready) {
         ButtonText("Sync selected destination", { onEvent(MailMoveEvent.SyncDestination) }, enabled = !state.busy)
     }
-    ButtonText(
-        "Queue move",
-        { onEvent(MailMoveEvent.Queue) },
-        enabled = !state.busy && source.verified && target?.ready == true && state.roleMatchesTarget(),
-    )
-    TextBodyLarge("Queueing saves intent locally. Move now contacts the server from the review screen.")
+    FilingQueueControls(state, onEvent)
 }
 
 @Composable
 private fun MoveDetails(state: MailMoveUiState, view: MoveView, onEvent: (MailMoveEvent) -> Unit) {
-    TextBodyLarge("${view.accountName}: ${view.move.source} → ${view.move.target}")
+    TextBodyLarge("${view.move.kind.title}: ${view.accountName}: ${view.move.source} → ${view.move.target}")
+    CopySourceNotice(view.move.kind)
     TextBodyLarge(
         when (view.move.state) {
             MailMoveState.QUEUED -> "Queued locally; not submitted."
@@ -120,8 +116,13 @@ private fun MoveDetails(state: MailMoveUiState, view: MoveView, onEvent: (MailMo
     }
     when (view.move.state) {
         MailMoveState.QUEUED -> {
-            ButtonText("Move now", { onEvent(MailMoveEvent.Submit) }, enabled = !state.busy && view.sameConnection)
-            ButtonText("Cancel queued move", { onEvent(MailMoveEvent.CancelQueued) }, enabled = !state.busy)
+            ButtonText(
+                "${view.move.kind.title} now",
+                { onEvent(MailMoveEvent.Submit) },
+                enabled =
+                !state.busy && view.sameConnection,
+            )
+            ButtonText("Cancel queued operation", { onEvent(MailMoveEvent.CancelQueued) }, enabled = !state.busy)
         }
 
         MailMoveState.UNKNOWN -> MoveRetryControls(state, view, onEvent)
@@ -135,7 +136,7 @@ private fun MoveDetails(state: MailMoveUiState, view: MoveView, onEvent: (MailMo
             enabled =
             !state.busy && view.sameConnection,
         )
-        TextBodyLarge("Sync never repeats a move. Unverified retained copies are kept.")
+        TextBodyLarge("Sync never repeats an operation. Unverified retained copies are kept.")
     }
     if (view.move.uncertain) {
         TextBodyLarge(
@@ -148,11 +149,11 @@ private fun MoveDetails(state: MailMoveUiState, view: MoveView, onEvent: (MailMo
 private fun MoveRetryControls(state: MailMoveUiState, view: MoveView, onEvent: (MailMoveEvent) -> Unit) {
     if (state.confirmRetry) {
         TextBodyLarge(
-            "Retrying may create a second copy or repeat only part of the move. " +
+            "Retrying may create a second copy or repeat only part of the operation. " +
                 "Continue only after checking both folders.",
         )
         ButtonText(
-            "Retry move despite risk",
+            "Retry ${view.move.kind.title.lowercase()} despite risk",
             { onEvent(MailMoveEvent.ConfirmRetry) },
             enabled =
             !state.busy && view.sameConnection,
@@ -169,10 +170,10 @@ private fun MoveRetryControls(state: MailMoveUiState, view: MoveView, onEvent: (
 }
 
 @Composable
-internal fun ReaderMoveAction(state: LiveMailState, onMove: ((MailMessageKey) -> Unit)?) {
+internal fun ReaderMoveAction(state: LiveMailState, onMove: ((MailMoveEvent.Open) -> Unit)?) {
     val request = state.moveRequest()
     if (onMove != null && request != null) {
-        ButtonText("Move message", { onMove(request) }, enabled = !state.busy)
+        ButtonText("Move message", { onMove(MailMoveEvent.Open(request)) }, enabled = !state.busy)
     }
 }
 
@@ -187,8 +188,7 @@ internal fun LiveMailState.moveRequest(): MailMessageKey? {
 internal fun ReaderTools(
     state: LiveMailState,
     onSave: ((MessageSaveEvent) -> Unit)?,
-    onMove: ((MailMessageKey) -> Unit)?,
-    onOrganize: ((MailMessageKey, MailFolderRole) -> Unit)?,
+    onMove: ((MailMoveEvent.Open) -> Unit)?,
     onEvent: (LiveMailEvent) -> Unit,
 ) {
     Row(Modifier.horizontalScroll(rememberScrollState())) {
@@ -196,7 +196,8 @@ internal fun ReaderTools(
         ReaderSaveAction(state, onSave)
         ReaderAttachmentAction(state, onSave)
         ReaderMoveAction(state, onMove)
-        ReaderFolderRoleActions(state, onOrganize)
+        ReaderCopyAction(state, onMove)
+        ReaderFolderRoleActions(state, onMove)
     }
 }
 

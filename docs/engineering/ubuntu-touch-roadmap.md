@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.34 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 439 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 450 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.34 embeds clean `1f248250f6`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.34 install verified; local fleet `c1a763f` pins its exact artifact/hash | Physical foreground, intermittent launch-wrapper registry errors, broader cancellation and lifecycle verification |
 
@@ -521,3 +521,14 @@ verification of exactly one intact destination copy. Latest launch returned0 and
 owned app window; physical role configuration/review and broader lifecycle acceptance remain
 open. Full 439 tests pass. Prior intermittent launch registry failures are not considered
 resolved by one successful launch.
+
+Development 0.1.35/schema16 adds source-preserving Copy to another folder through the existing
+reviewed filing owner. Copy is persisted as a distinct operation; old journal records migrate
+as MOVE. The source is opened read-only and UID COPY is used. A new copy to the same verified
+destination generation requires a fresh, explicit duplicate-copy review. Unknown attempts
+retain their snapshot and cannot be silently replayed or queued around. Full 450 tests and
+quality/distribution checks pass, including independent TLS mailbox assertions, source UID/
+flag preservation, intentional repeats, lost acknowledgements and legacy migration. Installed
+34 remains unchanged at this checkpoint. Native/physical Copy, remaining interruption cases,
+unknown-outcome resolution, same-folder duplication/parity, bulk operations, permanent deletion
+and broader folder management remain open.

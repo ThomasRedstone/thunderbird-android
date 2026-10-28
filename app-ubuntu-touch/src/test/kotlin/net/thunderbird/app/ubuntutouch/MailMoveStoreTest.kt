@@ -19,6 +19,101 @@ class MailMoveStoreTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `repeat copy review is scoped to the destination generation`() = fixture { database, account, store ->
+        val key = MailMessageKey(account, "INBOX", "1")
+        val first = store.enqueue(key, "Archive", MailMoveKind.COPY)
+        store.finish(store.claim(first), confirmed = true)
+        PersistentBackendStorage(database, account.toString()).getFolder("Archive")
+            .setFolderExtraNumber("imapUidValidity", 3)
+        assertThat(store.enqueue(key, "Archive", MailMoveKind.COPY).targetValidity).isEqualTo(3L)
+    }
+
+    @Test
+    fun `a verified new connection does not inherit a different connections completed move`() = fixture {
+            database,
+            account,
+            store,
+        ->
+        val key = MailMessageKey(account, "INBOX", "1")
+        store.finish(store.claim(store.enqueue(key, "Archive")), confirmed = true)
+        val settings = AccountSettingsStorage(database)
+        val original = settings.all().single()
+        val changed = original.copy(incoming = original.incoming.copy(host = "changed.example.invalid"))
+        settings.update(changed)
+        val binding = mailCacheBinding(changed)
+        database.execute("UPDATE messages SET origin_binding=?", binding)
+        PersistentBackendStorage(database, account.toString()).getFolder("Archive")
+            .setFolderExtraString(CACHE_BINDING_KEY, binding)
+        assertThat(store.enqueue(key, "Archive", MailMoveKind.COPY).binding).isEqualTo(binding)
+    }
+
+    @Test
+    fun `completed copies require review for repeats and do not prevent a later move`() = fixture { _, account, store ->
+        val key = MailMessageKey(account, "INBOX", "1")
+        val first = store.enqueue(key, "Archive", MailMoveKind.COPY)
+        assertThat(first.kind).isEqualTo(MailMoveKind.COPY)
+        store.finish(store.claim(first), confirmed = true)
+        assertThat(runCatching { store.enqueue(key, "Archive", MailMoveKind.COPY) }.isFailure).isTrue()
+        val repeated = store.enqueue(key, "Archive", MailMoveKind.COPY, acknowledgeDuplicateRisk = true)
+        assertThat(repeated.id == first.id).isEqualTo(false)
+        store.cancelQueued(repeated)
+        val move = store.enqueue(key, "Archive")
+        assertThat(move.kind).isEqualTo(MailMoveKind.MOVE)
+        store.finish(store.claim(move), confirmed = true)
+        assertThat(
+            runCatching {
+                store.enqueue(key, "Archive", MailMoveKind.COPY, acknowledgeDuplicateRisk = true)
+            }.isFailure,
+        ).isTrue()
+    }
+
+    @Test
+    fun `interrupted copy reopens with its kind and retained payload and cannot be queued around`() {
+        val path = directory.root.toPath().resolve("copy.sqlite")
+        lateinit var account: AccountId
+        lateinit var id: String
+        MailDatabase(path).use { database ->
+            account = populate(database)
+            val store = MailMoveStore(database)
+            id = store.claim(store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive", MailMoveKind.COPY)).id
+        }
+        MailDatabase(path).use { database ->
+            val store = MailMoveStore(database)
+            val recovered = store.get(account, id)
+            assertThat(recovered.kind).isEqualTo(MailMoveKind.COPY)
+            assertThat(recovered.state).isEqualTo(MailMoveState.UNKNOWN)
+            assertThat(recovered.uncertain).isTrue()
+            assertThat(runCatching { store.claim(recovered) }.isFailure).isTrue()
+            assertThat(
+                runCatching {
+                    store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+                }.isFailure,
+            ).isTrue()
+            assertThat(MailMovePayloadStore(database).info(account, id)?.bytes).isEqualTo(7L)
+        }
+    }
+
+    @Test
+    fun `schema fifteen records migrate as moves without losing uncertain recovery bytes`() {
+        val path = directory.root.toPath().resolve("legacy-copy.sqlite")
+        lateinit var account: AccountId
+        MailDatabase(path).use { database ->
+            account = populate(database)
+            val store = MailMoveStore(database)
+            store.claim(store.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive"))
+            database.execute("ALTER TABLE mail_moves DROP COLUMN kind")
+            database.execute("PRAGMA user_version=15")
+        }
+        MailDatabase(path).use { database ->
+            val recovered = MailMoveStore(database).list(account).single()
+            assertThat(recovered.kind).isEqualTo(MailMoveKind.MOVE)
+            assertThat(recovered.state).isEqualTo(MailMoveState.UNKNOWN)
+            assertThat(MailMovePayloadStore(database).info(account, recovered.id)?.bytes).isEqualTo(7L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(16L)
+        }
+    }
+
+    @Test
     fun `retained binary bytes flags and completeness survive source folder removal and database reopen`() {
         val path = directory.root.toPath().resolve("mail.sqlite")
         val raw = ByteArray(SOURCE_PAGE_BYTES * 2 + 17) { (it * 31).toByte() }
@@ -360,7 +455,7 @@ class MailMoveStoreTest {
             database.execute("PRAGMA user_version=11")
         }
         MailDatabase(path).use { database ->
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(15L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(16L)
             assertThat(MailSignatureStore(database).read(account).text).isEqualTo("Fixture")
             assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
             assertThat(MailMoveStore(database).list(account)).isEqualTo(emptyList())

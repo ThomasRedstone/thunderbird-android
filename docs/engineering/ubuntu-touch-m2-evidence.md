@@ -3762,3 +3762,56 @@ and compile/quality checks pass in `/tmp/thunderbird-034-native-probe-check.log`
 437-test production/installDist proof remains unchanged. Physical role configuration/review,
 real-provider filing, remaining interruption boundaries, bulk organisation, copy, permanent
 deletion and broad folder management remain required.
+
+### Source-preserving Copy (development 0.1.35/schema16, 2026-10-28)
+
+The reader now offers Copy message, routed through the same global filing model with a
+distinct persisted COPY kind. Schema15→16 adds a checked kind column defaulting existing
+records to MOVE, preserving attempts/payloads and restart uncertainty. Header/history/review/
+retry controls name the actual operation. Reader callbacks use one typed Open request for
+move, copy and archive/trash roles, retaining exact account/folder/UID context. Copy with a
+folder role is rejected; archive/trash remain moves. No shared modules, dependencies,
+permissions, OAuth registry or production provider settings changed.
+
+The session opens Copy's source read-only and calls the engine UID COPY method. It never
+marks the source deleted or expunges it. Existing account/source-origin/generation/transport
+cancellation and atomic claim/snapshot guards remain. Completed moves still prevent filing
+again from stale source cache within the same connection/generation. Completed copies do
+not block a subsequent move; another copy to that destination/generation needs explicit
+duplicate-risk review before a new intent is queued. A target/context change invalidates
+that review; failed history recovery also clears it. Confirmation only queues locally;
+Copy now separately submits. Unknown copies retain bytes/uncertainty and require the
+existing retry review; another pending action cannot bypass them.
+
+Full 450 app tests pass, zero failures/errors/skips, plus detekt/installDist/spotlessCheck:
+`/tmp/thunderbird-copy-full-final.log`, standard JDK21/SDK/Gradle tasks/flags. An earlier
+449-test full baseline also passed before the final confirmation recovery regression.
+New checks include schema15 MOVE migration/retained recovery data, COPY restart/one-pending
+constraints, duplicate reviews scoped to target generation/connection, later moves, actual
+reader routing and rendered repeat/busy controls. Independent TLS IMAP assertions verify
+source UID/flags, unrelated deleted messages, one destination copy, an intentionally reviewed
+second copy and destination-cache proof before releasing retained bytes. Lost COPY response
+tests verify UNKNOWN, exactly one server copy, retained bytes and no blind replay.
+
+A new recovery regression failed before clearing a consumed repeat-copy confirmation on
+failed history refresh: `/tmp/thunderbird-copy-confirmation-before.log`, XML
+`build/evidence/mail-copy/confirmation-restored-before.xml`; fixed full suite passes.
+A separate initial test fixture accidentally expunged unrelated source mail while observing
+the destination. Source/target oracle closing now explicitly avoids that source mutation;
+`build/evidence/mail-copy/expunging-oracle-before.xml` preserves the original failure.
+This was an observer side effect, not the product's Copy method. Focused66 tests pass in
+`/tmp/thunderbird-copy-focused-4.log` after correcting it.
+
+This implements Copy to another folder, not same-folder duplication or bulk Copy. Native35
+Copy/migration/physical/provider acceptance, source-disappearance and no-UIDPLUS destination
+instance proof, unknown/partial outcome resolution and large-mailbox performance remain
+required. Server acknowledgement is labelled as such; retained cleanup requires byte-exact
+destination cache proof and does not prove which identical destination instance was newly
+created. Source35 is not deployed yet; installed34 and frozen artifacts/drivers are unchanged.
+
+Filing history still needs stored subject/date identity for clearer restart review; current
+rows show account/folders/kind/state and actionable retained bytes can be inspected through
+Read retained source. This presentation gap remains part of reliable daily-use acceptance,
+not an exclusion from the final application. The feature inventory also now reflects the
+already-verified signature, attachment Save and archive/trash work rather than older absent
+implementation labels.

@@ -36,7 +36,7 @@ object ConfinedCancellationProbe {
         val directory = Files.createTempDirectory(parent, "cancel-runtime-")
         try {
             MailDatabase(directory.resolve("mail.sqlite")).use { database ->
-                check(database.query("PRAGMA user_version") { getLong(0) }.single() == 15L)
+                check(database.query("PRAGMA user_version") { getLong(0) }.single() == 16L)
                 checkCancellation(database, directory, args[1], args[2].toInt())
             }
         } finally {

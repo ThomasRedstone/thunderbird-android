@@ -53,17 +53,21 @@ class MailFolderRoleControlsTest : ComposeUiTestHarness() {
                 content = MailContent(MailSummary("42", "Fixture", "Sender", false), "Preview", false),
             ),
         )
-        val events = mutableListOf<Pair<MailMessageKey, MailFolderRole>>()
+        val events = mutableListOf<MailMoveEvent.Open>()
         setContent {
             ThunderbirdBoltTheme {
                 androidx.compose.foundation.layout.Row {
-                    ReaderFolderRoleActions(current.value) { source, role -> events.add(source to role) }
+                    ReaderFolderRoleActions(current.value, events::add)
                 }
             }
         }
         onNodeWithText("Archive").performClick()
         onNodeWithText("Move to Trash").performClick()
-        assertThat(events).isEqualTo(listOf(key to MailFolderRole.ARCHIVE, key to MailFolderRole.TRASH))
+        assertThat(
+            events,
+        ).isEqualTo(
+            listOf(MailMoveEvent.Open(key, MailFolderRole.ARCHIVE), MailMoveEvent.Open(key, MailFolderRole.TRASH)),
+        )
         current.value = current.value.copy(busy = true)
         onNodeWithText("Archive").assertIsNotEnabled()
         onNodeWithText("Move to Trash").assertIsNotEnabled()

@@ -2,7 +2,7 @@ package net.thunderbird.app.ubuntutouch
 
 import kotlinx.coroutines.CancellationException
 
-internal data class MoveDestination(val folder: MailFolder, val ready: Boolean) {
+internal data class MoveDestination(val folder: MailFolder, val ready: Boolean, val generation: Long? = null) {
     override fun toString(): String = "MoveDestination(redacted)"
 }
 internal data class MoveView(
@@ -13,7 +13,12 @@ internal data class MoveView(
 ) {
     override fun toString(): String = "MoveView(redacted)"
 }
-internal data class MoveSource(val key: MailMessageKey, val subject: String, val verified: Boolean) {
+internal data class MoveSource(
+    val key: MailMessageKey,
+    val subject: String,
+    val verified: Boolean,
+    val generation: Long? = null,
+) {
     override fun toString(): String = "MoveSource(redacted)"
 }
 internal data class MoveOverview(
@@ -30,7 +35,13 @@ internal interface MailMoveOperations {
     fun verify(source: MailMessageKey, operation: MailOperation)
     fun syncDestination(source: MailMessageKey, target: String, operation: MailOperation)
     fun configureRole(source: MailMessageKey, role: MailFolderRole, target: String?)
-    fun enqueue(source: MailMessageKey, target: String, role: MailFolderRole? = null): MailMove
+    fun enqueue(
+        source: MailMessageKey,
+        target: String,
+        role: MailFolderRole? = null,
+        kind: MailMoveKind = MailMoveKind.MOVE,
+        acknowledgeDuplicateRisk: Boolean = false,
+    ): MailMove
     fun submit(move: MailMove, operation: MailOperation, acknowledgeDuplicateRisk: Boolean): MailMove
     fun reconcile(move: MailMove, operation: MailOperation): Boolean
     fun cancelQueued(move: MailMove)
@@ -66,13 +77,22 @@ internal class PersistentMailMoveOperations(
         val binding = mailCacheBinding(owner)
         val destinations = folders.filter { it != source.folder }.map {
             val folder = cache.getFolder(it)
-            MoveDestination(MailFolder(it, folder.name), folder.getFolderExtraString(CACHE_BINDING_KEY) == binding)
+            MoveDestination(
+                MailFolder(it, folder.name),
+                folder.getFolderExtraString(CACHE_BINDING_KEY) == binding,
+                folder.getFolderExtraNumber("imapUidValidity"),
+            )
         }
         val selected = if (source.folder in folders) {
             val folder = cache.getFolder(source.folder)
             if (folder.isMessagePresent(source.uid)) {
                 folder.withCachedMessage(source.uid) { message ->
-                    MoveSource(source, message.subject.orEmpty(), folder.messageBinding(source.uid) == binding)
+                    MoveSource(
+                        source,
+                        message.subject.orEmpty(),
+                        folder.messageBinding(source.uid) == binding,
+                        folder.getFolderExtraNumber("imapUidValidity"),
+                    )
                 }
             } else {
                 null
@@ -97,13 +117,20 @@ internal class PersistentMailMoveOperations(
         accounts.withCurrentAccount(owner) { MailFolderRoleStore(database).configure(owner, role, target) }
     }
 
-    override fun enqueue(source: MailMessageKey, target: String, role: MailFolderRole?): MailMove {
+    override fun enqueue(
+        source: MailMessageKey,
+        target: String,
+        role: MailFolderRole?,
+        kind: MailMoveKind,
+        acknowledgeDuplicateRisk: Boolean,
+    ): MailMove {
+        require(kind == MailMoveKind.MOVE || role == null)
         val owner = checkNotNull(accounts.findById(source.account))
         var queued: MailMove? = null
         accounts.withCurrentAccount(owner) {
             queued = synchronized(database) {
                 if (role != null) check(MailFolderRoleStore(database).read(owner)[role] == target)
-                moves.enqueue(source, target)
+                moves.enqueue(source, target, kind, acknowledgeDuplicateRisk)
             }
         }
         return checkNotNull(queued)

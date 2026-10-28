@@ -123,7 +123,7 @@ internal class ForegroundMailSession(
         val source = imap.getFolder(action.source)
         val target = imap.getFolder(action.target)
         try {
-            source.open(OpenMode.READ_WRITE)
+            source.open(if (action.kind == MailMoveKind.COPY) OpenMode.READ_ONLY else OpenMode.READ_WRITE)
             check(source.getUidValidity() == action.sourceValidity) { "Source mailbox changed" }
             target.open(OpenMode.READ_ONLY)
             check(target.getUidValidity() == action.targetValidity) { "Destination mailbox changed" }
@@ -134,7 +134,12 @@ internal class ForegroundMailSession(
                 beforeSubmit()
                 resources.ensureActive()
                 operation?.ensureActive()
-                source.moveMessages(listOf(source.getMessage(action.uid)), target)
+                val messages = listOf(source.getMessage(action.uid))
+                if (action.kind == MailMoveKind.COPY) {
+                    source.copyMessages(messages, target)
+                } else {
+                    source.moveMessages(messages, target)
+                }
             }
         } finally {
             try {

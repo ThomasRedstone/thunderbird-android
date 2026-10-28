@@ -3,6 +3,8 @@ package net.thunderbird.app.ubuntutouch
 import java.util.UUID
 import net.thunderbird.feature.account.AccountId
 
+internal enum class MailMoveKind(val title: String) { MOVE("Move"), COPY("Copy") }
+
 internal enum class MailMoveState { QUEUED, WORKING, UNKNOWN, COMPLETE }
 
 internal data class MailMove(
@@ -17,6 +19,7 @@ internal data class MailMove(
     val attempt: Long,
     val uncertain: Boolean,
     val binding: String,
+    val kind: MailMoveKind = MailMoveKind.MOVE,
 ) {
     override fun toString(): String = "MailMove(redacted)"
 }
@@ -24,7 +27,12 @@ internal data class MailMove(
 /** Intent and attempt journal; cache bytes remain untouched. Never infer an uncertain move is safe to replay. */
 @Suppress("MagicNumber") // Fixed SQL projection indices.
 internal class MailMoveStore(private val database: MailDatabase) {
-    fun enqueue(key: MailMessageKey, target: String): MailMove = database.transaction {
+    fun enqueue(
+        key: MailMessageKey,
+        target: String,
+        kind: MailMoveKind = MailMoveKind.MOVE,
+        acknowledgeDuplicateRisk: Boolean = false,
+    ): MailMove = database.transaction {
         require(key.folder != target)
         val storage = PersistentBackendStorage(database, key.account.toString())
         val sourceFolder = storage.getFolder(key.folder)
@@ -36,21 +44,24 @@ internal class MailMoveStore(private val database: MailDatabase) {
         val sourceValidity = checkNotNull(sourceFolder.getFolderExtraNumber("imapUidValidity"))
         val targetValidity = checkNotNull(targetFolder.getFolderExtraNumber("imapUidValidity"))
         require(sourceValidity > 0 && targetValidity > 0)
-        check(
-            list(key.account).none {
-                it.source == key.folder && it.uid == key.uid && it.sourceValidity == sourceValidity &&
-                    it.state == MailMoveState.COMPLETE
-            },
-        ) { "Confirmed move cannot be repeated from stale source cache" }
         val currentBinding = binding(key.account)
+        checkCompletedFiling(
+            key,
+            target,
+            sourceValidity,
+            targetValidity,
+            currentBinding,
+            kind,
+            acknowledgeDuplicateRisk,
+        )
         checkSourceBinding(sourceFolder, key.uid, currentBinding)
         check(targetFolder.getFolderExtraString(CACHE_BINDING_KEY) == currentBinding) {
             "Sync the destination before moving"
         }
         val id = UUID.randomUUID().toString()
         database.execute(
-            """INSERT INTO mail_moves(id,account,source,uid,target,source_validity,target_validity,state,binding)
-                VALUES(?,?,?,?,?,?,?,'QUEUED',?)""",
+            """INSERT INTO mail_moves(id,account,source,uid,target,source_validity,target_validity,state,binding,kind)
+                VALUES(?,?,?,?,?,?,?,'QUEUED',?,?)""",
             id,
             key.account.toString(),
             key.folder,
@@ -59,18 +70,20 @@ internal class MailMoveStore(private val database: MailDatabase) {
             sourceValidity,
             targetValidity,
             currentBinding,
+            kind.name,
         )
         get(key.account, id)
     }
 
     fun list(account: AccountId): List<MailMove> = database.query(
-        """SELECT id,source,uid,target,source_validity,target_validity,state,attempt,uncertain,binding
+        """SELECT id,source,uid,target,source_validity,target_validity,state,attempt,uncertain,binding,kind
             FROM mail_moves WHERE account=? ORDER BY rowid""",
         account.toString(),
     ) {
         MailMove(
             getText(0), account, getText(1), getText(2), getText(3), getLong(4), getLong(5),
             MailMoveState.valueOf(getText(6)), getLong(7), getLong(8) != 0L, getText(9),
+            MailMoveKind.valueOf(getText(10)),
         )
     }
 
@@ -135,5 +148,24 @@ internal class MailMoveStore(private val database: MailDatabase) {
         require(expected.state == MailMoveState.QUEUED)
         check(get(expected.account, expected.id) == expected)
         database.execute("DELETE FROM mail_moves WHERE account=? AND id=?", expected.account.toString(), expected.id)
+    }
+}
+
+private fun MailMoveStore.checkCompletedFiling(
+    key: MailMessageKey,
+    target: String,
+    sourceValidity: Long,
+    targetValidity: Long,
+    binding: String,
+    kind: MailMoveKind,
+    acknowledgeDuplicateRisk: Boolean,
+) {
+    val previous = list(key.account).filter {
+        it.source == key.folder && it.uid == key.uid && it.sourceValidity == sourceValidity &&
+            it.binding == binding && it.state == MailMoveState.COMPLETE
+    }
+    check(previous.none { it.kind == MailMoveKind.MOVE }) { "Confirmed move cannot be repeated from stale cache" }
+    if (kind == MailMoveKind.COPY && previous.any { it.target == target && it.targetValidity == targetValidity }) {
+        check(acknowledgeDuplicateRisk) { "Review duplicate copy risk before queueing another copy" }
     }
 }

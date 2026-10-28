@@ -231,7 +231,7 @@ private fun MailboxContent(
         ButtonText("Review message transfer", panels.save)
     }
     if (transfers.moves != null) {
-        ButtonText("Move history", {
+        ButtonText("Move / copy history", {
             transfers.moveEvent(MailMoveEvent.Open())
             panels.move()
         })
@@ -246,17 +246,10 @@ private fun MailboxContent(
                 panels.save()
             }
         },
-        onOrganize = transfers.moves?.let {
-            { key, role ->
-                keyboard?.focus(false)
-                transfers.moveEvent(MailMoveEvent.Open(key, role))
-                panels.move()
-            }
-        },
         onMove = transfers.moves?.let {
-            { key ->
+            { request ->
                 keyboard?.focus(false)
-                transfers.moveEvent(MailMoveEvent.Open(key))
+                transfers.moveEvent(request)
                 panels.move()
             }
         },

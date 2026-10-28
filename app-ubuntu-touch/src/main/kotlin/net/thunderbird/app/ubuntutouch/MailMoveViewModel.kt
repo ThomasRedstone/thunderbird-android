@@ -23,12 +23,22 @@ internal data class MailMoveUiState(
     val cancelling: Boolean = false,
     val confirmRetry: Boolean = false,
     val notice: String? = null,
+    val kind: MailMoveKind = MailMoveKind.MOVE,
+    val confirmCopyAgain: Boolean = false,
 ) {
     override fun toString(): String = "MailMoveUiState(redacted)"
 }
 
 internal sealed interface MailMoveEvent {
-    data class Open(val source: MailMessageKey? = null, val role: MailFolderRole? = null) : MailMoveEvent
+    data class Open(
+        val source: MailMessageKey? = null,
+        val role: MailFolderRole? = null,
+        val kind: MailMoveKind = MailMoveKind.MOVE,
+    ) : MailMoveEvent {
+        init {
+            require(kind == MailMoveKind.MOVE || role == null)
+        }
+    }
     data class Target(val folder: String) : MailMoveEvent {
         override fun toString(): String = "MailMoveEvent.Target(redacted)"
     }
@@ -38,6 +48,9 @@ internal sealed interface MailMoveEvent {
     data object SyncDestination : MailMoveEvent
     data object ConfigureRole : MailMoveEvent
     data object ClearRole : MailMoveEvent
+    data object ReviewCopyAgain : MailMoveEvent
+    data object ConfirmCopyAgain : MailMoveEvent
+    data object KeepCopies : MailMoveEvent
     data object Queue : MailMoveEvent
     data object Submit : MailMoveEvent
     data object Reconcile : MailMoveEvent
@@ -65,25 +78,35 @@ internal class MailMoveViewModel(
             return
         }
         if (current.busy) return
-        when (event) {
-            is MailMoveEvent.Target -> {
-                require(current.overview.destinations.any { it.folder.id == event.folder })
-                mutableState.value = current.copy(target = event.folder, confirmRetry = false)
+        val reviewed = current.forCopyReview(event)
+        if (reviewed != null) {
+            mutableState.value = reviewed
+        } else {
+            when (event) {
+                is MailMoveEvent.Target -> {
+                    require(current.overview.destinations.any { it.folder.id == event.folder })
+                    mutableState.value = current.copy(
+                        target = event.folder,
+                        confirmRetry = false,
+                        confirmCopyAgain = false,
+                    )
+                }
+
+                MailMoveEvent.ReviewRetry -> if (current.selected?.state == MailMoveState.UNKNOWN) {
+                    mutableState.value = current.copy(confirmRetry = true)
+                }
+
+                MailMoveEvent.Keep -> mutableState.value = current.copy(confirmRetry = false)
+
+                MailMoveEvent.Back -> mutableState.value = current.copy(
+                    page = null,
+                    selected = current.page?.let { current.selected },
+                    confirmRetry = false,
+                    confirmCopyAgain = false,
+                )
+
+                else -> perform(event, current)
             }
-
-            MailMoveEvent.ReviewRetry -> if (current.selected?.state == MailMoveState.UNKNOWN) {
-                mutableState.value = current.copy(confirmRetry = true)
-            }
-
-            MailMoveEvent.Keep -> mutableState.value = current.copy(confirmRetry = false)
-
-            MailMoveEvent.Back -> mutableState.value = current.copy(
-                page = null,
-                selected = current.page?.let { current.selected },
-                confirmRetry = false,
-            )
-
-            else -> perform(event, current)
         }
     }
 
@@ -91,7 +114,14 @@ internal class MailMoveViewModel(
         val network = event in NETWORK_EVENTS
         val operation = if (network) MailOperation() else null
         active = operation
-        mutableState.value = initial.copy(busy = true, canCancel = network, confirmRetry = false, notice = null)
+        mutableState.value =
+            initial.copy(
+                busy = true,
+                canCancel = network,
+                confirmRetry = false,
+                confirmCopyAgain = false,
+                notice = null,
+            )
         scope.launch {
             try {
                 mutableState.value = withContext(Dispatchers.IO) { execute(event, initial, operation) }
@@ -105,7 +135,8 @@ internal class MailMoveViewModel(
                         canCancel = false,
                         cancelling = false,
                         confirmRetry = false,
-                        notice = "Unable to complete move operation. Review the saved state before retrying.",
+                        confirmCopyAgain = false,
+                        notice = "Unable to complete message operation. Review the saved state before retrying.",
                     )
             } finally {
                 active = null
@@ -114,9 +145,9 @@ internal class MailMoveViewModel(
     }
 
     private fun execute(event: MailMoveEvent, initial: MailMoveUiState, operation: MailOperation?): MailMoveUiState {
-        val prepared = initial.copy(page = null, confirmRetry = false, notice = null)
+        val prepared = initial.copy(page = null, confirmRetry = false, confirmCopyAgain = false, notice = null)
         val next = when (event) {
-            is MailMoveEvent.Open -> MailMoveUiState(request = event.source, role = event.role)
+            is MailMoveEvent.Open -> MailMoveUiState(request = event.source, role = event.role, kind = event.kind)
 
             is MailMoveEvent.Select -> {
                 require(initial.overview.history.any { it.move == event.move })
@@ -138,17 +169,9 @@ internal class MailMoveViewModel(
                 prepared
             }
 
-            MailMoveEvent.Queue -> {
-                check(initial.overview.source?.verified == true)
-                check(initial.overview.destinations.any { it.folder.id == initial.target && it.ready })
-                prepared.copy(
-                    selected = operations.enqueue(
-                        checkNotNull(initial.request),
-                        checkNotNull(initial.target),
-                        initial.role,
-                    ),
-                )
-            }
+            MailMoveEvent.Queue, MailMoveEvent.ConfirmCopyAgain -> prepared.copy(
+                selected = queue(initial, event == MailMoveEvent.ConfirmCopyAgain),
+            )
 
             MailMoveEvent.CancelQueued -> {
                 operations.cancelQueued(checkNotNull(initial.selected))
@@ -160,12 +183,25 @@ internal class MailMoveViewModel(
         return refresh(next)
     }
 
+    private fun queue(initial: MailMoveUiState, anotherCopy: Boolean): MailMove {
+        check(initial.overview.source?.verified == true)
+        check(initial.overview.destinations.any { it.folder.id == initial.target && it.ready })
+        if (anotherCopy) check(initial.confirmCopyAgain && initial.needsCopyReview())
+        return operations.enqueue(
+            checkNotNull(initial.request),
+            checkNotNull(initial.target),
+            initial.role,
+            initial.kind,
+            anotherCopy,
+        )
+    }
+
     private fun networkAction(
         event: MailMoveEvent,
         initial: MailMoveUiState,
         operation: MailOperation,
     ): MailMoveUiState {
-        var prepared = initial.copy(page = null, confirmRetry = false, notice = null)
+        var prepared = initial.copy(page = null, confirmRetry = false, confirmCopyAgain = false, notice = null)
         when (event) {
             MailMoveEvent.Verify -> operations.verify(checkNotNull(initial.request), operation)
 
@@ -190,7 +226,7 @@ internal class MailMoveViewModel(
                 val synced = operations.reconcile(checkNotNull(initial.selected), operation)
                 prepared = prepared.copy(
                     notice = if (synced) {
-                        "Folder sync completed. Unknown moves still require review."
+                        "Folder sync completed. Unknown operations still require review."
                     } else {
                         "Some folders could not sync; any available retained copy is kept."
                     },
@@ -218,6 +254,7 @@ internal class MailMoveViewModel(
             canCancel = false,
             cancelling = false,
             confirmRetry = false,
+            confirmCopyAgain = false,
         )
     }
 

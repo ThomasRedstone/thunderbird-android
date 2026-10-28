@@ -80,6 +80,100 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `copy preserves source and unrelated deleted messages and requires review before another copy`() {
+        deliver("Unrelated", "Keep this deleted message")
+        val key = prepareMoveSource()
+        withOracleInbox(expungeOnClose = false) { inbox ->
+            inbox.messages.single { it.subject == "Unrelated" }.setFlag(jakarta.mail.Flags.Flag.DELETED, true)
+            inbox.messages.single { it.subject == "Move fixture" }.setFlag(jakarta.mail.Flags.Flag.FLAGGED, true)
+        }
+        val testSubject = PersistentMailMoveOperations(database, accounts, factory())
+        val queued = testSubject.enqueue(key, "Move fixture target", kind = MailMoveKind.COPY)
+        val complete = testSubject.submit(queued, MailOperation(), false)
+        assertThat(complete.state).isEqualTo(MailMoveState.COMPLETE)
+        withOracleInbox(expungeOnClose = false) { inbox ->
+            assertThat(inbox.messageCount).isEqualTo(2)
+            assertThat(
+                (inbox as jakarta.mail.UIDFolder).getUID(
+                    inbox.messages.single { it.subject == "Move fixture" },
+                ).toString(),
+            ).isEqualTo(key.uid)
+            assertThat(
+                inbox.messages.single {
+                    it.subject == "Unrelated"
+                }.isSet(jakarta.mail.Flags.Flag.DELETED),
+            ).isTrue()
+            assertThat(
+                inbox.messages.single {
+                    it.subject == "Move fixture"
+                }.isSet(jakarta.mail.Flags.Flag.FLAGGED),
+            ).isTrue()
+        }
+        withOracleMoveTarget {
+            assertThat(it.messageCount).isEqualTo(1)
+            assertThat(it.messages.single().isSet(jakarta.mail.Flags.Flag.FLAGGED)).isTrue()
+        }
+        assertThat(testSubject.reconcile(complete, MailOperation())).isTrue()
+        assertThat(MailMovePayloadStore(database).info(account.id, complete.id)).isEqualTo(null)
+        assertThat(
+            runCatching {
+                testSubject.enqueue(key, "Move fixture target", kind = MailMoveKind.COPY)
+            }.isFailure,
+        ).isTrue()
+        val repeated = testSubject.enqueue(
+            key,
+            "Move fixture target",
+            kind = MailMoveKind.COPY,
+            acknowledgeDuplicateRisk = true,
+        )
+        assertThat(testSubject.submit(repeated, MailOperation(), false).state).isEqualTo(MailMoveState.COMPLETE)
+        withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(2) }
+        withOracleInbox(expungeOnClose = false) { assertThat(it.messageCount).isEqualTo(2) }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `lost copy acknowledgement keeps source and unknown journal without repeating the server copy`() {
+        val key = prepareMoveSource()
+        val material = StartTlsMaterial(directory.root.toPath())
+        StartTlsGateway(true, server.imap.port, material.context, dropMoveAcknowledgement = true).use { gateway ->
+            accounts.updateSync(account.id) {
+                it.copy(
+                    incoming = settings(
+                        "imap",
+                        gateway.port,
+                    ).copy(connectionSecurity = ConnectionSecurity.STARTTLS_REQUIRED),
+                )
+            }
+            val sessions = ForegroundMailSessionFactory(
+                accounts,
+                database,
+                JvmTrustedSocketFactory(systemTrustManager(material.trust)),
+                logger,
+                directory.root.toPath().resolve("copy-mime"),
+            )
+            sessions.open(account.id).use {
+                it.downloadMessage("INBOX", key.uid)
+                it.sync("Move fixture target")
+            }
+            val testSubject = PersistentMailMoveOperations(database, accounts, sessions)
+            val queued = testSubject.enqueue(key, "Move fixture target", kind = MailMoveKind.COPY)
+            val unknown = testSubject.submit(queued, MailOperation(), false)
+            assertThat(unknown.state).isEqualTo(MailMoveState.UNKNOWN)
+            assertThat(unknown.kind).isEqualTo(MailMoveKind.COPY)
+            assertThat(gateway.droppedMoveAcknowledgements.get()).isEqualTo(1)
+            assertThat(gateway.droppedMoveWasAtomic.get()).isFalse()
+            assertThat(testSubject.reconcile(unknown, MailOperation())).isTrue()
+            assertThat(runCatching { testSubject.submit(unknown, MailOperation(), false) }.isFailure).isTrue()
+            assertThat(MailMovePayloadStore(database).info(account.id, unknown.id) != null).isTrue()
+            withOracleMoveTarget { assertThat(it.messageCount).isEqualTo(1) }
+            withOracleInbox { assertThat(it.messageCount).isEqualTo(1) }
+            assertThat(gateway.droppedMoveAcknowledgements.get()).isEqualTo(1)
+        }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
     fun `confirmed move preserves unrelated deleted mail and resyncs both cached folders`() {
         deliver("Unrelated", "Keep this deleted message")
         val key = prepareMoveSource()
@@ -310,12 +404,13 @@ class ForegroundMailSessionTest {
         return MailMessageKey(account.id, "INBOX", messages.single { it.subject == "Move fixture" }.id)
     }
 
-    private fun withOracleMoveTarget(block: (jakarta.mail.Folder) -> Unit) = withOracleInbox { inbox ->
-        inbox.store.getFolder("Move fixture target").use { target ->
-            target.open(jakarta.mail.Folder.READ_WRITE)
-            block(target)
+    private fun withOracleMoveTarget(block: (jakarta.mail.Folder) -> Unit) =
+        withOracleInbox(expungeOnClose = false) { inbox ->
+            inbox.store.getFolder("Move fixture target").use { target ->
+                target.open(jakarta.mail.Folder.READ_WRITE)
+                block(target)
+            }
         }
-    }
 
     @Test
     fun `real IMAP discovers folders and persists initial incremental flags and deletion state`() {
@@ -1004,7 +1099,11 @@ class ForegroundMailSessionTest {
         server.userManager.getUser("fixture").deliver(message)
     }
 
-    private fun withOracleInbox(user: String = "fixture", block: (jakarta.mail.Folder) -> Unit) {
+    private fun withOracleInbox(
+        user: String = "fixture",
+        expungeOnClose: Boolean = true,
+        block: (jakarta.mail.Folder) -> Unit,
+    ) {
         val context = javax.net.ssl.SSLContext.getInstance("TLS").apply {
             init(null, arrayOf(systemTrustManager(trustedCertificates)), null)
         }
@@ -1014,9 +1113,12 @@ class ForegroundMailSessionTest {
         }
         JakartaSession.getInstance(properties).getStore("imaps").use { store ->
             store.connect("localhost", server.imaps.port, user, PASSWORD)
-            store.getFolder("INBOX").use { folder ->
-                folder.open(jakarta.mail.Folder.READ_WRITE)
+            val folder = store.getFolder("INBOX")
+            folder.open(jakarta.mail.Folder.READ_WRITE)
+            try {
                 block(folder)
+            } finally {
+                folder.close(expungeOnClose)
             }
         }
     }

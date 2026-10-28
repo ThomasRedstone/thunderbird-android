@@ -564,3 +564,9 @@ acceptance remains open; existing raw SignOn probes are insufficient. No37 packa
 Matching37 native probes are prepared/frozen for production schema initialization, Copy and
 chunked protected-storage prepare/fresh-JVM recovery/rotation/removal. Full475 host tests and
 quality checks pass; SSH still times out, so these probes have not run on the FP4.
+
+Clean37 candidate39 is built/reviewed,148182292 bytes, SHA256
+`9210ccb96dc2a9ec8d47fbbe634c9db64fadfa440116a81773213cdc9e917453`.
+It is not installed; the phone remains last verified34/schema15. Prepared37 driver/upgrade
+helpers have not run. Native15→19 migration, Copy/history and protected-chunk acceptance
+remain required, alongside all later feature/release gates.

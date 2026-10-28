@@ -4033,3 +4033,19 @@ migration/Copy/recovery, with compileTestKotlin/detekt/spotlessCheck pass in
 Frozen driver: `build/evidence/native-037/candidate-037-native-probes.jar`, 6 classes,
 SHA256 `3295a548eee77dac4c7a782b72f4b3e90cdff5b99e2b2594cf2341de3078cd87`. Older frozen35 drivers remain unchanged. This is prepared host evidence,
 not a native pass. SSH ConnectTimeout10 still timed out; no37 deployment occurred.
+
+
+Immutable37 candidate39 is built from clean `4c44c58c996f2dabb4545ea28496a76fb33f2032`, empty SOURCE-CHANGES patch.
+Artifact: `app-ubuntu-touch/build/ut-candidate-39/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.37_arm64.click`.
+148182292 bytes; SHA256 `9210ccb96dc2a9ec8d47fbbe634c9db64fadfa440116a81773213cdc9e917453`.
+`/tmp/thunderbird-037-click.log`, build53817 exit0: Click review and ARM64 launcher/JVM/AWT/
+Skiko/SQLite checks pass. Same pinned builder and verified candidate5 runtime reuse; not
+cold/CI reproducibility proof. Preserve37 unchanged; next production edits require38.
+
+Prepared but NOT RUN: `/tmp/thunderbird-037-upgrade.py` checks the exact37 artifact, old34
+source and stopped app, backs up SQLite and requires old schema15, then checks installed37
+source/empty patch. `/tmp/thunderbird-037-probe.sh` selects exact37 confinement/runtime and
+candidate-037 driver names. Scripts need current phone state revalidation before execution.
+The fresh SSH check timed out; no37 transfer/install/backup/native execution occurred. Last
+verified phone remains34/schema15 and its local fleet pin unchanged. Native15→19 migration,
+Copy/history acceptance and production protected-chunk fresh-JVM/performance gates remain open.

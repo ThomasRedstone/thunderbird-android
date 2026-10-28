@@ -120,6 +120,9 @@ internal class ForegroundMailSession(
     fun searchServer(folder: String, query: ServerMailQuery): ServerMailResults =
         ServerFolderSearch(imap, resources, operation, handoff).search(folder, query)
 
+    fun openServerResult(results: ServerMailResults, uid: String, save: (Message) -> Unit) =
+        ServerResultFetch(imap, resources, operation, handoff).fetch(results, uid, save)
+
     fun move(action: MailMove, beforeSubmit: () -> Unit) {
         require(action.account == handoff.account)
         resources.ensureActive()

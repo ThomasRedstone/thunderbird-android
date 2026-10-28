@@ -47,5 +47,5 @@ internal fun <T> withParsedCachedMime(raw: ByteArray, read: (Message) -> T): T {
     return OwnedMimeResources(message).use { read(it.message) }
 }
 
-/** Only for a newly fetched envelope owned solely by the caller, after detached fields are copied. */
+/** Only for a newly fetched message owned solely by the caller, after detached fields are copied. */
 internal fun closeOwnedMimeResources(message: Message) = OwnedMimeResources(message).close()

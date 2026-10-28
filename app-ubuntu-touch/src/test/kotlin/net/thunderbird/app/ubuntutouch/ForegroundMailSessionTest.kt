@@ -80,6 +80,121 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `opening an uncached server result saves only that message without changing server read flags`() {
+        deliver("Needle selected", "Controlled selected body")
+        deliver("Needle other", "Other body")
+        val testSubject = serverSearchOperations()
+        val results = testSubject.search(account.id, "INBOX", ServerMailQuery("Needle"), MailOperation())
+        val selected = results.messages.single { it.subject == "Needle selected" }
+        val content = testSubject.open(results, selected.id, MailOperation())
+        assertThat(content.complete).isTrue()
+        assertThat(content.body.trim()).isEqualTo("Controlled selected body")
+        assertThat(content.summary.unread).isTrue()
+        assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
+        val cache = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        assertThat(cache.getFolderExtraNumber("imapUidValidity")).isEqualTo(results.generation)
+        assertThat(cache.messageBinding(selected.id)).isEqualTo(results.binding)
+        withOracleInbox(expungeOnClose = false) { inbox ->
+            assertThat(inbox.messages.all { !it.isSet(jakarta.mail.Flags.Flag.SEEN) }).isTrue()
+        }
+        Files.list(directory.root.toPath().resolve("mime")).use { assertThat(it.count()).isEqualTo(0L) }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `server result rejects stale remote or cached mailbox generation without a cache write`() {
+        deliver("Needle", "Body")
+        val testSubject = serverSearchOperations()
+        val results = testSubject.search(account.id, "INBOX", ServerMailQuery("Needle"), MailOperation())
+        val uid = results.messages.single().id
+        assertThat(
+            runCatching {
+                testSubject.open(results.copy(generation = results.generation + 1), uid, MailOperation())
+            }.isFailure,
+        ).isTrue()
+        val cache = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        cache.setFolderExtraNumber("imapUidValidity", results.generation + 1)
+        cache.setFolderExtraString(CACHE_BINDING_KEY, results.binding)
+        assertThat(runCatching { testSubject.open(results, uid, MailOperation()) }.isFailure).isTrue()
+        assertThat(cache.getFolderExtraNumber("imapUidValidity")).isEqualTo(results.generation + 1)
+        cache.setFolderExtraNumber("imapUidValidity", results.generation)
+        cache.setFolderExtraString(CACHE_BINDING_KEY, "different connection")
+        assertThat(runCatching { testSubject.open(results, uid, MailOperation()) }.isFailure).isTrue()
+        assertThat(cache.getFolderExtraString(CACHE_BINDING_KEY)).isEqualTo("different connection")
+        assertThat(cache.getMessageServerIds()).isEqualTo(emptySet())
+        Files.list(directory.root.toPath().resolve("mime")).use { assertThat(it.count()).isEqualTo(0L) }
+    }
+
+    @Test
+    fun `server result from a replaced account connection cannot be opened`() {
+        deliver("Needle", "Body")
+        val testSubject = serverSearchOperations()
+        val results = testSubject.search(account.id, "INBOX", ServerMailQuery("Needle"), MailOperation())
+        accounts.replacePasswords(account.id, AccountPasswords(PASSWORD, PASSWORD))
+        assertThat(
+            runCatching {
+                testSubject.open(results, results.messages.single().id, MailOperation())
+            }.isFailure,
+        ).isTrue()
+        assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(0L)
+    }
+
+    @Test
+    fun `failed server result save rolls back generation initialization with message bytes`() {
+        deliver("Needle", "Body")
+        val testSubject = serverSearchOperations()
+        val results = testSubject.search(account.id, "INBOX", ServerMailQuery("Needle"), MailOperation())
+        database.execute(
+            "CREATE TRIGGER fail_search_cache BEFORE INSERT ON messages BEGIN SELECT RAISE(ABORT,'fixture'); END",
+        )
+        assertThat(
+            runCatching {
+                testSubject.open(results, results.messages.single().id, MailOperation())
+            }.isFailure,
+        ).isTrue()
+        val cache = PersistentBackendStorage(database, account.id.toString()).getFolder("INBOX")
+        assertThat(cache.getFolderExtraNumber("imapUidValidity")).isEqualTo(null)
+        assertThat(cache.getFolderExtraString(CACHE_BINDING_KEY)).isEqualTo(null)
+        assertThat(cache.getMessageServerIds()).isEqualTo(emptySet())
+        Files.list(directory.root.toPath().resolve("mime")).use { assertThat(it.count()).isEqualTo(0L) }
+    }
+
+    @Test
+    fun `vanished server result cannot create an empty cached message`() {
+        deliver("Needle", "Body")
+        val testSubject = serverSearchOperations()
+        val results = testSubject.search(account.id, "INBOX", ServerMailQuery("Needle"), MailOperation())
+        withOracleInbox { it.messages.single().setFlag(jakarta.mail.Flags.Flag.DELETED, true) }
+        assertThat(
+            runCatching {
+                testSubject.open(results, results.messages.single().id, MailOperation())
+            }.isFailure,
+        ).isTrue()
+        assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(0L)
+    }
+
+    @Test
+    fun `cancelled or unlisted server result cannot write cache bytes`() {
+        deliver("Needle", "Body")
+        val testSubject = serverSearchOperations()
+        val results = testSubject.search(account.id, "INBOX", ServerMailQuery("Needle"), MailOperation())
+        val operation = MailOperation().apply { close() }
+        assertThat(
+            runCatching {
+                testSubject.open(results, results.messages.single().id, operation)
+            }.isFailure,
+        ).isTrue()
+        assertThat(runCatching { testSubject.open(results, "4294967295", MailOperation()) }.isFailure).isTrue()
+        assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(0L)
+    }
+
+    private fun serverSearchOperations(): PersistentServerSearchOperations {
+        val sessions = factory()
+        sessions.open(account.id).use { it.refreshFolders() }
+        return PersistentServerSearchOperations(database, accounts, sessions)
+    }
+
+    @Test
     fun `server search finds uncached body text without changing cache or read flags`() {
         deliver("Header match", "Other body")
         deliver("Body match", "Needle remote body")

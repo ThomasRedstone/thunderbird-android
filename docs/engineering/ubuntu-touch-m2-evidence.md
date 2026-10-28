@@ -4101,3 +4101,44 @@ and actual TLS result-open/cancellation/stale-account/generation tests before ac
 Account/unified server scope, pagination, server-specific syntax/Unicode, blocked-wire
 cancellation, mailbox-change races, native/provider/physical UI and large-mailbox behaviour
 remain required. This transport alone is not user-facing server search.
+
+
+### Guarded server-result opening (development38)
+
+ServerSearchOperations/PersistentServerSearchOperations now provide constructor-injected
+search/open operations and a Main/Koin binding for the forthcoming online-search model.
+ServerResultFetch checks result membership, canonical UID, account and immutable connection
+binding, then selects READ_ONLY and verifies remote UIDValidity before BODY.PEEK fetch on
+the same connection. Missing/deleted/no-body responses fail. After fetch it rechecks session,
+cancellation and generation and invokes one save under the current-account handoff. Owned
+MIME resources/folder are released even on failure. No server read flag is changed.
+
+PersistentBackendFolder.saveMessageChecked preserves the existing save implementation while
+adding a validation callback inside the message's SQLite transaction. The result adapter
+checks that the account-scoped cached folder row is still the one selected, and requires
+matching cache generation/binding. A genuinely empty folder with no generation/binding can
+initialize those fields atomically with its first selected-message write. Mismatched cache
+identity is retained untouched and requires explicit refresh/search; this does not silently
+invalidate a folder, sync the whole mailbox, or mark all messages synchronized. A failed
+INSERT rolls back both metadata initialization and message bytes. The complete cached reader
+projection is returned only while the captured account is current. Cancellation after a
+successful local commit may leave that known selected message cached; no network mutation
+or blind send/replay is involved.
+
+Six additional real-TLS tests pass: uncached selected-body open caches only one message and
+retains unread state, wrong remote/cache generations and connection bindings refuse writes,
+password replacement invalidates old results, SQL failure rolls back metadata and body,
+expunged UID cannot create an empty cache row, and cancelled/unlisted opens write nothing.
+Temporary MIME files are absent after success and failed cache writes. Full485 app tests,
+zero failures/errors/skips, detekt/spotlessApply/installDist pass:
+`/tmp/thunderbird-038-result-open-full-3.log`. Earlier quality runs found long lines, corrected.
+The subsequent Main binding is checked separately; no protocol/shared module or schema change.
+
+The online-search view model, screen, entry button, result reader/Back routing and lifecycle
+wiring are STILL absent. Next implement those over the now-tested ServerSearchOperations;
+retain cached search and make online query and header/TEXT semantics explicit. Add model/
+UI tests for Cancel, stale completion/account changes, query edits, reader return, limit labels,
+keyboard focus and close/background disposal. Fetch-disconnect/account replacement during
+BODY transfer, native/provider acceptance, paging and large-mailbox performance remain open.
+Frozen37 package/driver unchanged;38 is not packaged/deployed. A fresh SSH check still timed
+out, so34/schema15 remains the last verified phone state.

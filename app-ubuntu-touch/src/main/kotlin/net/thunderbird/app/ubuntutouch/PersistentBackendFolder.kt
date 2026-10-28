@@ -69,7 +69,15 @@ internal class PersistentBackendFolder(
         }
     }
 
-    override suspend fun saveMessage(message: Message, downloadState: MessageDownloadState) {
+    override suspend fun saveMessage(message: Message, downloadState: MessageDownloadState) =
+        saveMessageChecked(message, downloadState) {}
+
+    /** Validation/metadata initialization and the message write share one SQLite commit. */
+    internal fun saveMessageChecked(
+        message: Message,
+        downloadState: MessageDownloadState,
+        validate: () -> Unit,
+    ) {
         val uid = checkNotNull(message.uid)
         val raw = ByteArrayOutputStream().also { message.writeTo(it) }.toByteArray()
         val flags = message.flags.toMutableSet().apply {
@@ -80,6 +88,7 @@ internal class PersistentBackendFolder(
             }
         }
         database.transaction {
+            validate()
             database.execute(
                 """INSERT INTO messages(folder,uid,mime,effective_date,origin_binding) VALUES(?,?,?,?,?)
                     ON CONFLICT(folder,uid) DO UPDATE SET mime=excluded.mime,effective_date=excluded.effective_date,

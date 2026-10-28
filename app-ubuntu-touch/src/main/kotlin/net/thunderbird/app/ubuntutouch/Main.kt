@@ -132,6 +132,7 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             factory { AccountSetupViewModel(get(), authorization = get(), providers = get()) }
             single { ForegroundMailSessionFactory(get(), get(), JvmTrustedSocketFactory(), get(), oauth = get()) }
             single<LiveMailRepository> { PersistentLiveMailRepository(get(), get()) }
+            single<ServerSearchOperations> { PersistentServerSearchOperations(get(), get(), get()) }
             single { MailSortPreferences(mailDatabasePath().resolveSibling("mail-sort")) }
             factory { LiveMailViewModel(get(), get(), sortPreferences = get()) }
             single {

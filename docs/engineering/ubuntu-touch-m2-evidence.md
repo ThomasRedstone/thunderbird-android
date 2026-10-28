@@ -3815,3 +3815,12 @@ Read retained source. This presentation gap remains part of reliable daily-use a
 not an exclusion from the final application. The feature inventory also now reflects the
 already-verified signature, attachment Save and archive/trash work rather than older absent
 implementation labels.
+
+Immutable 0.1.35 candidate37 is built from clean
+`8e78abee4b3a303d6ba1808adbac8816a0733433` with an empty SOURCE-CHANGES patch.
+Artifact: `app-ubuntu-touch/build/ut-candidate-37/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.35_arm64.click`.
+Size148138974 bytes; SHA256 `434a11fdf509b3cf1930da76908736599bee474e902283583e3e9a7d7f587a0f`.
+Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite verification pass, build10514 exit0,
+`/tmp/thunderbird-035-click.log`. Same pinned builder/verified candidate5 runtime reuse;
+not cold-build or CI reproducibility proof. The package is not installed yet. Preserve
+it unchanged; subsequent production changes require a new version.

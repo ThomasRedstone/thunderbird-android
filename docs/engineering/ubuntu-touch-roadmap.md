@@ -532,3 +532,7 @@ flag preservation, intentional repeats, lost acknowledgements and legacy migrati
 34 remains unchanged at this checkpoint. Native/physical Copy, remaining interruption cases,
 unknown-outcome resolution, same-folder duplication/parity, bulk operations, permanent deletion
 and broader folder management remain open.
+
+The clean 0.1.35 ARM64 Click is built and reviewed (candidate37), not installed yet.
+Next native gate is the backed-up schema15→16 upgrade and source-preserving Copy/recovery
+journey. Phone34 and its local fleet pin remain unchanged.

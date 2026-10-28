@@ -3824,3 +3824,24 @@ Click review and ARM64 launcher/JVM/AWT/Skiko/SQLite verification pass, build105
 `/tmp/thunderbird-035-click.log`. Same pinned builder/verified candidate5 runtime reuse;
 not cold-build or CI reproducibility proof. The package is not installed yet. Preserve
 it unchanged; subsequent production changes require a new version.
+
+
+### Copy native-driver preparation and unavailable phone (2026-10-28)
+
+Matching 0.1.35 drivers now cover COPY success and lost acknowledgement, source UID/body/flag
+preservation, repeat-copy review, and fresh-process COPY-kind/retained-payload recovery.
+The normal-copy probe queues and locally cancels an acknowledged repeat; it does not submit
+a second network copy. The independent server oracle expects exactly one destination copy.
+The recovery fixture removes the source cache after claiming the operation, then verifies
+UNKNOWN with COPY kind and retained bytes on reopen. Its additional host test passes.
+
+Full451 app tests pass with zero failures/errors/skips, plus detekt and spotlessCheck:
+`/tmp/thunderbird-035-native-driver-full.log` (BUILD SUCCESSFUL). Frozen matching driver:
+`build/evidence/native-035/candidate-035-copy-probe.jar`, SHA256 `98f55f683fd0bfb0639698ad6ef5efd524852dee00474367cca0227650604230`.
+These test-only changes do not alter the frozen35 production Click.
+
+The candidate transfer terminated with rsync socket error10 after SSH disconnected.
+A later BatchMode/ConnectTimeout10 SSH check also timed out. No35 upgrade or backup script
+ran, and none of these new drivers has run on the phone. Last verified installation/fleet
+pin remains34/schema15. Desk blocker b-omq6 records phone availability; q-ar74 and q-jk4j
+remain unanswered. Native15→16 migration, Copy and physical acceptance stay open.

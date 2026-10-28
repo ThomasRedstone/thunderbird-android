@@ -11,6 +11,14 @@ class ConfinedMoveRecoveryProbeTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `copy kind and uncertain payload recover after source cache eviction`() {
+        val root = directory.newFolder("move-runtime-copy").toPath()
+        val testSubject = ConfinedMoveRecoveryProbe
+        testSubject.prepareFixture(root, MailMoveKind.COPY)
+        testSubject.verifyFixture(root, MailMoveKind.COPY)
+    }
+
+    @Test
     fun `synthetic move claim recovers retained bytes after cache removal`() {
         val root = directory.newFolder("move-runtime-host").toPath()
         ConfinedMoveRecoveryProbe.prepareFixture(root)

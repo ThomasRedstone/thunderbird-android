@@ -17,19 +17,28 @@ object ConfinedMoveRecoveryProbe {
     @JvmStatic
     fun main(args: Array<String>) {
         require(args.size in 2..3)
-        val profile = "mail-demo.thomasredstone_mail-demo_0.1.32"
+        val profile = "mail-demo.thomasredstone_mail-demo_0.1.35"
         check(args[0] == profile)
         check(Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000') == "$profile (enforce)")
         val parent = Path.of(System.getProperty("user.home"), ".cache", "mail-demo.thomasredstone", "probes")
         when (args[1]) {
-            "prepare", "crash" -> {
+            "prepare", "crash", "prepare-copy" -> {
                 require(args.size == 2)
                 val directory = Files.createTempDirectory(
                     parent,
                     "move-runtime-",
                     PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")),
                 )
-                prepareFixture(directory) { database ->
+                prepareFixture(
+                    directory,
+                    if (args[1] ==
+                        "prepare-copy"
+                    ) {
+                        MailMoveKind.COPY
+                    } else {
+                        MailMoveKind.MOVE
+                    },
+                ) { database ->
                     if (args[1] == "crash") {
                         database.transaction {
                             database.execute("UPDATE move_payloads SET mime=?", "Uncommitted corruption".toByteArray())
@@ -45,10 +54,10 @@ object ConfinedMoveRecoveryProbe {
                 println("FIXTURE_DIR=$directory")
             }
 
-            "reopen" -> {
+            "reopen", "reopen-copy" -> {
                 require(args.size == 3)
                 val directory = requireMoveFixtureDirectory(parent, Path.of(args[2]))
-                verifyFixture(directory)
+                verifyFixture(directory, if (args[1] == "reopen-copy") MailMoveKind.COPY else MailMoveKind.MOVE)
                 cleanup(directory)
                 println("Fresh-process uncertain recovery, retained pages and account isolation: PASS")
             }
@@ -57,7 +66,11 @@ object ConfinedMoveRecoveryProbe {
         }
     }
 
-    internal fun prepareFixture(directory: Path, beforeClose: (MailDatabase) -> Unit = {}) {
+    internal fun prepareFixture(
+        directory: Path,
+        kind: MailMoveKind = MailMoveKind.MOVE,
+        beforeClose: (MailDatabase) -> Unit = {},
+    ) {
         MailDatabase(directory.resolve("mail.sqlite")).use { database ->
             val server = ServerSettings(
                 "imap",
@@ -101,7 +114,7 @@ object ConfinedMoveRecoveryProbe {
             database.execute("INSERT INTO flags(folder,uid,flag) VALUES(?,'1','SEEN')", source.id)
             database.execute("INSERT INTO flags(folder,uid,flag) VALUES(?,'1','X_DOWNLOADED_FULL')", source.id)
             val moves = MailMoveStore(database)
-            val claimed = moves.claim(moves.enqueue(MailMessageKey(account.id, "INBOX", "1"), "Archive"))
+            val claimed = moves.claim(moves.enqueue(MailMessageKey(account.id, "INBOX", "1"), "Archive", kind))
             check(claimed.state == MailMoveState.WORKING && claimed.attempt == 1L)
             storage.createFolderUpdater().use { it.deleteFolders(listOf("INBOX")) }
             check(MailMovePayloadStore(database).info(account.id, claimed.id)?.bytes == bytes().size.toLong())
@@ -109,11 +122,12 @@ object ConfinedMoveRecoveryProbe {
         }
     }
 
-    internal fun verifyFixture(directory: Path) {
+    internal fun verifyFixture(directory: Path, kind: MailMoveKind = MailMoveKind.MOVE) {
         MailDatabase(directory.resolve("mail.sqlite")).use { database ->
             check(database.query("PRAGMA quick_check") { getText(0) } == listOf("ok"))
             val moves = MailMoveStore(database)
             val recovered = moves.list(accountId()).single()
+            check(recovered.kind == kind)
             check(recovered.state == MailMoveState.UNKNOWN && recovered.uncertain && recovered.attempt == 1L)
             check(runCatching { moves.claim(recovered) }.isFailure)
             check(runCatching { moves.cancelQueued(recovered) }.isFailure)

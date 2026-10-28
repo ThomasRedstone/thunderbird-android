@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.34 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 450 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 451 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.34 embeds clean `1f248250f6`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.34 install verified; local fleet `c1a763f` pins its exact artifact/hash | Physical foreground, intermittent launch-wrapper registry errors, broader cancellation and lifecycle verification |
 
@@ -536,3 +536,8 @@ and broader folder management remain open.
 The clean 0.1.35 ARM64 Click is built and reviewed (candidate37), not installed yet.
 Next native gate is the backed-up schema15→16 upgrade and source-preserving Copy/recovery
 journey. Phone34 and its local fleet pin remain unchanged.
+
+Matching35 Copy/recovery native drivers are prepared; full451 host tests and quality checks
+pass. Transfer failed when SSH disconnected, and a fresh SSH check timed out. No35 install
+or native acceptance occurred. Phone availability is tracked by b-omq6; independent roadmap
+work continues while the phone gate is unavailable.

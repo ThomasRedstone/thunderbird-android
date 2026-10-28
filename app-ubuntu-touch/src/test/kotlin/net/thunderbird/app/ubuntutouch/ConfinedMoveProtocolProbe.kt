@@ -20,14 +20,15 @@ object ConfinedMoveProtocolProbe {
     fun main(args: Array<String>) {
         require(args.size in 5..6)
         val mode = args.getOrNull(5)
-        require(mode == null || mode in setOf("unknown", "archive", "trash"))
-        val unknown = mode == "unknown"
+        require(mode == null || mode in setOf("unknown", "archive", "trash", "copy", "copy-unknown"))
+        val unknown = mode == "unknown" || mode == "copy-unknown"
+        val kind = if (mode?.startsWith("copy") == true) MailMoveKind.COPY else MailMoveKind.MOVE
         val role = when (mode) {
             "archive" -> MailFolderRole.ARCHIVE
             "trash" -> MailFolderRole.TRASH
             else -> null
         }
-        val profile = "mail-demo.thomasredstone_mail-demo_0.1.34"
+        val profile = "mail-demo.thomasredstone_mail-demo_0.1.35"
         check(args[0] == profile)
         check(Files.readString(Path.of("/proc/self/attr/current")).trim().trimEnd('\u0000') == "$profile (enforce)")
         val parent = Path.of(System.getProperty("user.home"), ".cache", "mail-demo.thomasredstone", "probes")
@@ -51,7 +52,7 @@ object ConfinedMoveProtocolProbe {
             UUID.randomUUID().toString(),
         )
         try {
-            checkMove(directory, account, Path.of(args[4]), unknown, role)
+            checkMove(directory, account, Path.of(args[4]), unknown, role, kind)
         } finally {
             MailDatabase(directory.resolve("mail.sqlite")).use { database ->
                 val accounts = manager(database)
@@ -60,7 +61,7 @@ object ConfinedMoveProtocolProbe {
             }
         }
         check(directory.toFile().deleteRecursively())
-        println("Enforcing STARTTLS Move, destination reconciliation and retained-payload policy: PASS")
+        println("Enforcing STARTTLS filing, destination reconciliation and retained-payload policy: PASS")
     }
 
     private fun checkMove(
@@ -69,6 +70,7 @@ object ConfinedMoveProtocolProbe {
         certificate: Path,
         unknown: Boolean,
         role: MailFolderRole?,
+        kind: MailMoveKind,
     ) {
         var logs = 0
         val logger = DefaultLogger(object : LogSink {
@@ -93,36 +95,76 @@ object ConfinedMoveProtocolProbe {
                 logger,
                 directory.resolve("mime"),
             )
-            sessions.open(account.id).use {
-                it.refreshFolders()
-                it.sync("INBOX")
-                it.sync("Archive")
-            }
-            val repository = PersistentLiveMailRepository(database, sessions)
-            val uid = repository.messages(account.id, "INBOX").single().id
-            val operations = PersistentMailMoveOperations(database, accounts, sessions)
-            val key = MailMessageKey(account.id, "INBOX", uid)
-            operations.verify(key, MailOperation())
-            if (role != null) {
-                operations.configureRole(key, role, "Archive")
-                check(operations.overview(key).roles[role] == "Archive")
-            }
-            val queued = operations.enqueue(key, "Archive", role)
-            check(queued.state == MailMoveState.QUEUED)
-            val complete = operations.submit(queued, MailOperation(), acknowledgeDuplicateRisk = false)
-            val expected = if (unknown) MailMoveState.UNKNOWN else MailMoveState.COMPLETE
-            check(complete.state == expected)
-            val payloads = MailMovePayloadStore(database)
-            check(payloads.info(account.id, complete.id) != null)
-            check(operations.reconcile(complete, MailOperation()))
-            if (!unknown) check(repository.messages(account.id, "INBOX").isEmpty())
-            val destination = repository.messages(account.id, "Archive").single()
-            check(repository.content(account.id, "Archive", destination.id).body.trim() == "Controlled incoming body")
-            check((payloads.info(account.id, complete.id) != null) == unknown)
-            check(MailMoveStore(database).get(account.id, complete.id).state == expected)
-            check(runCatching { operations.submit(complete, MailOperation(), false) }.isFailure)
+            exerciseFiling(database, accounts, sessions, unknown, role, kind)
         }
         check(logs == 0)
+    }
+
+    private fun exerciseFiling(
+        database: MailDatabase,
+        accounts: UtAccountManager,
+        sessions: ForegroundMailSessionFactory,
+        unknown: Boolean,
+        role: MailFolderRole?,
+        kind: MailMoveKind,
+    ) {
+        val account = accounts.findAll().single()
+        sessions.open(account.id).use {
+            it.refreshFolders()
+            it.sync("INBOX")
+            it.sync("Archive")
+        }
+        val repository = PersistentLiveMailRepository(database, sessions)
+        val original = repository.messages(account.id, "INBOX").single()
+        val uid = original.id
+        val operations = PersistentMailMoveOperations(database, accounts, sessions)
+        val key = MailMessageKey(account.id, "INBOX", uid)
+        operations.verify(key, MailOperation())
+        if (role != null) {
+            operations.configureRole(key, role, "Archive")
+            check(operations.overview(key).roles[role] == "Archive")
+        }
+        val queued = operations.enqueue(key, "Archive", role, kind)
+        check(queued.state == MailMoveState.QUEUED)
+        val complete = operations.submit(queued, MailOperation(), acknowledgeDuplicateRisk = false)
+        val expected = if (unknown) MailMoveState.UNKNOWN else MailMoveState.COMPLETE
+        check(complete.state == expected)
+        val payloads = MailMovePayloadStore(database)
+        check(payloads.info(account.id, complete.id) != null)
+        check(operations.reconcile(complete, MailOperation()))
+        if (kind == MailMoveKind.COPY) {
+            checkCopySource(original, repository, operations, key, unknown)
+        } else if (!unknown) {
+            check(repository.messages(account.id, "INBOX").isEmpty())
+        }
+        val destination = repository.messages(account.id, "Archive").single()
+        check(repository.content(account.id, "Archive", destination.id).body.trim() == "Controlled incoming body")
+        check((payloads.info(account.id, complete.id) != null) == unknown)
+        check(MailMoveStore(database).get(account.id, complete.id).state == expected)
+        check(runCatching { operations.submit(complete, MailOperation(), false) }.isFailure)
+    }
+
+    private fun checkCopySource(
+        original: MailSummary,
+        repository: PersistentLiveMailRepository,
+        operations: PersistentMailMoveOperations,
+        key: MailMessageKey,
+        unknown: Boolean,
+    ) {
+        val source = repository.messages(key.account, key.folder).single()
+        check(source.id == key.uid && source.unread == original.unread && source.starred == original.starred)
+        check(repository.content(key.account, key.folder, key.uid).body.trim() == "Controlled incoming body")
+        if (!unknown) {
+            check(runCatching { operations.enqueue(key, "Archive", kind = MailMoveKind.COPY) }.isFailure)
+            val repeated = operations.enqueue(
+                key,
+                "Archive",
+                kind = MailMoveKind.COPY,
+                acknowledgeDuplicateRisk = true,
+            )
+            check(repeated.kind == MailMoveKind.COPY)
+            operations.cancelQueued(repeated)
+        }
     }
 
     private fun manager(database: MailDatabase) = UtAccountManager(

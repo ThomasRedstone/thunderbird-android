@@ -20,9 +20,10 @@ object PhoneProtocolServer {
         require(args.size in 2..6)
         val startTls = args.size >= 3
         val features = args.drop(3).toSet()
-        require(features.all { it in setOf("flags", "reply", "sent", "move", "move-unknown") })
+        require(features.all { it in setOf("flags", "reply", "sent", "move", "move-unknown", "copy") })
         if (startTls) require(args[2] == "starttls")
         require("move-unknown" !in features || (startTls && "move" in features))
+        require("copy" !in features || (startTls && "move" in features))
         val host = args[0]
         val output = Path.of(args[1]).toAbsolutePath()
         Files.createDirectories(output)
@@ -120,7 +121,8 @@ object PhoneProtocolServer {
         val messageId = if ("move" in features) {
             checkMove(
                 server,
-                sourcePresent = "move-unknown" in features && !gateways.first().droppedMoveWasAtomic.get(),
+                sourcePresent = "copy" in features ||
+                    ("move-unknown" in features && !gateways.first().droppedMoveWasAtomic.get()),
             )
             ""
         } else {
@@ -168,6 +170,7 @@ object PhoneProtocolServer {
             store.getFolder("INBOX").use {
                 it.open(jakarta.mail.Folder.READ_ONLY)
                 check(it.messageCount == if (sourcePresent) 1 else 0)
+                if (sourcePresent) check(it.messages.single().content.toString().trim() == "Controlled incoming body")
             }
             store.getFolder("Archive").use {
                 it.open(jakarta.mail.Folder.READ_ONLY)

@@ -156,3 +156,48 @@ Exclusions: wholesale replacement of the preview, data deletion/migration, unrel
 OAuth changes, system-service changes, release claims, and unreviewed API/internal boundary violations. The full mail
 roadmap remains intact. The 1–3 day prototype and subsequent schedule ranges are planning allowances, not evidence of
 completion or a delivery promise; revise them from the prototype's observed blockers.
+
+
+### Prototype step 1: canonical state-machine view model extraction
+
+The message-list contract's only `core:ui:compose:common` import is BaseStateMachineViewModel.
+That implementation imports Lifecycle ViewModel/viewModelScope, flows/coroutines, shared Logger and shared StateMachine;
+all are already used/supported by `core:ui:contract`'s KMP target. Move this implementation to the existing shared
+UI-contract MVI package, retain the old Android class name as a delegating subclass, and run its existing behaviour
+cases against the shared implementation as well as the Android compatibility wrapper. Keep existing message-list
+callers unchanged in this first step. No new module or dependency edge is needed: the Android UI module already
+exports core:ui:contract. Later list extraction can import the canonical shared class directly.
+
+Acceptance for this step is shared JVM behaviour tests and Android compatibility tests/compilation, not the whole
+mobile-list prototype. Preserve event ordering, effect delivery, side-effect handlers, one-time event handling and
+logging semantics. Do not redesign the controller or replace it with the preview's app-local view models. This follows
+the requested shared-mobile-UI adaptation within existing API/internal boundaries; the whole screen's remaining
+resource, account and legacy-service dependencies remain open.
+
+
+Step1 implemented: `core/ui/contract/src/commonMain/.../mvi/BaseStateMachineViewModel.kt` now owns the existing
+state-machine view-model behaviour. Its code is extracted from the Android module; the old
+`core/ui/compose/common/.../mvi/BaseStateMachineViewModel.kt` delegates through a compatibility subclass, preserving
+its constructor and existing Android call sites. No module/dependency edge was added, and no app-local replacement
+controller was introduced. The eight existing behaviour cases also run from commonTest against the canonical class.
+
+Verification (`/tmp/thunderbird-mobile-state-extraction.log`, exit0, 334 tasks):
+
+```sh
+./gradlew :core:ui:contract:jvmTest :core:ui:contract:detekt :core:ui:contract:spotlessCheck \
+  :core:ui:compose:common:testDebugUnitTest :core:ui:compose:common:detekt \
+  :core:ui:compose:common:spotlessCheck :feature:mail:message:list:api:compileDebugKotlin \
+  --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers=4
+```
+
+Same JDK21/Android SDK environment as the audit command above. Shared contract JVM suite:18 tests; Android UI-common
+host suite:17 tests; zero failures/errors/skips. These include the same8 state-machine cases on each path, covering
+initial state, transitions, effects, one-time handling and side effects. Existing Android message-list API compiles
+unchanged. No physical Android/UT device test or entire application build is implied.
+
+The eight checkpointed app/search files were compared byte-for-byte with the checkpoint commit and remain unchanged.
+They are not included in this extraction. The meaningful mobile-list prototype is still incomplete: its API module
+is Android-only, including Android resource-backed sort labels, legacy account mapping, a fragment factory and the
+old view-model import; its internal module still includes data/side-effect/platform dependencies. Next separate these
+platform contracts/resource consumers and adapt the existing mobile page/rows/state machine with Android regression
+coverage. Do not claim success from the base view-model extraction alone.

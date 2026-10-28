@@ -593,3 +593,10 @@ cache writes (full485 host tests and quality/distribution pass). Account/connect
 identity and cancellation are checked before persistence; mismatched cache context is retained.
 The online-search UI/model/navigation/lifecycle slice is still required.38 remains unpackaged;
 phone SSH still times out and native/provider/large-mailbox gates remain open.
+
+
+Shared mobile-list portability prototype: the existing BaseStateMachineViewModel implementation is now in the KMP
+UI-contract module, with an Android compatibility subclass. Shared JVM18 tests and Android host17 tests pass, including
+the same8 behavioural cases on each path; the unchanged Android message-list API compiles. No new dependency edge or
+replacement app controller. This is one prerequisite: the actual mobile list/page, resources and platform side effects
+still need extraction and JVM/UT verification. Checkpointed custom search UI work remains unchanged and separate.

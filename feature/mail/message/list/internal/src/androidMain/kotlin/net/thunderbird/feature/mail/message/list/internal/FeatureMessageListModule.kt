@@ -7,7 +7,6 @@ import net.thunderbird.feature.mail.message.list.internal.domain.usecase.BuildSw
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.CreateArchiveFolder
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.GetSortCriteriaPerAccount
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.SetArchiveFolder
-import net.thunderbird.feature.mail.message.list.internal.ui.MessageListScreenRenderer
 import net.thunderbird.feature.mail.message.list.internal.ui.MessageListViewModel
 import net.thunderbird.feature.mail.message.list.internal.ui.dialog.SetupArchiveFolderDialogFragment
 import net.thunderbird.feature.mail.message.list.internal.ui.dialog.SetupArchiveFolderDialogViewModel
@@ -71,5 +70,4 @@ val featureMessageListModule = module {
             accountManager = get(),
         )
     }
-    factory<MessageListContract.MessageListScreenRenderer> { MessageListScreenRenderer() }
 }

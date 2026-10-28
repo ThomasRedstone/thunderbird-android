@@ -3,7 +3,6 @@ package net.thunderbird.feature.mail.message.list.internal.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.res.stringResource
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -12,9 +11,7 @@ import net.thunderbird.components.ui.bolt.molecule.swipe.SwipeDirectionAccessibi
 import net.thunderbird.components.ui.bolt.molecule.swipe.SwipeDirectionAccessibilityAction.StartToEndAccessibilityAction
 import net.thunderbird.core.common.action.SwipeAction
 import net.thunderbird.core.common.action.SwipeActions
-import net.thunderbird.feature.mail.message.list.internal.R
 import net.thunderbird.feature.mail.message.list.ui.state.MessageItemUi
-import net.thunderbird.feature.mail.message.list.R as ApiR
 
 /**
  * Manages accessibility state and descriptions for messages in a message list screen.
@@ -101,52 +98,16 @@ enum class MessageListStateDescription {
 internal fun rememberMessageListScreenAccessibilityState(
     swipeActions: SwipeActions?,
 ): MessageListScreenAccessibilityState {
-    val stateDescription = mapOf(
-        MessageListStateDescription.NewMessage to stringResource(
-            id = R.string.message_list_state_new_message_description,
-        ),
-        MessageListStateDescription.ReadMessage to stringResource(
-            id = R.string.message_list_state_read_message_description,
-        ),
-        MessageListStateDescription.UnreadMessage to stringResource(
-            id = R.string.message_list_state_unread_message_description,
-        ),
-        MessageListStateDescription.ActiveNewMessage to stringResource(
-            id = R.string.message_list_state_active_new_message_description,
-        ),
-        MessageListStateDescription.ActiveReadMessage to stringResource(
-            id = R.string.message_list_state_active_read_message_description,
-        ),
-        MessageListStateDescription.ActiveUnreadMessage to stringResource(
-            id = R.string.message_list_state_active_unread_message_description,
-        ),
-        MessageListStateDescription.SelectedNewMessage to stringResource(
-            id = R.string.message_list_state_selected_new_message_description,
-        ),
-        MessageListStateDescription.SelectedReadMessage to stringResource(
-            id = R.string.message_list_state_selected_read_message_description,
-        ),
-        MessageListStateDescription.SelectedUnreadMessage to stringResource(
-            id = R.string.message_list_state_selected_unread_message_description,
-        ),
-    )
-    val swipeDirectionAccessibilityAction = remember(swipeActions) {
+    val stateDescription = messageListStateDescriptions()
+    val rightActionLabel = swipeActions?.rightAction?.let { swipeActionLabel(it, toggled = false) }
+    val leftActionLabel = swipeActions?.leftAction?.let { swipeActionLabel(it, toggled = false) }
+    val swipeDirectionAccessibilityAction = remember(rightActionLabel, leftActionLabel) {
         buildList {
-            val rightAction = swipeActions?.rightAction?.toAccessibilityStringRes()
-            if (rightAction != null) {
-                add(
-                    StartToEndAccessibilityAction(
-                        actionLabel = { stringResource(id = rightAction) },
-                    ),
-                )
+            if (rightActionLabel != null) {
+                add(StartToEndAccessibilityAction(actionLabel = { rightActionLabel }))
             }
-            val leftAction = swipeActions?.leftAction?.toAccessibilityStringRes()
-            if (leftAction != null) {
-                add(
-                    EndToStartAccessibilityAction(
-                        actionLabel = { stringResource(id = leftAction) },
-                    ),
-                )
+            if (leftActionLabel != null) {
+                add(EndToStartAccessibilityAction(actionLabel = { leftActionLabel }))
             }
         }
     }
@@ -154,17 +115,4 @@ internal fun rememberMessageListScreenAccessibilityState(
     return remember(stateDescription, swipeDirectionAccessibilityAction) {
         MessageListScreenAccessibilityState(stateDescription, swipeDirectionAccessibilityAction.toPersistentList())
     }
-}
-
-private fun SwipeAction.toAccessibilityStringRes(): Int? = when (this) {
-    SwipeAction.None -> null
-    SwipeAction.ToggleSelection -> ApiR.string.swipe_action_select
-    SwipeAction.ToggleRead -> ApiR.string.swipe_action_mark_as_read
-    SwipeAction.ToggleStar -> ApiR.string.swipe_action_add_star
-    SwipeAction.Archive -> ApiR.string.swipe_action_archive
-    SwipeAction.ArchiveSetupArchiveFolder -> ApiR.string.swipe_action_archive_folder_not_set
-    SwipeAction.ArchiveDisabled -> ApiR.string.swipe_action_change_swipe_gestures
-    SwipeAction.Delete -> ApiR.string.swipe_action_delete
-    SwipeAction.Spam -> ApiR.string.swipe_action_spam
-    SwipeAction.Move -> ApiR.string.swipe_action_move
 }

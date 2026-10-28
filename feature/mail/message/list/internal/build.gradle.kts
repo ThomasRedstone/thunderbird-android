@@ -15,6 +15,7 @@ kotlin {
             implementation(projects.feature.account.api)
             implementation(projects.feature.account.profile.api)
             implementation(projects.feature.mail.folder.api)
+            implementation(projects.feature.notification.api)
         }
         androidMain.dependencies {
             implementation(projects.backend.api)
@@ -23,12 +24,14 @@ kotlin {
             implementation(projects.core.ui.compose.common)
             implementation(projects.core.ui.theme.api)
             implementation(projects.feature.mail.account.api)
-            implementation(projects.feature.notification.api)
             implementation(projects.legacy.mailstore)
             implementation(projects.mail.common)
         }
         commonTest.dependencies {
             implementation(projects.core.testing)
+        }
+        jvmTest.dependencies {
+            implementation(libs.tb.mobile.components.ui.testing)
         }
         androidHostTest.dependencies {
             implementation(projects.core.android.account.fake)

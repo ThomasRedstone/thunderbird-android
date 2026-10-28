@@ -1,6 +1,5 @@
 package net.thunderbird.feature.mail.message.list.internal.ui.component
 
-import android.util.TypedValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,23 +11,15 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
 import net.thunderbird.components.ui.bolt.atom.Surface
 import net.thunderbird.components.ui.bolt.atom.icon.Icon
 import net.thunderbird.components.ui.bolt.atom.icon.Icons
 import net.thunderbird.components.ui.bolt.atom.text.TextLabelLarge
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 import net.thunderbird.components.ui.bolt.theme.ColorRoles
-import net.thunderbird.components.ui.bolt.theme.toColorRoles
-import net.thunderbird.components.ui.bolt.theme.toHarmonizedColor
 import net.thunderbird.core.common.action.SwipeAction
-import net.thunderbird.core.common.resources.StringRes
-import net.thunderbird.feature.mail.message.list.internal.R
-import net.thunderbird.feature.mail.message.list.R as ApiR
+import net.thunderbird.feature.mail.message.list.internal.ui.swipeActionLabel
 
 /**
  * Displays the background content for a swipeable message list item, showing an icon and label
@@ -41,7 +32,7 @@ import net.thunderbird.feature.mail.message.list.R as ApiR
  * @param modifier Optional modifier to be applied to the root Surface.
  */
 @Composable
-fun MessageItemSwipeBackground(
+internal fun MessageItemSwipeBackground(
     action: SwipeAction,
     toggled: Boolean,
     arrangement: Arrangement.Horizontal,
@@ -49,8 +40,7 @@ fun MessageItemSwipeBackground(
 ) {
     val colorRoles = rememberSwipeActionColorRoles(action, toggled) ?: return
     val iconVector = remember(action, toggled) { action.iconVector(toggled) }
-    val actionNameId = remember(action, toggled) { action.actionNameId(toggled) }
-    actionNameId ?: return
+    val actionName = swipeActionLabel(action, toggled) ?: return
 
     Surface(
         modifier = modifier,
@@ -73,7 +63,7 @@ fun MessageItemSwipeBackground(
                 movableIcon()
                 Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
             }
-            TextLabelLarge(stringResource(actionNameId))
+            TextLabelLarge(actionName)
             if (arrangement == Arrangement.End) {
                 Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
                 movableIcon()
@@ -82,50 +72,11 @@ fun MessageItemSwipeBackground(
     }
 }
 
+/**
+ * Resolves the [ColorRoles] used by the background of a swipe [action], or `null` when nothing should be drawn.
+ */
 @Composable
-private fun rememberSwipeActionColorRoles(action: SwipeAction, toggled: Boolean): ColorRoles? {
-    val context = LocalContext.current
-    val resources = LocalResources.current
-    val primaryColor = BoltTheme.colors.primary
-    val surfaceContainerLowest = BoltTheme.colors.surfaceContainerLowest
-    return remember(action, toggled, primaryColor, surfaceContainerLowest) {
-        // TODO: move these colours to use the design system whenever we have them available.
-        val actionAttrColor = when (action) {
-            SwipeAction.None -> return@remember null
-
-            SwipeAction.ToggleSelection -> R.attr.messageListSwipeSelectColor
-
-            SwipeAction.ToggleRead -> R.attr.messageListSwipeToggleReadColor
-
-            SwipeAction.ToggleStar -> R.attr.messageListSwipeToggleStarColor
-
-            SwipeAction.Archive -> R.attr.messageListSwipeArchiveColor
-
-            SwipeAction.ArchiveDisabled, SwipeAction.ArchiveSetupArchiveFolder ->
-                null
-
-            SwipeAction.Delete -> R.attr.messageListSwipeDeleteColor
-
-            SwipeAction.Spam -> R.attr.messageListSwipeSpamColor
-
-            SwipeAction.Move -> R.attr.messageListSwipeMoveColor
-        }
-        val targetColor = if (actionAttrColor != null) {
-            val typedValue = TypedValue()
-            val found = context.theme.resolveAttribute(actionAttrColor, typedValue, true)
-            val colorInt = if (found) {
-                typedValue.data
-            } else {
-                error("Couldn't resolve attribute (${resources.getResourceName(actionAttrColor)}")
-            }
-            Color(colorInt)
-        } else {
-            surfaceContainerLowest
-        }
-        val harmonizedColor = primaryColor.toHarmonizedColor(targetColor)
-        harmonizedColor.toColorRoles(context)
-    }
-}
+internal expect fun rememberSwipeActionColorRoles(action: SwipeAction, toggled: Boolean): ColorRoles?
 
 private fun SwipeAction.iconVector(toggled: Boolean): ImageVector? = when (this) {
     SwipeAction.None -> null
@@ -139,21 +90,4 @@ private fun SwipeAction.iconVector(toggled: Boolean): ImageVector? = when (this)
     SwipeAction.Delete -> Icons.Outlined.Delete
     SwipeAction.Spam -> Icons.Outlined.Report
     SwipeAction.Move -> Icons.Outlined.DriveFileMove
-}
-
-@StringRes
-private fun SwipeAction.actionNameId(toggled: Boolean): Int? = when (this) {
-    SwipeAction.None -> null
-    SwipeAction.ToggleSelection if toggled -> ApiR.string.swipe_action_deselect
-    SwipeAction.ToggleSelection -> ApiR.string.swipe_action_select
-    SwipeAction.ToggleRead if toggled -> ApiR.string.swipe_action_mark_as_unread
-    SwipeAction.ToggleRead -> ApiR.string.swipe_action_mark_as_read
-    SwipeAction.ToggleStar if toggled -> ApiR.string.swipe_action_remove_star
-    SwipeAction.ToggleStar -> ApiR.string.swipe_action_add_star
-    SwipeAction.Archive -> ApiR.string.swipe_action_archive
-    SwipeAction.ArchiveSetupArchiveFolder -> ApiR.string.swipe_action_archive_folder_not_set
-    SwipeAction.ArchiveDisabled -> ApiR.string.swipe_action_change_swipe_gestures
-    SwipeAction.Delete -> ApiR.string.swipe_action_delete
-    SwipeAction.Spam -> ApiR.string.swipe_action_spam
-    SwipeAction.Move -> ApiR.string.swipe_action_move
 }

@@ -3845,3 +3845,24 @@ A later BatchMode/ConnectTimeout10 SSH check also timed out. No35 upgrade or bac
 ran, and none of these new drivers has run on the phone. Last verified installation/fleet
 pin remains34/schema15. Desk blocker b-omq6 records phone availability; q-ar74 and q-jk4j
 remain unanswered. Native15→16 migration, Copy and physical acceptance stay open.
+
+
+### Durable filing message identity (development36/schema17, 2026-10-28)
+
+New Move/Copy intents snapshot decoded subject and cached effective date in the same
+transaction as the intent, after source binding and folder generation checks. History
+buttons and detail pages show the snapshot even after source removal/replacement/restart.
+Subject capture reads at most64KiB of MIME headers, unfolds continuation lines and uses
+the shared MimeMessage subject decoder without parsing bodies or creating MIME files.
+Incomplete/oversized header blocks remain unavailable; absent Subject is labelled No subject.
+Legacy records receive nullable fields and explicitly show Message identity unavailable;
+there is no unsafe UID-based backfill. Dates currently display as UTC instants.
+Metadata stays in the existing private mail database; MailMove.toString remains redacted.
+
+Full454 app tests pass, zero failures/errors/skips, with detekt, spotlessCheck and installDist:
+`/tmp/thunderbird-036-identity-full-3.log`. New tests cover encoded/folded Unicode, header
+bounds, source deletion/reopen and schema16→17 migration. An earlier full run found a stale
+schema16 assertion in the signature fixture; current probe schema assertions now expect17.
+Production36 is not packaged or installed; frozen35 and its matching native-driver JAR stay
+unchanged. New native migration/history and physical acceptance remain open. Provider
+registration, Content Hub permission and offline phone gates remain unchanged.

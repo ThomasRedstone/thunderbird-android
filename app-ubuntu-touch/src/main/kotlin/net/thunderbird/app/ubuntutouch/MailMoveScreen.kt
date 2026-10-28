@@ -53,7 +53,7 @@ internal fun MailMoveScreen(state: MailMoveUiState, onEvent: (MailMoveEvent) -> 
                 items(state.overview.history, key = { it.move.id }) { view ->
                     ButtonText(
                         "${view.move.kind.title}: ${view.accountName}: ${view.move.source} → ${view.move.target} · " +
-                            view.move.state.displayName(),
+                            view.move.state.displayName() + " · " + view.move.messageIdentity(),
                         {
                             onEvent(MailMoveEvent.Select(view.move))
                         },
@@ -94,6 +94,7 @@ private fun MoveSetup(state: MailMoveUiState, onEvent: (MailMoveEvent) -> Unit) 
 @Composable
 private fun MoveDetails(state: MailMoveUiState, view: MoveView, onEvent: (MailMoveEvent) -> Unit) {
     TextBodyLarge("${view.move.kind.title}: ${view.accountName}: ${view.move.source} → ${view.move.target}")
+    TextBodyLarge(view.move.messageIdentity())
     CopySourceNotice(view.move.kind)
     TextBodyLarge(
         when (view.move.state) {
@@ -206,4 +207,10 @@ private fun MailMoveState.displayName(): String = when (this) {
     MailMoveState.WORKING -> "Submitting"
     MailMoveState.UNKNOWN -> "Needs review"
     MailMoveState.COMPLETE -> "Server acknowledged"
+}
+
+internal fun MailMove.messageIdentity(): String {
+    val label = subject?.ifBlank { "(No subject)" } ?: "Message identity unavailable"
+    val date = messageDate?.let { java.time.Instant.ofEpochMilli(it).toString() }
+    return if (date == null) label else "$label · $date"
 }

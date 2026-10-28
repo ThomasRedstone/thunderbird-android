@@ -19,6 +19,63 @@ class MailMoveStoreTest {
     @get:Rule val directory = TemporaryFolder()
 
     @Test
+    fun `filing subject bounds headers and decodes folded unicode without parsing bodies`() = fixture {
+            database,
+            account,
+            testSubject,
+        ->
+        val key = MailMessageKey(account, "INBOX", "1")
+        database.execute("UPDATE messages SET mime=?", "Subject: Café\r\n continued\r\n\r\nBody".toByteArray())
+        val queued = testSubject.enqueue(key, "Archive")
+        assertThat(queued.subject).isEqualTo("Café continued")
+        testSubject.cancelQueued(queued)
+        database.execute("UPDATE messages SET mime=?", ("Subject: " + "x".repeat(65536) + "\r\n\r\n").toByteArray())
+        assertThat(testSubject.enqueue(key, "Archive").subject).isEqualTo(null)
+    }
+
+    @Test
+    fun `schema sixteen history remains unknown rather than matching a reused source`() {
+        val path = directory.root.toPath().resolve("legacy-identity.sqlite")
+        lateinit var record: MailMove
+        MailDatabase(path).use { database ->
+            val account = populate(database)
+            record = MailMoveStore(database).enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+            database.execute("ALTER TABLE mail_moves DROP COLUMN message_subject")
+            database.execute("ALTER TABLE mail_moves DROP COLUMN message_date")
+            database.execute("PRAGMA user_version=16")
+        }
+        MailDatabase(path).use { database ->
+            val recovered = MailMoveStore(database).get(record.account, record.id)
+            assertThat(recovered.subject).isEqualTo(null)
+            assertThat(recovered.messageDate).isEqualTo(null)
+            assertThat(recovered.messageIdentity()).isEqualTo("Message identity unavailable")
+        }
+    }
+
+    @Test
+    fun `filing identity survives source replacement and database reopen`() {
+        val path = directory.root.toPath().resolve("identity.sqlite")
+        lateinit var record: MailMove
+        MailDatabase(path).use { database ->
+            val account = populate(database)
+            database.execute(
+                "UPDATE messages SET mime=?,effective_date=42",
+                "Subject: =?UTF-8?B?Q2Fmw6k=?=\r\n\r\nBody".toByteArray(),
+            )
+            val testSubject = MailMoveStore(database)
+            record = testSubject.enqueue(MailMessageKey(account, "INBOX", "1"), "Archive")
+            assertThat(record.messageDate).isEqualTo(42L)
+            assertThat(record.subject).isEqualTo("Café")
+            database.execute("DELETE FROM messages")
+        }
+        MailDatabase(path).use { database ->
+            val testSubject = MailMoveStore(database)
+            assertThat(testSubject.get(record.account, record.id)).isEqualTo(record)
+            assertThat(record.toString()).isEqualTo("MailMove(redacted)")
+        }
+    }
+
+    @Test
     fun `repeat copy review is scoped to the destination generation`() = fixture { database, account, store ->
         val key = MailMessageKey(account, "INBOX", "1")
         val first = store.enqueue(key, "Archive", MailMoveKind.COPY)
@@ -109,7 +166,7 @@ class MailMoveStoreTest {
             assertThat(recovered.kind).isEqualTo(MailMoveKind.MOVE)
             assertThat(recovered.state).isEqualTo(MailMoveState.UNKNOWN)
             assertThat(MailMovePayloadStore(database).info(account, recovered.id)?.bytes).isEqualTo(7L)
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(16L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(17L)
         }
     }
 
@@ -455,7 +512,7 @@ class MailMoveStoreTest {
             database.execute("PRAGMA user_version=11")
         }
         MailDatabase(path).use { database ->
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(16L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(17L)
             assertThat(MailSignatureStore(database).read(account).text).isEqualTo("Fixture")
             assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(1L)
             assertThat(MailMoveStore(database).list(account)).isEqualTo(emptyList())

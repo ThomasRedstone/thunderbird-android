@@ -61,7 +61,7 @@ class MailSignatureStoreTest {
             database.execute("PRAGMA user_version=10")
         }
         MailDatabase(path).use { database ->
-            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(16L)
+            assertThat(database.query("PRAGMA user_version") { getLong(0) }.single()).isEqualTo(17L)
             assertThat(OutgoingMailStore(database).get(account.id, draftId).body).isEqualTo("Existing draft")
             assertThat(MailSignatureStore(database).read(account.id)).isEqualTo(MailSignature())
             assertThat(database.query("PRAGMA quick_check") { getText(0) }.single()).isEqualTo("ok")

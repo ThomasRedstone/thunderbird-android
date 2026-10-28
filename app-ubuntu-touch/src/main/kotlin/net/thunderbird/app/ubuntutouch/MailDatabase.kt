@@ -19,7 +19,8 @@ private const val MOVE_SCHEMA_VERSION = 12L
 private const val MOVE_BINDING_SCHEMA_VERSION = 13L
 private const val CACHE_BINDING_SCHEMA_VERSION = 14L
 private const val MOVE_PAYLOAD_SCHEMA_VERSION = 15L
-private const val CURRENT_SCHEMA_VERSION = 16L
+private const val COPY_KIND_SCHEMA_VERSION = 16L
+private const val CURRENT_SCHEMA_VERSION = 17L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -49,7 +50,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < MOVE_BINDING_SCHEMA_VERSION) createMoveBindingSchema()
             if (version < CACHE_BINDING_SCHEMA_VERSION) createCacheBindingSchema()
             if (version < MOVE_PAYLOAD_SCHEMA_VERSION) createMovePayloadSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createCopyKindSchema()
+            if (version < COPY_KIND_SCHEMA_VERSION) createCopyKindSchema()
+            if (version < CURRENT_SCHEMA_VERSION) createMoveIdentitySchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
@@ -95,6 +97,13 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createMoveIdentitySchema() = transaction {
+        val columns = query("PRAGMA table_info(mail_moves)") { getText(1) }
+        if ("message_subject" !in columns) execute("ALTER TABLE mail_moves ADD COLUMN message_subject TEXT")
+        if ("message_date" !in columns) execute("ALTER TABLE mail_moves ADD COLUMN message_date INTEGER")
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createCopyKindSchema() = transaction {
         val columns = query("PRAGMA table_info(mail_moves)") { getText(1) }
         if ("kind" !in columns) {
@@ -102,7 +111,7 @@ internal class MailDatabase(path: Path) : AutoCloseable {
                 "ALTER TABLE mail_moves ADD COLUMN kind TEXT NOT NULL DEFAULT 'MOVE' CHECK(kind IN ('MOVE','COPY'))",
             )
         }
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$COPY_KIND_SCHEMA_VERSION")
     }
 
     private fun createMovePayloadSchema() = transaction {

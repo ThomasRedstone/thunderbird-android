@@ -20,6 +20,8 @@ internal data class MailMove(
     val uncertain: Boolean,
     val binding: String,
     val kind: MailMoveKind = MailMoveKind.MOVE,
+    val subject: String? = null,
+    val messageDate: Long? = null,
 ) {
     override fun toString(): String = "MailMove(redacted)"
 }
@@ -58,10 +60,16 @@ internal class MailMoveStore(private val database: MailDatabase) {
         check(targetFolder.getFolderExtraString(CACHE_BINDING_KEY) == currentBinding) {
             "Sync the destination before moving"
         }
+        val subject = filingSubject(database, sourceFolder.id, key.uid)
+        val date = database.query(
+            "SELECT effective_date FROM messages WHERE folder=? AND uid=?",
+            sourceFolder.id,
+            key.uid,
+        ) { if (isNull(0)) null else getLong(0) }.single()
         val id = UUID.randomUUID().toString()
         database.execute(
-            """INSERT INTO mail_moves(id,account,source,uid,target,source_validity,target_validity,state,binding,kind)
-                VALUES(?,?,?,?,?,?,?,'QUEUED',?,?)""",
+            """INSERT INTO mail_moves(id,account,source,uid,target,source_validity,target_validity,state,binding,kind,message_subject,message_date)
+                VALUES(?,?,?,?,?,?,?,'QUEUED',?,?,?,?)""",
             id,
             key.account.toString(),
             key.folder,
@@ -71,12 +79,14 @@ internal class MailMoveStore(private val database: MailDatabase) {
             targetValidity,
             currentBinding,
             kind.name,
+            subject,
+            date,
         )
         get(key.account, id)
     }
 
     fun list(account: AccountId): List<MailMove> = database.query(
-        """SELECT id,source,uid,target,source_validity,target_validity,state,attempt,uncertain,binding,kind
+        """SELECT id,source,uid,target,source_validity,target_validity,state,attempt,uncertain,binding,kind,message_subject,message_date
             FROM mail_moves WHERE account=? ORDER BY rowid""",
         account.toString(),
     ) {
@@ -84,6 +94,8 @@ internal class MailMoveStore(private val database: MailDatabase) {
             getText(0), account, getText(1), getText(2), getText(3), getLong(4), getLong(5),
             MailMoveState.valueOf(getText(6)), getLong(7), getLong(8) != 0L, getText(9),
             MailMoveKind.valueOf(getText(10)),
+            if (isNull(11)) null else getText(11),
+            if (isNull(12)) null else getLong(12),
         )
     }
 

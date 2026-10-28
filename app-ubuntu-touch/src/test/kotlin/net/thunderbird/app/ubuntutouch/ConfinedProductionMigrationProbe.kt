@@ -42,5 +42,5 @@ object ConfinedProductionMigrationProbe {
     }
 
     private const val PROFILE = "mail-demo.thomasredstone_mail-demo_0.1.35"
-    private const val CURRENT_SCHEMA = 16L
+    private const val CURRENT_SCHEMA = 17L
 }

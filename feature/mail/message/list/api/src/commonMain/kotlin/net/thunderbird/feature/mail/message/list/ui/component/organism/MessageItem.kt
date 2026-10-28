@@ -169,7 +169,7 @@ internal fun MessageItem(
 
                         is MessageItemTrailingElement.FavouriteIconButton -> FavouriteButtonIcon(
                             favourite = element.favourite,
-                            onFavouriteChange = { onTrailingClick(element) },
+                            onFavouriteChange = { onTrailingClick(element.copy(favourite = it)) },
                             size = BoltTheme.sizes.minTouchTarget,
                             modifier = Modifier.height(BoltTheme.sizes.minTouchTarget / 2),
                         )

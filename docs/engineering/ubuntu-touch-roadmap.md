@@ -602,3 +602,9 @@ UI-contract module, with an Android compatibility subclass. Shared JVM18 tests a
 the same8 behavioural cases on each path; the unchanged Android message-list API compiles. No new dependency edge or
 replacement app controller. This is one prerequisite: the actual mobile list/page, resources and platform side effects
 still need extraction and JVM/UT verification. Checkpointed custom search UI work remains unchanged and separate.
+
+
+Canonical mobile-list API is now KMP (`2e0595420f`), preserving the Android resource labels and actual mobile row sources.
+JVM15 and Android host15 tests pass, including canonical row rendering/open, star changes and selection; the legacy
+Android UI consumer compiles. An existing favourite callback defect found by these tests is fixed in the shared row.
+This advances the reuse-first prototype; the internal page/state-machine/data path and UT assembly remain open.

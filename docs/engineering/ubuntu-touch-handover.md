@@ -1,6 +1,16 @@
 # Ubuntu Touch mail port handover
 
-Updated 2026-10-28. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture. The user requested this handover and a fresh context after a long session. Work is frozen at an intentionally incomplete prototype; no build, test, transfer or phone job is running.
+Updated 2026-10-28. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture. The user requested this handover and a fresh context after a long session. The handover captured an intentionally incomplete prototype; subsequent progress is recorded in the resume update below.
+
+## Resume update after the handover
+
+Work resumed under the continuing goal. The API conversion is now committed as `2e0595420f`; the favourite callback
+failure described below is resolved by forwarding the new Boolean in the canonical MessageItem. JVM15 and Android
+host15 tests pass, including read/unread star toggles both ways and long-press selection. The legacy Android UI consumer
+compiles; detekt and final spotlessCheck pass. See `/tmp/thunderbird-mobile-list-api-interactions-2.log` and
+`/tmp/thunderbird-mobile-list-api-final-check.log`. The historical failing evidence is retained. The separate custom
+search UI is still untouched. Next continue canonical internal list/page/state-machine extraction; the full screen
+and UT/device integration remain incomplete. Read the historical sections below with this update taking precedence.
 
 ## Objective and user correction
 

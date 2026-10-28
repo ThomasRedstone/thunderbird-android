@@ -234,3 +234,23 @@ with the failing regression retained. The old internal caller ignores the Boolea
 the legacy callback consumes it. Preserve this distinction. Android host and full legacy consumer acceptance remain
 unverified because the combined invocation stopped at JVM tests. This working conversion is checkpointed separately;
 it is not a passed/merged portability milestone or the full mobile-list prototype.
+
+
+### Prototype step 2 completed and canonical callback regression fixed
+
+Refactor `2e0595420f` converts the existing list API to KMP while preserving the canonical mobile rows, contracts and
+state sources. Android resource names/translations and the SortType.labelResId getter remain available. The JVM variant
+has no fake resource IDs. No custom app/search checkpoint files were changed.
+
+The failing canonical UI test identified a real existing callback defect: FavouriteButtonIcon emitted the new Boolean,
+but MessageItem discarded it and forwarded the old element. Forwarding `element.copy(favourite = it)` preserves the
+new value for both ReadMessageItem and UnreadMessageItem. This fix and interaction tests are separate from the refactor.
+Before-fix XML is retained in `app-ubuntu-touch/build/evidence/mobile-list/favourite-before.xml` and the original failure
+log is `/tmp/thunderbird-mobile-list-api-interactions.log`.
+
+`/tmp/thunderbird-mobile-list-api-interactions-2.log` passes (exit0,848 tasks): JVM15 tests and Android host15 tests,
+zero failures/errors/skips, detekt/spotlessApply, and `:legacy:ui:legacy:compileDebugKotlin`. These include existing sort
+cases plus canonical read-row open, read/unread star toggles in both directions and unread-row long-press selection.
+Final spotlessCheck passes in `/tmp/thunderbird-mobile-list-api-final-check.log`. The original mobile row code is now
+rendered/interacted with on both targets, not replaced by a preview lookalike. The complete internal mobile list page,
+state machine/data side effects, UT assembly and device acceptance remain required; this is not the full prototype.

@@ -164,7 +164,7 @@ private fun MessageFlagButtons(summary: MailSummary, busy: Boolean, onEvent: (Li
 }
 
 @Composable
-private fun MailReader(content: MailContent, accountName: String?, modifier: Modifier = Modifier) {
+internal fun MailReader(content: MailContent, accountName: String?, modifier: Modifier = Modifier) {
     SelectionContainer(modifier) {
         Column(Modifier.verticalScroll(rememberScrollState()), Arrangement.spacedBy(12.dp)) {
             TextTitleLarge(content.summary.subject)

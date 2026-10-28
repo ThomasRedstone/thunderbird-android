@@ -15,8 +15,12 @@ This section supersedes historical prototype failures and next-action lists belo
   - Code quality: `detekt` and `spotlessCheck` pass.
   - Legacy UI consumer: `:legacy:ui:legacy:compileDebugKotlin` compiles cleanly.
 - Eight app-local search files remain intentionally dirty and separately preserved on `checkpoint/ut-search-ui-before-reuse-review` (`b9bd9c4d2da1ae15105411a7a08ba899ea25fd4f`). Do not stage or reset them.
+- **Hardware & Decisions Status (Updated 2026-10-28)**:
+  - **FP4 Phone**: Online and ready for deployment/acceptance testing.
+  - **Content Hub permission (`q-jk4j`)**: Approved / allowed by Tom.
+  - **OAuth credentials & ownership (`q-ar74`)**: Clarified as registering client application credentials.
+  - **Side quest resolution**: Keel v1 command/event facade and event subscription completed (PRs #25, #26 merged; documentation PR #27 opened; Journey 9 verified). No lingering items or dependencies on the mail port.
 - **Next milestone**: Continue canonical mobile list page rendering. The canonical page (`MessageListPage.kt` / `MessageList.kt`) still requires portable accessibility string resources and swipe theme/action resource adapters to render on Compose Desktop/JVM. Then wire via shared composition, assemble for Ubuntu Touch, and run device acceptance.
-- Pending decisions remain `q-ar74` (OAuth ownership/client registrations), `q-jk4j` (Content Hub permission); phone blocker `b-omq6` remains. Last phone34/schema15; immutable37/schema19 is packaged but uninstalled.
 
 ## Resume update after internal list migration
 

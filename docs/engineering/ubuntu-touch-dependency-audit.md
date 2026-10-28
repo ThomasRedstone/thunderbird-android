@@ -201,3 +201,8 @@ is Android-only, including Android resource-backed sort labels, legacy account m
 old view-model import; its internal module still includes data/side-effect/platform dependencies. Next separate these
 platform contracts/resource consumers and adapt the existing mobile page/rows/state machine with Android regression
 coverage. Do not claim success from the base view-model extraction alone.
+
+
+Concrete consumer check after the extraction: `:feature:mail:message:list:internal:compileDebugKotlin` also passes
+(`/tmp/thunderbird-mobile-state-list-consumer.log`, exit0,229 tasks), compiling the actual Android message-list view
+model/renderer dependency path in addition to its API wrapper. This remains compile evidence, not physical UI acceptance.

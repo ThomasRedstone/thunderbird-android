@@ -1,12 +1,23 @@
 # Ubuntu Touch port roadmap
 
-Status: active roadmap for an unofficial port, updated 2026-10-27. This is not an upstream commitment.
+Status: active roadmap for an unofficial port, updated 2026-10-28. This is not an upstream commitment.
 
 The goal is a fully featured, reliable mail application on Ubuntu Touch, reusing Thunderbird's Kotlin mail engine,
-shared Compose UI and design system. The implementation route is a Compose Desktop JVM application packaged as an ARM64
-Click, following the sibling `mobileapp` approach. The installed offline demo proves the platform path; it is not the
+shared Compose UI and design system. The build/runtime route is the Compose Desktop JVM target packaged as an ARM64
+Click, following the sibling `mobileapp` approach. The product remains Ubuntu Touch with the shared mobile UI;
+"desktop" does not describe a separate product or a replacement UI. The installed offline demo proves the platform path; it is not the
 mail application endpoint. Work continues through live mail, daily-use features, background delivery, feature parity
 and a reproducible supported release.
+
+## Active architecture correction: reuse the mobile application
+
+Before expanding app-local features, complete the [source-backed reuse reassessment and mobile-list portability
+prototype](ubuntu-touch-dependency-audit.md#reuse-reassessment-shared-mobile-ui-on-ubuntu-touch-2026-10-28).
+The current preview proves useful platform/engine adapters; it does not establish that rebuilding the application layer
+is the correct route. Prefer the existing mobile UI/state/behaviour with platform boundaries and shared composition.
+Android module placement is a blocker to resolve, not automatic justification for replacement code. Preserve current
+artifacts and data while validating this route. The full requirements below remain in scope; prior prototype test
+counts and rough percentage/time estimates are not a validated completion or delivery forecast.
 
 ## Current position and completion target
 

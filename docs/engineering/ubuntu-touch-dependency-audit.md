@@ -254,3 +254,16 @@ cases plus canonical read-row open, read/unread star toggles in both directions 
 Final spotlessCheck passes in `/tmp/thunderbird-mobile-list-api-final-check.log`. The original mobile row code is now
 rendered/interacted with on both targets, not replaced by a preview lookalike. The complete internal mobile list page,
 state machine/data side effects, UT assembly and device acceptance remain required; this is not the full prototype.
+
+
+### Prototype step 3 plan: share the existing state machine and side effects
+
+Convert the internal list module to KMP with Android hosts/resources retained in androidMain. Move the canonical state
+machine, side-effect handlers (including the interface-based legacy bridge), preferences/folder-query use cases and row
+dispatcher to commonMain. Extract their existing DI bindings into sharedMessageListModule and include it from the same
+Android feature module. Move the existing state-machine tests into commonTest; preserve Android-specific tests on the
+Android host. No replacement controller, domain rules, fake platform implementations or permission changes.
+
+This step must pass common/JVM behaviour cases and Android consumer regression checks. Full page/template rendering
+still depends on Android resource-based accessibility labels and swipe styling; those dependencies remain open until
+adapted using canonical mobile behaviour and appropriate platform contracts.

@@ -1,36 +1,42 @@
 plugins {
-    id(ThunderbirdPlugins.Library.androidCompose)
+    id(ThunderbirdPlugins.Library.kmpCompose)
 }
 
-android {
-    namespace = "net.thunderbird.feature.mail.message.list.internal"
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
+kotlin {
+    android {
+        namespace = "net.thunderbird.feature.mail.message.list.internal"
+        androidResources.enable = true
+    }
+    sourceSets {
+        commonMain.dependencies {
+            implementation(projects.feature.mail.message.list.api)
+            implementation(projects.core.common)
+            implementation(projects.core.preference.api)
+            implementation(projects.feature.account.api)
+            implementation(projects.feature.account.profile.api)
+            implementation(projects.feature.mail.folder.api)
+        }
+        androidMain.dependencies {
+            implementation(projects.backend.api)
+            implementation(projects.core.android.account)
+            implementation(projects.core.android.common)
+            implementation(projects.core.ui.compose.common)
+            implementation(projects.core.ui.theme.api)
+            implementation(projects.feature.mail.account.api)
+            implementation(projects.feature.notification.api)
+            implementation(projects.legacy.mailstore)
+            implementation(projects.mail.common)
+        }
+        commonTest.dependencies {
+            implementation(projects.core.testing)
+        }
+        androidHostTest.dependencies {
+            implementation(projects.core.android.account.fake)
+            implementation(projects.core.ui.compose.testing)
+            implementation(projects.feature.notification.testing)
+            implementation(libs.mockito.kotlin)
         }
     }
-}
-
-dependencies {
-    implementation(projects.feature.mail.message.list.api)
-
-    implementation(projects.backend.api)
-    implementation(projects.core.android.account)
-    implementation(projects.core.android.common)
-    implementation(projects.core.preference.api)
-    implementation(projects.core.ui.compose.common)
-    implementation(projects.core.ui.theme.api)
-    implementation(projects.feature.mail.account.api)
-    implementation(projects.feature.mail.folder.api)
-    implementation(projects.feature.notification.api)
-    implementation(projects.legacy.mailstore)
-    implementation(projects.mail.common)
-
-    testImplementation(projects.core.android.account.fake)
-    testImplementation(projects.core.ui.compose.testing)
-    testImplementation(projects.feature.notification.testing)
-
-    testImplementation(libs.mockito.kotlin)
 }
 
 codeCoverage {

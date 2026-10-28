@@ -206,3 +206,31 @@ coverage. Do not claim success from the base view-model extraction alone.
 Concrete consumer check after the extraction: `:feature:mail:message:list:internal:compileDebugKotlin` also passes
 (`/tmp/thunderbird-mobile-state-list-consumer.log`, exit0,229 tasks), compiling the actual Android message-list view
 model/renderer dependency path in addition to its API wrapper. This remains compile evidence, not physical UI acceptance.
+
+
+### Prototype step 2 plan: preserve the canonical message-list API on Android/JVM
+
+Convert the existing list API module to the established KMP Compose convention. Move its canonical Compose rows,
+state/events/contracts and preferences into commonMain, keeping the legacy sort mapper and FragmentManager factory
+in androidMain. Point the contract at the shared state-machine base. LocalDeleteOperationDecider's LegacyAccount
+import is used only in KDoc; remove that documentation-only dependency rather than replacing the interface.
+
+Use an expect enum SortType with platform actual declarations: Android retains its existing R-backed labelResId getter
+and entries; JVM supplies the same enum identities without fake Android resource IDs. Keep all Android resource names/
+translations unchanged. Move existing sort-criteria tests into commonTest with kotlin.test.Test so the same cases can
+run on Android and JVM. Validate JVM compilation/tests, Android actual/API and concrete list consumers, plus quality.
+The full internal page/state-machine/source-side-effect extraction remains the next step; module conversion alone
+is not a completed mobile UI or a reason to copy it into the UT shell.
+
+
+Step2 working state at handover: existing API sources are now divided into commonMain/androidMain/jvmMain and the
+KMP build compiles for JVM and Android; existing sort tests pass on JVM and the concrete Android list consumer compiles
+(`/tmp/thunderbird-mobile-list-api-kmp.log`, exit0). The next combined interaction/Android/legacy check stopped at a
+JVM UI assertion:14 JVM tests,1 failure. The canonical read row renders and dispatches open; the unread-row star test
+expects a new favourite=true but receives the old false value. No fix has been applied yet. MessageItem's existing
+FavouriteButtonIcon callback discards its new Boolean and forwards the old FavouriteIconButton element; Read/Unread
+then forward that old field. This is a source-backed hypothesis for a pre-existing mobile callback bug, to verify/fix
+with the failing regression retained. The old internal caller ignores the Boolean and toggles through an event, while
+the legacy callback consumes it. Preserve this distinction. Android host and full legacy consumer acceptance remain
+unverified because the combined invocation stopped at JVM tests. This working conversion is checkpointed separately;
+it is not a passed/merged portability milestone or the full mobile-list prototype.

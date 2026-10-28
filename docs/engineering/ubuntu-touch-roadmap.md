@@ -11,6 +11,8 @@ and a reproducible supported release.
 
 ## Active architecture correction: reuse the mobile application
 
+Fresh-session starting point: [Ubuntu Touch mail port handover](ubuntu-touch-handover.md).
+
 Before expanding app-local features, complete the [source-backed reuse reassessment and mobile-list portability
 prototype](ubuntu-touch-dependency-audit.md#reuse-reassessment-shared-mobile-ui-on-ubuntu-touch-2026-10-28).
 The current preview proves useful platform/engine adapters; it does not establish that rebuilding the application layer

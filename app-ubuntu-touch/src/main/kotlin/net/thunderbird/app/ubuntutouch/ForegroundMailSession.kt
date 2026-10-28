@@ -105,6 +105,7 @@ internal class ForegroundMailSessionFactory(
         account.id,
         { submit -> accounts.withCurrentAccount(account, submit) },
         { folder -> storage.getFolder(folder).setFolderExtraString(CACHE_BINDING_KEY, binding) },
+        binding,
     )
 }
 
@@ -116,6 +117,9 @@ internal class ForegroundMailSession(
     private val operation: MailOperation?,
     private val handoff: AccountHandoff,
 ) : AutoCloseable {
+    fun searchServer(folder: String, query: ServerMailQuery): ServerMailResults =
+        ServerFolderSearch(imap, resources, operation, handoff).search(folder, query)
+
     fun move(action: MailMove, beforeSubmit: () -> Unit) {
         require(action.account == handoff.account)
         resources.ensureActive()

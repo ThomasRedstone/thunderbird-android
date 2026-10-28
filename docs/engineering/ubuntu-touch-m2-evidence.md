@@ -4049,3 +4049,55 @@ candidate-037 driver names. Scripts need current phone state revalidation before
 The fresh SSH check timed out; no37 transfer/install/backup/native execution occurred. Last
 verified phone remains34/schema15 and its local fleet pin unchanged. Native15→19 migration,
 Copy/history acceptance and production protected-chunk fresh-JVM/performance gates remain open.
+
+
+### Folder server-search transport (development38, not a completed UI feature)
+
+ForegroundMailSession.searchServer reuses the existing ImapFolder SEARCH/envelope API with
+READ_ONLY open, verified account handoff, mailbox generation and connection-binding context.
+ServerMailQuery rejects blank/oversized/control-containing input and limits envelope fetches
+to1–200 (default100). Header mode uses the existing engine's subject/from/to/cc/bcc query;
+full-text mode uses server TEXT semantics. This differs from cached search's word-AND matching
+and must be labelled accurately in the eventual UI. Queries/results have redacted toString.
+Deleted matches are excluded, returned UIDs are checked as canonical positive32-bit values,
+and selected results sort by descending UID (arrival order, not sent-date order).
+
+Only envelope/flag fields are fetched with BODY.PEEK. Results carry detached display fields,
+account/folder/UIDValidity/binding; no cache folder is marked synchronized and no body/cache
+write or flag mutation is performed. Account/resources/cancellation are checked before and
+after transport and while ordering results. Missing fetch responses and newly deleted hits
+are omitted. There is no promise of an atomic mailbox snapshot. Full engine SEARCH still
+materializes all matching UIDs before the envelope cap; large-result memory/pagination is
+an open gate, not a solved bounded-response protocol.
+
+A regression exposed one leaked temporary MIME file when a fetched header was parsed.
+`/tmp/thunderbird-038-server-search-focused-3.log` and
+`build/evidence/server-search/header-resource-before.xml` retain the failing expected0/actual1
+case. Server search now owns every selected envelope, copies detached fields, then releases
+MIME resources and closes the folder on success/failure using the existing resource helpers.
+The cached parser's private resource owner is now named OwnedMimeResources; existing cache
+callers retain their ownership contracts. Focused4 tests pass after the fix in
+`/tmp/thunderbird-038-server-search-focused-4.log`.
+
+Full479 app tests pass, zero failures/errors/skips, detekt/spotlessCheck/installDist:
+`/tmp/thunderbird-038-server-search-full.log`. Real TLS engine tests find uncached body text,
+compare header/full-text results, assert cache unchanged, no read-flag change, no unrelated
+expunge, newest-result envelope limit, result context, cancellation after operation close,
+zero temp files and zero logger events. Additional tests reject invalid queries/limits/UIDs.
+The first development compile caught a mistaken cancellation method name, corrected.
+No shared module/dependency changes. Frozen37 remains unchanged;38 is not packaged/deployed.
+
+NEXT bounded search slice: add a constructor-injected account-owned server-search operations
+adapter, MVI state/events and Bolt Compose screen, reached explicitly from a selected folder.
+Keep cached/offline search intact; online query/headers-versus-TEXT choice must be explicit,
+with count/limit/loading/error/Cancel controls and sensible keyboard/Back routing. Use the
+returned immutable account/binding/folder/generation context when opening a result. Never
+pass a stale server UID to the existing unguarded download path: verify current account and
+remote generation before any cache write and preserve/invalidate cache generations according
+to existing storage rules. Fetch only the selected message, with body/resource ownership and
+cancellation, then open its cached reader and return to the retained search results. Do not
+silently sync all messages or label a partial result list complete. Add MVI/navigation tests
+and actual TLS result-open/cancellation/stale-account/generation tests before acceptance.
+Account/unified server scope, pagination, server-specific syntax/Unicode, blocked-wire
+cancellation, mailbox-change races, native/provider/physical UI and large-mailbox behaviour
+remain required. This transport alone is not user-facing server search.

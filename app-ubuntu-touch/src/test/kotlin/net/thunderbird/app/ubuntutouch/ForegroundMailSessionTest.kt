@@ -80,6 +80,51 @@ class ForegroundMailSessionTest {
     }
 
     @Test
+    fun `server search finds uncached body text without changing cache or read flags`() {
+        deliver("Header match", "Other body")
+        deliver("Body match", "Needle remote body")
+        val operation = MailOperation()
+        factory().open(account.id, operation).use { testSubject ->
+            val headers = testSubject.searchServer("INBOX", ServerMailQuery("Needle"))
+            assertThat(headers.messages).isEqualTo(emptyList())
+            val body = testSubject.searchServer("INBOX", ServerMailQuery("Needle", fullText = true))
+            assertThat(body.messages.single().subject).isEqualTo("Body match")
+            assertThat(body.messages.single().unread).isTrue()
+            assertThat(body.account).isEqualTo(account.id)
+            assertThat(body.folder).isEqualTo("INBOX")
+            assertThat(body.generation > 0).isTrue()
+            assertThat(body.binding).isEqualTo(mailCacheBinding(account))
+            assertThat(body.toString()).isEqualTo("ServerMailResults(redacted)")
+            assertThat(database.query("SELECT count(*) FROM messages") { getLong(0) }.single()).isEqualTo(0L)
+            operation.close()
+            assertThat(runCatching { testSubject.searchServer("INBOX", ServerMailQuery("Needle")) }.isFailure).isTrue()
+        }
+        withOracleInbox(expungeOnClose = false) { inbox ->
+            assertThat(inbox.messages.all { !it.isSet(jakarta.mail.Flags.Flag.SEEN) }).isTrue()
+        }
+        Files.list(directory.root.toPath().resolve("mime")).use { assertThat(it.count()).isEqualTo(0L) }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
+    fun `server search limits newest matching headers and excludes deleted messages`() {
+        deliver("Needle older", "Fixture")
+        deliver("Needle newer", "Fixture")
+        deliver("Needle deleted", "Fixture")
+        withOracleInbox(expungeOnClose = false) { inbox ->
+            inbox.messages.single { it.subject == "Needle deleted" }.setFlag(jakarta.mail.Flags.Flag.DELETED, true)
+        }
+        factory().open(account.id).use { testSubject ->
+            val result = testSubject.searchServer("INBOX", ServerMailQuery("Needle", limit = 1))
+            assertThat(result.messages.single().subject).isEqualTo("Needle newer")
+            assertThat(result.matched).isEqualTo(2)
+            assertThat(result.limited).isTrue()
+        }
+        withOracleInbox(expungeOnClose = false) { inbox -> assertThat(inbox.messageCount).isEqualTo(3) }
+        assertThat(logEvents).isEqualTo(0)
+    }
+
+    @Test
     fun `copy preserves source and unrelated deleted messages and requires review before another copy`() {
         deliver("Unrelated", "Keep this deleted message")
         val key = prepareMoveSource()

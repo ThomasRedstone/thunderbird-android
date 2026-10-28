@@ -12,11 +12,11 @@ import java.util.IdentityHashMap
 /** The callback must return detached data, never the parsed Message/Part/Body or an open body stream. */
 internal fun <T> PersistentBackendFolder.withCachedMessage(uid: String, read: (Message) -> T): T {
     val message = checkNotNull(readMessage(uid)) { "Message absent from cache" }
-    return CachedMessageResources(message).use { read(it.message) }
+    return OwnedMimeResources(message).use { read(it.message) }
 }
 
-/** Owns only a fresh cache parse. No externally supplied engine message is accepted by the public scope. */
-private class CachedMessageResources(val message: Message) : AutoCloseable {
+/** Owns a fresh parse or fetched envelope; callers must retain sole ownership. */
+private class OwnedMimeResources(val message: Message) : AutoCloseable {
     override fun close() {
         val pending = ArrayDeque<Part>().apply { add(message) }
         val visited = Collections.newSetFromMap(IdentityHashMap<Part, Boolean>())
@@ -44,5 +44,8 @@ private class CachedMessageResources(val message: Message) : AutoCloseable {
 /** Own a fresh parse of an immutable cached snapshot, returning detached data only. */
 internal fun <T> withParsedCachedMime(raw: ByteArray, read: (Message) -> T): T {
     val message = com.fsck.k9.mail.internet.MimeMessage.parseMimeMessage(raw.inputStream(), true)
-    return CachedMessageResources(message).use { read(it.message) }
+    return OwnedMimeResources(message).use { read(it.message) }
 }
+
+/** Only for a newly fetched envelope owned solely by the caller, after detached fields are copied. */
+internal fun closeOwnedMimeResources(message: Message) = OwnedMimeResources(message).close()

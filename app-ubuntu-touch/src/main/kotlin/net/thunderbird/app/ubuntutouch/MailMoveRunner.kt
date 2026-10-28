@@ -7,6 +7,7 @@ internal class AccountHandoff(
     val account: AccountId,
     val authorize: (() -> Unit) -> Unit,
     val recordSynced: (String) -> Unit,
+    val binding: String = "",
 )
 
 internal fun interface MailMoveTransport {

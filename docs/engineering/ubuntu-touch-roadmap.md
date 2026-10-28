@@ -14,7 +14,7 @@ and a reproducible supported release.
 | --- | --- | --- |
 | Platform | 0.1.34 installed on FP4; 0.1.4 sizing/typing confirmed; enforcing-profile dispatcher/schema/cancellation/recovery probes pass | Physical secure-input UI, rotation and lifecycle checks |
 | Mail | Protected accounts, cached mailbox and composer/outbox UI; confined TLS IMAP/SMTP, model-driven cancellation and fresh-JVM recovery pass | Physical/provider journeys, authenticated interruption coverage and daily-use features |
-| Engineering | 454 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
+| Engineering | 460 full app tests, 102 SMTP tests; prior 863 shared mail tests; 108 Bolt JVM tests and prior Bolt Android compile; ARM64 package/Click review pass | Provider/physical-UI suites, CI and existing Bolt static-analysis baseline gap |
 | Source delivery | Installed 0.1.34 embeds clean `1f248250f6`; OAuth setup and mail-session integration verified on host; large protected-payload native read fails | Further roadmap implementation and reproducible CI |
 | Phone delivery | Phone Manager 0.1.34 install verified; local fleet `c1a763f` pins its exact artifact/hash | Physical foreground, intermittent launch-wrapper registry errors, broader cancellation and lifecycle verification |
 
@@ -551,3 +551,7 @@ The clean36 candidate38 ARM64 Click is built/reviewed, SHA256
 148153344 bytes, clean199977597f. It is not installed: SSH still times out. M2 evidence
 contains the next bounded protected-chunk storage brief and native production acceptance
 gates; no workaround or system credential-service change has been implemented.
+
+Development37/schema18 adds the protected-only manifest format and SQLite ownership/deletion
+journal foundation; full460 tests/detekt/distribution pass. The chunk owner is not integrated,
+so large production SignOn reads remain failing and native acceptance remains required.

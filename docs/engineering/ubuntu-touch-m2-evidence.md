@@ -3927,3 +3927,38 @@ Exclusions: system SignOn/library replacement, plaintext fallbacks, new permissi
 OAuth registrations, fleet-wide changes, protocol/shared-module changes and release acceptance.
 This brief records intended implementation and gates, not a completed workaround or security
 review. Continue other roadmap requirements if the native gate remains unavailable.
+
+
+### Protected payload manifest and ownership journal foundation (development37/schema18)
+
+ProtectedPayloadManifest defines a fixed92-byte protected-only envelope: version/magic,
+root-key SHA256 binding, immutable UUID generation, total length and secret SHA256 digest.
+Payloads are bounded to40000 bytes (compatible with current OAuth codec); chunks are1024
+bytes and count is derived, at most40. Exact frame length, version, root and total bounds
+are validated. Payload length/digest verification fails closed; owned digest buffers clear
+on close and comparison temporaries clear in finally. toString is redacted. This is an
+integrity/ownership format inside protected storage, not new encryption or a plaintext cache.
+
+Separate reserved manifest/chunk alias namespaces avoid guessing whether legacy arbitrary
+CredentialStore bytes happen to resemble a manifest. User roots cannot use the internal
+prefix; root/generation/index select disjoint aliases. ProtectedPayloadJournal durably stores
+root/generation/chunk count before future secret writes. A deletion tombstone must commit
+before pointer deletion and survives restarts; generation rows block completion until each
+owned generation has been removed. SQL stores neither secret bytes nor secret-derived digests.
+Schema17→18 adds these tables and retains the existing SignOn identity index.
+
+Six focused foundation tests pass as part of full460 app tests, zero failures/errors/skips,
+plus detekt, spotlessApply and installDist: `/tmp/thunderbird-037-protected-foundation-full.log`.
+Coverage includes39997-byte digest validation, root substitution, truncated/trailing/bad
+frames, empty/oversized payloads, alias separation, restart deletion tombstones, rejected
+new writes during deletion, rollback on journal insertion failure and schema17 migration.
+The first quality run found three long test lines, corrected before the full pass.
+
+These components are not wired to CredentialStore/Main. Production still selects the old
+SignonCredentialStore; the large-read blocker is NOT fixed. Next implement the bounded
+chunk owner over that adapter, manifest commit/readback and ambiguity handling, owned-only
+retirement/cleanup retry, legacy reads and existing account-owner integration. Test backend
+reads capped1024, partial writes, lost pointer acknowledgements before/after commit, mixed/
+missing/corrupt chunks and interrupted deletion; then native production-keyring round trips.
+No37 package or phone changes. Frozen36 remains unchanged. No new permissions, provider
+registration, system-service/library replacement or plaintext fallback.

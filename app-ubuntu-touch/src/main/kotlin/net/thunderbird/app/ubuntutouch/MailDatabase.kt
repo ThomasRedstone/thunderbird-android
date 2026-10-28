@@ -20,7 +20,8 @@ private const val MOVE_BINDING_SCHEMA_VERSION = 13L
 private const val CACHE_BINDING_SCHEMA_VERSION = 14L
 private const val MOVE_PAYLOAD_SCHEMA_VERSION = 15L
 private const val COPY_KIND_SCHEMA_VERSION = 16L
-private const val CURRENT_SCHEMA_VERSION = 17L
+private const val MOVE_IDENTITY_SCHEMA_VERSION = 17L
+private const val CURRENT_SCHEMA_VERSION = 18L
 
 /** One owner serialises access; callers run blocking backend operations on Dispatchers.IO. */
 @Suppress("TooGenericExceptionCaught", "TooManyFunctions") // Versioned migrations; roll back every failure unchanged.
@@ -51,7 +52,8 @@ internal class MailDatabase(path: Path) : AutoCloseable {
             if (version < CACHE_BINDING_SCHEMA_VERSION) createCacheBindingSchema()
             if (version < MOVE_PAYLOAD_SCHEMA_VERSION) createMovePayloadSchema()
             if (version < COPY_KIND_SCHEMA_VERSION) createCopyKindSchema()
-            if (version < CURRENT_SCHEMA_VERSION) createMoveIdentitySchema()
+            if (version < MOVE_IDENTITY_SCHEMA_VERSION) createMoveIdentitySchema()
+            if (version < CURRENT_SCHEMA_VERSION) createProtectedPayloadSchema()
             // A process stopped before its SMTP result was committed. Never automatically resend these rows.
             execute("UPDATE outgoing SET state='UNCERTAIN',uncertain_attempt=1 WHERE state='SENDING'")
             execute("UPDATE sent_copies SET state='UNKNOWN',uncertain_attempt=1 WHERE state='WORKING'")
@@ -97,11 +99,24 @@ internal class MailDatabase(path: Path) : AutoCloseable {
     @Synchronized
     override fun close() = connection.close()
 
+    private fun createProtectedPayloadSchema() = transaction {
+        execute(
+            """CREATE TABLE IF NOT EXISTS protected_payload_roots (
+                root TEXT PRIMARY KEY NOT NULL, deleting INTEGER NOT NULL CHECK(deleting IN (0,1)))""",
+        )
+        execute(
+            """CREATE TABLE IF NOT EXISTS protected_payload_generations (
+                root TEXT NOT NULL REFERENCES protected_payload_roots(root), generation TEXT NOT NULL,
+                chunks INTEGER NOT NULL CHECK(chunks BETWEEN 0 AND 40), PRIMARY KEY(root,generation))""",
+        )
+        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+    }
+
     private fun createMoveIdentitySchema() = transaction {
         val columns = query("PRAGMA table_info(mail_moves)") { getText(1) }
         if ("message_subject" !in columns) execute("ALTER TABLE mail_moves ADD COLUMN message_subject TEXT")
         if ("message_date" !in columns) execute("ALTER TABLE mail_moves ADD COLUMN message_date INTEGER")
-        execute("PRAGMA user_version=$CURRENT_SCHEMA_VERSION")
+        execute("PRAGMA user_version=$MOVE_IDENTITY_SCHEMA_VERSION")
     }
 
     private fun createCopyKindSchema() = transaction {

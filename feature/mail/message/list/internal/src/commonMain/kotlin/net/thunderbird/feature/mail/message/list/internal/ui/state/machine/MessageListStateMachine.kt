@@ -9,6 +9,7 @@ import net.thunderbird.core.common.state.StateMachine
 import net.thunderbird.core.common.state.builder.stateMachine
 import net.thunderbird.core.common.state.sideeffect.StateSideEffectHandler
 import net.thunderbird.core.preference.debugging.DebuggingSettingsPreferenceManager
+import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 import net.thunderbird.feature.mail.message.list.ui.effect.MessageListEffect
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
 import net.thunderbird.feature.mail.message.list.ui.state.Folder
@@ -40,10 +41,10 @@ class MessageListStateMachine(
     private val scope: CoroutineScope,
     private val dispatch: (MessageListEvent) -> Unit,
     private val dispatchUiEffect: (MessageListEffect) -> Unit,
-    private val debuggingSettingsPreferenceManager: DebuggingSettingsPreferenceManager,
+    private val debuggingSettingsPreferenceManager: DebuggingSettingsPreferenceManager?,
     private val stateMachine: StateMachine<MessageListState, MessageListEvent> = stateMachine(scope) {
         withLogger(logger, TAG)
-        if (debuggingSettingsPreferenceManager.getConfig().isDebugLoggingEnabled) {
+        if (debuggingSettingsPreferenceManager?.getConfig()?.isDebugLoggingEnabled == true) {
             enableDebug {
                 @OptIn(ExperimentalTime::class)
                 withClock(clock)
@@ -68,9 +69,9 @@ class MessageListStateMachine(
     class Factory(
         private val logger: Logger,
         private val clock: Clock,
-        private val debuggingSettingsPreferenceManager: DebuggingSettingsPreferenceManager,
-    ) {
-        fun create(
+        private val debuggingSettingsPreferenceManager: DebuggingSettingsPreferenceManager?,
+    ) : MessageListContract.StateMachineFactory {
+        override fun create(
             scope: CoroutineScope,
             dispatch: (MessageListEvent) -> Unit,
             dispatchUiEffect: (MessageListEffect) -> Unit,

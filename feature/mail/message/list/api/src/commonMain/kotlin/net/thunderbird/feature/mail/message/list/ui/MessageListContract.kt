@@ -3,7 +3,9 @@ package net.thunderbird.feature.mail.message.list.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.CoroutineScope
 import net.thunderbird.components.core.logging.Logger
+import net.thunderbird.core.common.state.StateMachine
 import net.thunderbird.core.ui.contract.mvi.BaseStateMachineViewModel
 import net.thunderbird.core.ui.contract.mvi.BaseViewModel
 import net.thunderbird.core.ui.contract.mvi.observe
@@ -27,6 +29,15 @@ import org.koin.compose.viewmodel.koinViewModel
  * - **Effects (`MessageListEffect`)**: One-time actions for the UI to perform (e.g., navigation, showing a toast).
  */
 interface MessageListContract {
+    /** Creates the shared reducer for hosts that own their own screen lifecycle. */
+    interface StateMachineFactory {
+        fun create(
+            scope: CoroutineScope,
+            dispatch: (MessageListEvent) -> Unit,
+            dispatchUiEffect: (MessageListEffect) -> Unit,
+        ): StateMachine<MessageListState, MessageListEvent>
+    }
+
     /**
      * The view model for the message list screen.
      *

@@ -1,5 +1,6 @@
 package net.thunderbird.feature.mail.message.list.internal
 
+import kotlin.time.Clock
 import net.thunderbird.feature.mail.message.list.LocalMessageUidPrefixProvider
 import net.thunderbird.feature.mail.message.list.domain.DomainContract
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.GetAccountFolders
@@ -19,6 +20,9 @@ val sharedMessageListModule = module {
     }
     factory {
         MessageListStateMachine.Factory(logger = get(), clock = get(), debuggingSettingsPreferenceManager = get())
+    }
+    factory<MessageListContract.StateMachineFactory> {
+        MessageListStateMachine.Factory(logger = get(), clock = Clock.System, debuggingSettingsPreferenceManager = null)
     }
     factory<MessageListContract.MessageListScreenRenderer> { MessageListScreenRenderer() }
     single<LocalMessageUidPrefixProvider> { DefaultLocalMessageUidPrefixProvider() }

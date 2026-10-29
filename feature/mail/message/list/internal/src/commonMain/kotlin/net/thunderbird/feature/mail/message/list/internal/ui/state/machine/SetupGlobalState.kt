@@ -23,6 +23,10 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.globalState
             state.withPreferences { event.preferences }
         }
 
+        transition<MessageListEvent.SortCriteriaLoaded> { state, event ->
+            state.withMetadata { copy(sortCriteriaPerAccount = event.sortCriteriaPerAccount.toImmutableMap()) }
+        }
+
         transition<MessageListEvent.ChangeSortCriteria> { state, (accountId, sortCriteria) ->
             val newSortCriteriaPerAccount = state.metadata.sortCriteriaPerAccount + (accountId to sortCriteria)
             state.withMetadata { copy(sortCriteriaPerAccount = newSortCriteriaPerAccount.toPersistentMap()) }
@@ -33,7 +37,23 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.globalState
         }
 
         transition<FolderEvent.FolderLoaded> { state, (folder) ->
-            state.withMetadata { copy(folder = folder, showAccountIndicator = folder.account.id == UnifiedAccountId) }
+            val folderChanged = state.metadata.folder != folder
+            val metadata = state.metadata.copy(
+                folder = folder,
+                showAccountIndicator = folder.account.id == UnifiedAccountId,
+                activeMessage = if (folderChanged) null else state.metadata.activeMessage,
+                focusedMessage = if (folderChanged) null else state.metadata.focusedMessage,
+            )
+            val preferences = state.preferences
+            if (state !is MessageListState.WarmingUp && folderChanged && preferences != null) {
+                MessageListState.LoadingMessages(
+                    progress = 0f,
+                    metadata = metadata,
+                    preferences = preferences,
+                )
+            } else {
+                state.withMetadata { metadata }
+            }
         }
 
         transition<MessageItemEvent.SelectAll> { state, _ ->

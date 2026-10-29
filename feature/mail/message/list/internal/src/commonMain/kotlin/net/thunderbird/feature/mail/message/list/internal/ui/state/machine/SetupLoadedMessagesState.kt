@@ -26,6 +26,10 @@ import net.thunderbird.feature.mail.message.list.ui.state.withState
  */
 internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadedMessagesState() {
     state<MessageListState.LoadedMessages> {
+        transition<MessageListEvent.MessagesLoaded> { state, event ->
+            state.copy(messages = event.messages.toPersistentList())
+        }
+
         transition<MessageItemEvent.ToggleSelectMessages> { state, event ->
             MessageListState.SelectingMessages(
                 metadata = state.metadata,

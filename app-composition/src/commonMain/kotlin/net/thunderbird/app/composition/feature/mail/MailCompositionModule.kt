@@ -4,11 +4,12 @@ import net.thunderbird.feature.mail.message.export.DefaultMessageFileNameSuggest
 import net.thunderbird.feature.mail.message.export.MessageExporter
 import net.thunderbird.feature.mail.message.export.MessageFileNameSuggester
 import net.thunderbird.feature.mail.message.export.eml.EmlMessageExporter
+import net.thunderbird.feature.mail.message.list.internal.sharedMessageListModule
 import net.thunderbird.feature.mail.message.reader.impl.inject.featureMessageReaderModule
 import org.koin.dsl.module
 
 internal val mailCompositionModule = module {
-    includes(featureMessageReaderModule)
+    includes(featureMessageReaderModule, sharedMessageListModule)
 
     single<MessageFileNameSuggester> { DefaultMessageFileNameSuggester() }
     single<MessageExporter> { EmlMessageExporter(fileManager = get()) }

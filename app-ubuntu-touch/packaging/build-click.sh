@@ -26,7 +26,7 @@ docker run --rm --platform linux/arm64 --network none --cpus "${UT_BUILD_JOBS:-4
     --user "$(id -u):$(id -g)" -v "$STAGE/inputs:/inputs:ro" -v "$STAGE/image:/output" \
     "${runtime_mounts[@]}" "$UT_ARM_PACKAGER_IMAGE" /usr/lib/jvm/java-21-openjdk-arm64/bin/jpackage \
     --type app-image --name mail-demo --input /inputs --main-jar mail-demo.jar \
-    --main-class net.thunderbird.app.ubuntutouch.MainKt --dest /output --app-version 0.1.38 \
+    --main-class net.thunderbird.app.ubuntutouch.MainKt --dest /output --app-version 0.1.39 \
     "${runtime_options[@]}"
 mkdir "$STAGE/payload"
 cp -a "$STAGE/image/mail-demo" "$STAGE/payload/"
@@ -42,7 +42,8 @@ fi
 git rev-parse HEAD > "$STAGE/payload/mail-demo/SOURCE-COMMIT.txt"
 git diff --binary HEAD > "$STAGE/payload/mail-demo/SOURCE-CHANGES.patch"
 tar --exclude=build -czf "$STAGE/payload/mail-demo/PORT-SOURCES.tar.gz" \
-    app-ubuntu-touch settings.gradle.kts gradle/libs.versions.toml docs/engineering/ubuntu-touch-roadmap.md \
+    app-ubuntu-touch app-composition feature/mail/message/list/api feature/mail/message/list/internal \
+    core/ui/contract settings.gradle.kts gradle/libs.versions.toml docs/engineering/ubuntu-touch-roadmap.md \
     components/ui/bolt/src/commonMain/kotlin/net/thunderbird/components/ui/bolt/atom/textfield/TextFieldOutlinedPassword.kt \
     mail/common/src/main/java/com/fsck/k9/mail/ssl/PlainSocketFactory.kt \
     mail/protocols/imap/src/main/java/com/fsck/k9/mail/store/imap/RealImapConnection.kt \

@@ -9,7 +9,13 @@ ROOT=$(cd "$HERE/../.." && pwd)
 STAGE=$(mktemp -d "$(dirname "$UT_OUTPUT")/.mail-demo-build.XXXXXX")
 trap 'echo "Build staging retained: $STAGE" >&2' EXIT
 cd "$ROOT"
-./gradlew :app-ubuntu-touch:stageUtJvmInput -PutTargetArch=arm64 "-PutJvmOutput=$STAGE/inputs" --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers="${UT_BUILD_JOBS:-4}"
+gradle_options=()
+if [[ -n ${UT_GRADLE_JVMARGS:-} ]]; then
+    gradle_options+=("-Dorg.gradle.jvmargs=$UT_GRADLE_JVMARGS" -Dkotlin.compiler.execution.strategy=in-process)
+fi
+./gradlew :app-ubuntu-touch:stageUtJvmInput -PutTargetArch=arm64 "-PutJvmOutput=$STAGE/inputs" \
+    --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --max-workers="${UT_BUILD_JOBS:-4}" \
+    "${gradle_options[@]}"
 mkdir "$STAGE/image"
 # Iteration may reuse a previously verified target-native JRE. jpackage still
 # runs on ARM64; no host runtime is ever relabelled as the target.

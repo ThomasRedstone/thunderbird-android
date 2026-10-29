@@ -160,8 +160,13 @@ internal class DefaultStateMachine<TState : Any, TEvent : Any>(
         scope.launch {
             // delay onEnter initialization so the viewModels are ready to receive the state
             delay(500.milliseconds)
-            verbose { "StateMachine initialized with initial state: $initialState" }
-            stateRegistrar[initialState::class]?.listeners?.onEnter?.invoke(null, null, currentStateSnapshot)
+            mutex.withLock {
+                val current = currentStateSnapshot
+                if (current::class == initialState::class) {
+                    verbose { "StateMachine initialized with initial state: $initialState" }
+                    stateRegistrar[initialState::class]?.listeners?.onEnter?.invoke(null, null, current)
+                }
+            }
         }
     }
 

@@ -62,6 +62,24 @@ class StateMachineTest {
     }
 
     @Test
+    fun `delayed initial onEntry should be skipped after an immediate state transition`() = runTest {
+        var onEntryCalled = false
+        val testSubject = stateMachine<State, Event>(scope = this) {
+            initialState(State.Init) {
+                onEnter { _, _ -> onEntryCalled = true }
+                transition<Event.LoadData> { _, _ -> State.Loading }
+            }
+            finalState<State.Loading>()
+        }
+
+        testSubject.process(Event.LoadData)
+        advanceTimeBy(1000.milliseconds)
+
+        assertThat(testSubject.currentStateSnapshot).isEqualTo(State.Loading)
+        assertThat(onEntryCalled).isEqualTo(false)
+    }
+
+    @Test
     fun `process should return the new state when transition is defined and guard passes`() = runTest {
         // Arrange
         val stateMachine = stateMachine(scope = this) {

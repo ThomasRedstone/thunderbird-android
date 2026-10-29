@@ -97,6 +97,7 @@ fun main() {
                                 createSignatures = { koin.get<SignatureSettingsViewModel>() },
                                 createMoves = { koin.get<MailMoveViewModel>() },
                                 messageListRenderer = koin.get<MessageListContract.MessageListScreenRenderer>(),
+                                messageListStateMachineFactory = koin.get<MessageListContract.StateMachineFactory>(),
                             )
                         }
                     }

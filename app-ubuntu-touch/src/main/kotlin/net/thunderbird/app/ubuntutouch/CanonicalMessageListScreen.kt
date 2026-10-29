@@ -12,16 +12,15 @@ import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
 
 @Composable
 internal fun CanonicalMessageListScreen(
-    canonical: MessageListState.LoadedMessages,
-    mailbox: LiveMailState,
-    onMailEvent: (LiveMailEvent) -> Unit,
+    canonical: MessageListState,
+    dispatchEvent: (MessageListEvent) -> Unit,
     renderer: MessageListContract.MessageListScreenRenderer,
     modifier: Modifier = Modifier,
 ) {
     with(renderer) {
         rememberMessageListScope().Render(
             state = canonical,
-            dispatchEvent = { event -> handleCanonicalMessageListEvent(event, mailbox, onMailEvent) },
+            dispatchEvent = dispatchEvent,
             modifier = modifier,
         )
     }

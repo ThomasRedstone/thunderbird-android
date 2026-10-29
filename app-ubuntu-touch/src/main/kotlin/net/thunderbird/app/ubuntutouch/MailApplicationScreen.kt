@@ -26,6 +26,8 @@ import kotlinx.coroutines.withContext
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.feature.mail.message.list.ui.MessageListContract
+import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
+import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
 
 private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX, COMPOSE, SIGNATURES }
 
@@ -41,6 +43,7 @@ internal fun MailApplicationScreen(
     createSignatures: (() -> SignatureSettingsViewModel)? = null,
     createMoves: (() -> MailMoveViewModel)? = null,
     messageListRenderer: MessageListContract.MessageListScreenRenderer? = null,
+    messageListStateMachineFactory: MessageListContract.StateMachineFactory? = null,
 ) {
     val save = createSave?.let { loadOwnedMailModel(it)?.model }
     if (save != null) RegisterMailClose(save, lifecycle, save::flushForClose, {})
@@ -82,7 +85,9 @@ internal fun MailApplicationScreen(
             val mailbox = loadOwnedMailModel(createMailbox)
             if (mailbox != null) {
                 RegisterMailClose(mailbox, lifecycle, mailbox::flushForClose, {})
+                val controller = rememberCanonicalMessageListController(mailbox, messageListStateMachineFactory)
                 val state by mailbox.state.collectAsState()
+                val canonicalState = controller?.state?.collectAsState()?.value
                 MailboxDestination(
                     state,
                     mailbox::event,
@@ -93,6 +98,8 @@ internal fun MailApplicationScreen(
                     }),
                     transfers,
                     messageListRenderer,
+                    canonicalState,
+                    controller?.let { it::event },
                 )
             }
         }
@@ -175,6 +182,8 @@ private fun MailboxDestination(
     navigation: MailboxNavigation,
     transfers: MailboxTransfers,
     messageListRenderer: MessageListContract.MessageListScreenRenderer?,
+    canonicalState: MessageListState?,
+    onCanonicalEvent: ((MessageListEvent) -> Unit)?,
 ) {
     var saving by remember { mutableStateOf(false) }
     var moving by remember { mutableStateOf(false) }
@@ -214,6 +223,8 @@ private fun MailboxDestination(
                 transfers,
                 MailboxPanels({ saving = true }, { moving = true }),
                 messageListRenderer,
+                canonicalState,
+                onCanonicalEvent,
             )
         }
     }
@@ -230,6 +241,8 @@ private fun MailboxContent(
     transfers: MailboxTransfers,
     panels: MailboxPanels,
     messageListRenderer: MessageListContract.MessageListScreenRenderer?,
+    canonicalState: MessageListState?,
+    onCanonicalEvent: ((MessageListEvent) -> Unit)?,
 ) {
     val saveState = transfers.save
     NavigationButtons(state.busy, navigation.navigate, keyboard)
@@ -261,6 +274,8 @@ private fun MailboxContent(
         },
         onEvent = onEvent,
         messageListRenderer = messageListRenderer,
+        canonicalState = canonicalState,
+        onCanonicalEvent = onCanonicalEvent,
     )
 }
 

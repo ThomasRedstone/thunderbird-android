@@ -1,12 +1,12 @@
 # Ubuntu Touch mail port handover
 
-Updated 2026-10-28. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
+Updated 2026-10-29. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
 ## Fresh session starting point
 
-This section supersedes historical prototype failures and next-action lists below.
+This section and the 2026-10-29 update supersede historical prototype failures and next-action lists below.
 
-- Branch `feat/ubuntu-touch-demo`; last implementation commit `008e3d111e0e85387d559814402633005cb37719`, pushed.
+- Branch `feat/ubuntu-touch-demo`; Crane's canonical list-page change was incorporated as `a75dd4890f` (from `crane/n-d6if` at `534dd660d0`). Shared composition binding is committed as `168e9b81f6`. These two commits are local and not yet pushed.
 - Both the **API module** (`feature/mail/message/list/api`, commit `2e0595420f` + `25d8ed7d7f`) and the **internal list module** (`feature/mail/message/list/internal`, commit `008e3d111e`) are now fully migrated to KMP Compose.
 - The `preview` package resolution failure in `MessageListScreenRendererTest.kt` was resolved by moving the Compose previews and preview helpers from `src/debug` into `src/androidMain` where KMP source-set conventions make them accessible to `androidHostTest`.
 - Verification passed cleanly:
@@ -14,13 +14,23 @@ This section supersedes historical prototype failures and next-action lists belo
   - `internal`: 25 JVM tests, 140 Android host tests pass (1 upstream test skipped with `@Ignore`).
   - Code quality: `detekt` and `spotlessCheck` pass.
   - Legacy UI consumer: `:legacy:ui:legacy:compileDebugKotlin` compiles cleanly.
-- Eight app-local search files remain intentionally dirty and separately preserved on `checkpoint/ut-search-ui-before-reuse-review` (`b9bd9c4d2da1ae15105411a7a08ba899ea25fd4f`). Do not stage or reset them.
+- App-local search WIP remains intentionally dirty and separately preserved on `checkpoint/ut-search-ui-before-reuse-review` (`b9bd9c4d2da1ae15105411a7a08ba899ea25fd4f`). The current worktree has three modified app files and five untracked search files. Do not stage or reset them.
 - **Hardware & Decisions Status (Updated 2026-10-28)**:
   - **FP4 Phone**: Online and ready for deployment/acceptance testing.
   - **Content Hub permission (`q-jk4j`)**: Approved / allowed by Tom.
   - **OAuth credentials & ownership (`q-ar74`)**: Clarified as registering client application credentials.
   - **Side quest resolution**: Keel v1 command/event facade and event subscription completed (PRs #25, #26 merged; documentation PR #27 opened; Journey 9 verified). No lingering items or dependencies on the mail port.
-- **Next milestone**: Continue canonical mobile list page rendering. The canonical page (`MessageListPage.kt` / `MessageList.kt`) still requires portable accessibility string resources and swipe theme/action resource adapters to render on Compose Desktop/JVM. Then wire via shared composition, assemble for Ubuntu Touch, and run device acceptance.
+- **Next milestone**: Wire the canonical list renderer/state into the Ubuntu Touch app through the existing shared composition boundary, with controlled mailbox data and real event dispatch. Then package and run device acceptance. The current app still hosts its own preview UI and has not rendered the canonical page on FP4.
+
+## 2026-10-29 canonical list and composition update
+
+Crane completed Desk item `n-d6if` in its own clean worktree. Its approved plan, read-only review, and verify artifacts are under `/home/tom/.local/state/dock/desk/artifacts/n-d6if/`. The resulting commit was cherry-picked onto the feature branch without touching the app-local search WIP. The canonical `MessageListPage`, `MessageList`, renderer, footer, swipe item and accessibility state now live in `feature/mail/message/list/internal/src/commonMain`. Android retains resource and notification-scaffold adapters; JVM has English string, Bolt colour and scaffold adapters. The renderer is bound in `sharedMessageListModule`.
+
+Crane verification passed `internal:jvmTest`, `internal:testAndroidHostTest`, `internal:detekt`, `internal:spotlessCheck` and `legacy:ui:legacy:compileDebugKotlin`. The review recorded 33 JVM tests passing, 139 Android host tests passing and one pre-existing ignored test. This is controlled renderer/UI and Android regression evidence, not a UT app integration or device result.
+
+The next local step added `sharedMessageListModule` to `app-composition` and its internal-module dependency there, consistent with ADR-0009's composition exception. Verification passed with JDK 21 and the Android SDK: `:app-composition:compileKotlinJvm`, `:app-composition:compileAndroidMain`, both internal list test targets, internal detekt/Spotless, and the legacy Android UI compile. `app-composition:spotlessCheck` also passed; its detekt task reported `NO-SOURCE`. Logs: `/tmp/thunderbird-ut-composition-20261029.log` and `/tmp/thunderbird-ut-composition-quality-20261029.log`. An initial invocation failed only because `:app-composition:compileDebugKotlin` is not a task in this KMP module; it was corrected to `compileAndroidMain` and rerun successfully.
+
+The remaining integration is substantive: `app-ubuntu-touch` does not yet depend on `app-composition`, supply the list's external repository/preference contracts, or translate its existing mailbox identities and events into `MessageListState`. The canonical page has therefore not replaced the preview mailbox. Build a controlled end-to-end state/event slice before switching any live UI. Preserve the app-local storage, credential and transaction safeguards until their shared replacements are proven equivalent. No Click was built or installed in this update.
 
 ## Resume update after internal list migration
 
@@ -159,9 +169,9 @@ Prepared but not run: `/tmp/thunderbird-037-upgrade.py` and `/tmp/thunderbird-03
 
 Desk main work item: `n-d6if`, parent `n-2md2`.
 
-- `q-ar74`: Google/Microsoft OAuth registration ownership/approval remains unanswered. Production registry is empty. Generic OAuth plumbing and host tests do not prove Gmail/Outlook phone journeys. No client IDs/config changes without the user's instruction.
-- `q-jk4j`: `content_exchange_source` permission remains unanswered. Manifest still has accounts/networking, policy2404.1. Save UI/adapter/lease/journal work does not prove a real confined receiving-app transfer.
-- `b-omq6`: FP4 offline blocks native checks only. Existing wake/unlock question is pending; do not duplicate it. Independent roadmap work can continue.
+- `q-ar74`: Resolved for dedicated Google/Microsoft public-client application registrations. No client IDs are configured; generic OAuth plumbing and host tests do not prove Gmail/Outlook phone journeys.
+- `q-jk4j`: Resolved; Tom approved `content_exchange_source`, and the manifest change is committed as `ba2fcc3ac8`. Save UI/adapter/lease/journal work still does not prove a real confined receiving-app transfer.
+- FP4 was reported online on 2026-10-28. Recheck live device state before installation or native acceptance; the older offline observation in this document is historical.
 
 Production SignOn on old installed builds fails large raw credential reads. Source37 adds protected chunks and ownership/deletion/uncertainty journals, with host capped-backend tests. Its native production-keyring probe is prepared but unrun. A separate experimental library repair succeeded only in private probes; it was not deployed. Never replace the system credential service, use a plaintext fallback, or claim the issue fixed on the phone.
 

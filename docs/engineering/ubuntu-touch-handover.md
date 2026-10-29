@@ -6,7 +6,7 @@ Updated 2026-10-29. Resume the full roadmap from the current source and evidence
 
 This section and the 2026-10-29 update supersede historical prototype failures and next-action lists below.
 
-- Branch `feat/ubuntu-touch-demo`; Crane's canonical list-page change was incorporated as `a75dd4890f` (from `crane/n-d6if` at `534dd660d0`). Shared composition binding is committed as `168e9b81f6`. These two commits are local and not yet pushed.
+- Branch `feat/ubuntu-touch-demo`; Crane's canonical list-page change was incorporated as `a75dd4890f` (from `crane/n-d6if` at `534dd660d0`). Shared composition binding is committed as `168e9b81f6`. These and the handover commit `c720aa8c32` were pushed to `origin/feat/ubuntu-touch-demo` on 2026-10-29.
 - Both the **API module** (`feature/mail/message/list/api`, commit `2e0595420f` + `25d8ed7d7f`) and the **internal list module** (`feature/mail/message/list/internal`, commit `008e3d111e`) are now fully migrated to KMP Compose.
 - The `preview` package resolution failure in `MessageListScreenRendererTest.kt` was resolved by moving the Compose previews and preview helpers from `src/debug` into `src/androidMain` where KMP source-set conventions make them accessible to `androidHostTest`.
 - Verification passed cleanly:
@@ -30,7 +30,7 @@ Crane verification passed `internal:jvmTest`, `internal:testAndroidHostTest`, `i
 
 The next local step added `sharedMessageListModule` to `app-composition` and its internal-module dependency there, consistent with ADR-0009's composition exception. Verification passed with JDK 21 and the Android SDK: `:app-composition:compileKotlinJvm`, `:app-composition:compileAndroidMain`, both internal list test targets, internal detekt/Spotless, and the legacy Android UI compile. `app-composition:spotlessCheck` also passed; its detekt task reported `NO-SOURCE`. Logs: `/tmp/thunderbird-ut-composition-20261029.log` and `/tmp/thunderbird-ut-composition-quality-20261029.log`. An initial invocation failed only because `:app-composition:compileDebugKotlin` is not a task in this KMP module; it was corrected to `compileAndroidMain` and rerun successfully.
 
-The remaining integration is substantive: `app-ubuntu-touch` does not yet depend on `app-composition`, supply the list's external repository/preference contracts, or translate its existing mailbox identities and events into `MessageListState`. The canonical page has therefore not replaced the preview mailbox. Build a controlled end-to-end state/event slice before switching any live UI. Preserve the app-local storage, credential and transaction safeguards until their shared replacements are proven equivalent. No Click was built or installed in this update.
+The remaining integration is substantive: `app-ubuntu-touch` does not yet depend on `app-composition`, supply the list's external repository/preference contracts, or translate its existing mailbox identities and events into `MessageListState`. The canonical `MessageListContract.ViewModel.Args` still requires a `LegacyMessageListBridge`; its state machine depends on preference, folder, debug and side-effect contracts. Identify and adapt these contracts explicitly for JVM, then build a controlled end-to-end state/event slice before switching any live UI. The canonical page has therefore not replaced the preview mailbox. Preserve the app-local storage, credential and transaction safeguards until their shared replacements are proven equivalent. No Click was built or installed in this update.
 
 ## Resume update after internal list migration
 

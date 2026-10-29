@@ -15,6 +15,7 @@ import net.thunderbird.feature.mail.message.list.ui.effect.MessageListEffect
 import net.thunderbird.feature.mail.message.list.ui.event.FolderEvent
 import net.thunderbird.feature.mail.message.list.ui.event.MessageItemEvent
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
+import net.thunderbird.feature.mail.message.list.ui.state.Folder
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
 
 /** Connects the protected mailbox cache to the shared message-list reducer. */
@@ -57,11 +58,17 @@ internal class CanonicalMessageListController(
         }
     }
 
-    fun event(event: MessageListEvent) {
+    fun event(event: MessageListEvent, sourceFolder: Folder) {
         scope.launch {
             val current = reducer.currentStateSnapshot
+            val mailboxSnapshot = mailbox.value
+            if (current.metadata.folder != sourceFolder ||
+                mailboxSnapshot.canonicalMessageList()?.metadata?.folder != sourceFolder
+            ) {
+                return@launch
+            }
             if (event.reduces(current)) reducer.process(event)
-            handleCanonicalMessageListEvent(event, mailbox.value, dispatchMail)
+            handleCanonicalMessageListEvent(event, mailboxSnapshot, dispatchMail)
         }
     }
 
@@ -101,4 +108,9 @@ internal fun rememberCanonicalMessageListController(
     }
     DisposableEffect(controller) { onDispose { controller?.close() } }
     return controller
+}
+
+internal fun CanonicalMessageListController?.eventHandlerFor(state: MessageListState?): ((MessageListEvent) -> Unit)? {
+    val folder = state?.metadata?.folder ?: return null
+    return this?.let { controller -> { event -> controller.event(event, folder) } }
 }

@@ -99,7 +99,7 @@ internal fun MailApplicationScreen(
                     transfers,
                     messageListRenderer,
                     canonicalState,
-                    controller?.let { it::event },
+                    controller.eventHandlerFor(canonicalState),
                 )
             }
         }

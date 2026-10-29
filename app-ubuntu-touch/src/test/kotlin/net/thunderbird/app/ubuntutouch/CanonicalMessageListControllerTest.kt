@@ -70,10 +70,57 @@ class CanonicalMessageListControllerTest {
         assertThat(switched.metadata.folder?.id).isEqualTo("Archive")
         assertThat(switched.messages.map { it.id }).isEqualTo(listOf("archive-1"))
 
-        testSubject.event(MessageItemEvent.OnMessageClick(switched.messages.single()))
+        testSubject.event(
+            MessageItemEvent.OnMessageClick(switched.messages.single()),
+            checkNotNull(switched.metadata.folder),
+        )
         advanceUntilIdle()
         assertThat(events).isEqualTo(listOf(LiveMailEvent.OpenMessage("archive-1")))
         assertThat(testSubject.state.value).isInstanceOf<MessageListState.LoadedMessages>()
+        testSubject.close()
+    }
+
+    @Test
+    fun `stale row event cannot open same uid in a new folder`() = runTest {
+        val factory = koinApplication {
+            modules(
+                appCompositionModule,
+                module {
+                    single<Logger> {
+                        DefaultLogger(object : LogSink {
+                            override val level = LogLevel.INFO
+                            override fun log(event: LogEvent) = error("Unexpected reducer log")
+                        })
+                    }
+                },
+            )
+        }.koin.get<MessageListContract.StateMachineFactory>()
+        val account = AccountIdFactory.create()
+        val mailbox = MutableStateFlow(
+            LiveMailState(
+                accounts = emptyList(),
+                account = account,
+                folder = MailFolder("INBOX", "Inbox"),
+                messages = listOf(MailSummary("same-uid", "Old", "Sender", unread = true)),
+            ),
+        )
+        val events = mutableListOf<LiveMailEvent>()
+        val controllerScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val testSubject = CanonicalMessageListController(mailbox, events::add, factory, controllerScope)
+        advanceUntilIdle()
+        val old = testSubject.state.value as MessageListState.LoadedMessages
+
+        mailbox.value = mailbox.value.copy(
+            folder = MailFolder("Archive", "Archive"),
+            messages = listOf(MailSummary("same-uid", "New", "Sender", unread = true)),
+        )
+        advanceUntilIdle()
+        testSubject.event(MessageItemEvent.OnMessageClick(old.messages.single()), checkNotNull(old.metadata.folder))
+        advanceUntilIdle()
+
+        assertThat(events).isEqualTo(emptyList())
+        val current = testSubject.state.value as MessageListState.LoadedMessages
+        assertThat(current.metadata.folder?.id).isEqualTo("Archive")
         testSubject.close()
     }
 }

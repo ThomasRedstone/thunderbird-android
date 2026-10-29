@@ -2,6 +2,21 @@
 
 Updated 2026-10-29. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-29 canonical list integration candidate
+
+Work continues in the clean worktree `/home/tom/own/thunderbird-android-ut-canonical`, branch `feat/ut-canonical-list`, based on `6e1420c0c5`. The original `feat/ubuntu-touch-demo` worktree and its eight app-local search WIP files were not edited. This candidate has not yet been folded back to the feature branch.
+
+- `b1dd36fcbd`: project the existing protected cache's current folder into canonical `MessageListState` and provide an account/folder-isolated `LegacyMessageListBridge`. Three focused tests pass.
+- `2349a9a9dc`: make an empty cached folder complete the canonical loading transition; the two changed Android host assertions failed before the fix and pass after it. The loader now logs only a message count, not message objects. Internal JVM and Android host suites, Detekt, Spotless and legacy Android UI compile pass; log `/tmp/thunderbird-ut-empty-folder-after.log`.
+- `cd91117f8f`: resolve the canonical renderer from `app-composition` and show its mobile rows for a cached single-folder mailbox. Row open, selection, star, read and refresh events pass through the existing `LiveMailViewModel` and queued local flag journal. Eight focused adapter/action/Compose integration tests pass. Full app suite: 493 tests, zero failures/errors/skips; Detekt and Spotless pass; log `/tmp/thunderbird-ut-canonical-full-app-test.log`.
+- `05adb9d955` and `bfa3e215fc`: version `0.1.39`, include shared composition/list source in the package inventory, and bound the packaging Gradle heap for this host.
+
+The clean-source ARM64 Click built from `bfa3e215fc` with an empty `SOURCE-CHANGES.patch`: `app-ubuntu-touch/build/ut-candidate-39/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.39_arm64.click`, 159,529,738 bytes, SHA256 `042eb37180e8d0af114194f5918a4fb4dc4ade2160c9638f9af391f337fb90fb`. Clickable default review and launcher/JVM/AWT/Skiko/SQLite ARM64 checks pass; log `/tmp/thunderbird-ut-canonical-click-39.log`. Builder `sha256:3a08b52420bd76280d8323db951a306e428fb17ac5e4cd60f53903e049a68563` and the previously verified candidate-11 ARM64 runtime were reused; this is not a cold-build proof.
+
+FP4 read-only inspection found the installed `0.1.34` source `1f248250f6`, no app process, and the existing private `mail.sqlite`. A resumable transfer of `0.1.39` is in progress (`/tmp/thunderbird-ut-canonical-transfer-39.log`). `/tmp/thunderbird-039-upgrade.py` is prepared but **has not run**: it requires the complete remote package hash, old source/schema15, no app process and an integrity-checked private backup before Phone Manager installation. No device or touch acceptance is claimed yet.
+
+This is a canonical renderer and event-path integration over the existing mailbox model. The app still projects `LiveMailState` into `MessageListState`; it does not yet let the canonical `MessageListStateMachine` own its folder lifecycle. That controller integration, device acceptance, and merging/pushing the candidate branch remain required by the active goal. Preserve the app's storage, credential and pending-action guarantees while doing so.
+
 ## Fresh session starting point
 
 This section and the 2026-10-29 update supersede historical prototype failures and next-action lists below.

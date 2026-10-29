@@ -111,7 +111,7 @@ class LoadMessagesLegacySideEffectTest : BaseSideEffectHandlerTest() {
         }
 
     @Test
-    fun `handle() should dispatch UpdateLoadingProgress with progress 0f for empty messages`() =
+    fun `handle() should dispatch completed loading for an empty folder`() =
         runTest(UnconfinedTestDispatcher()) {
             // Arrange
             val dispatch = RecordingSuspendFunction<MessageListEvent>()
@@ -129,7 +129,7 @@ class LoadMessagesLegacySideEffectTest : BaseSideEffectHandlerTest() {
 
             // Assert
             assertThat(dispatch.calls)
-                .containsExactly(MessageListEvent.UpdateLoadingProgress(progress = 0f, messages = emptyList()))
+                .containsExactly(MessageListEvent.UpdateLoadingProgress(progress = 1f, messages = emptyList()))
         }
 
     @Test
@@ -251,7 +251,7 @@ class LoadMessagesLegacySideEffectTest : BaseSideEffectHandlerTest() {
             // Assert
             assertThat(dispatchedEvents).hasSize(3)
             assertThat(dispatchedEvents[0])
-                .isEqualTo(MessageListEvent.UpdateLoadingProgress(progress = 0f, messages = emptyList()))
+                .isEqualTo(MessageListEvent.UpdateLoadingProgress(progress = 1f, messages = emptyList()))
             assertThat(dispatchedEvents[1].let { it as MessageListEvent.UpdateLoadingProgress }.progress)
                 .isEqualTo(1f)
             assertThat(dispatchedEvents[2].let { it as MessageListEvent.UpdateLoadingProgress }.progress)

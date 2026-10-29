@@ -44,11 +44,8 @@ internal class LoadMessagesLegacySideEffect(
         running = legacyBridge
             .loadMessages(newState.preferences, newState.metadata)
             .onEach { messages ->
-                logger.verbose(TAG) { "LoadMessagesLegacySideEffect.handle() messages: $messages" }
-                // this is oversimplified as we currently don't track the loading progress
-                // in the legacy implementation.
-                val progress = if (messages.isEmpty()) 0f else 1f
-                dispatch(MessageListEvent.UpdateLoadingProgress(progress = progress, messages = messages))
+                logger.verbose(TAG) { "Cached message list loaded (${messages.size} items)" }
+                dispatch(MessageListEvent.UpdateLoadingProgress(progress = 1f, messages = messages))
             }
             .onCompletion { running = null }
             .catch { throwable ->

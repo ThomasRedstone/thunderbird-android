@@ -7,6 +7,8 @@ import java.time.format.DateTimeFormatter
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
+import net.thunderbird.core.common.action.SwipeAction
+import net.thunderbird.core.common.action.SwipeActions
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.feature.mail.folder.FolderType
@@ -21,6 +23,7 @@ import net.thunderbird.feature.mail.message.list.ui.state.MessageItemUi
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListFooter
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListMetadata
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
+import net.thunderbird.feature.mail.message.list.ui.state.PaginationUi
 
 /** Projects the existing protected cache's current folder into the canonical mobile list model. */
 internal fun LiveMailState.canonicalMessageList(): MessageListState.LoadedMessages? {
@@ -61,10 +64,11 @@ internal fun LiveMailState.canonicalMessageList(): MessageListState.LoadedMessag
     return MessageListState.LoadedMessages(
         metadata = MessageListMetadata(
             folder = Folder(mailFolder.id, owner, mailFolder.name, FolderType.REGULAR),
-            swipeActions = persistentMapOf(),
+            swipeActions = persistentMapOf(accountId to SwipeActions(SwipeAction.None, SwipeAction.None)),
             sortCriteriaPerAccount = persistentMapOf(accountId to criteria),
             isActive = true,
             footer = MessageListFooter(showFooter = false),
+            paging = PaginationUi(endReached = true),
         ),
         preferences = MessageListPreferences(
             density = UiDensity.Default,

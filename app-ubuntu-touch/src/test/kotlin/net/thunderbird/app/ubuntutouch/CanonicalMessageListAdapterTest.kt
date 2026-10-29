@@ -32,6 +32,8 @@ class CanonicalMessageListAdapterTest {
         val result = checkNotNull(testSubject.canonicalMessageList())
 
         assertThat(result.metadata.folder?.id).isEqualTo("INBOX")
+        assertThat(result.metadata.isReady).isEqualTo(true)
+        assertThat(result.metadata.paging.endReached).isEqualTo(true)
         assertThat(result.metadata.folder?.account?.id).isEqualTo(account)
         assertThat(result.metadata.sortCriteriaPerAccount[account]?.primary).isEqualTo(SortType.SubjectAsc)
         assertThat(result.messages.map { it.messageReference }).isEqualTo(listOf("one", "two"))

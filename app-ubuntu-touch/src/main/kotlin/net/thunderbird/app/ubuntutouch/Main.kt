@@ -27,18 +27,21 @@ import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.thunderbird.app.composition.appCompositionModule
 import net.thunderbird.components.core.logging.DefaultLogger
 import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.components.core.logging.console.ConsoleLogSink
 import net.thunderbird.components.ui.bolt.atom.Surface
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
+import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 import org.koin.dsl.onClose
 
 private const val FP4_UI_DENSITY = 2.75f
 
+@Suppress("LongMethod") // The desktop entry point composes the platform window and app-specific Koin services.
 fun main() {
     prepareCache()
     val isUbuntuTouch = System.getenv("APP_ID")?.startsWith("mail-demo.thomasredstone_") == true
@@ -93,6 +96,7 @@ fun main() {
                                 createSave = { koin.get<MessageSaveRuntime>() },
                                 createSignatures = { koin.get<SignatureSettingsViewModel>() },
                                 createMoves = { koin.get<MailMoveViewModel>() },
+                                messageListRenderer = koin.get<MessageListContract.MessageListScreenRenderer>(),
                             )
                         }
                     }
@@ -104,6 +108,7 @@ fun main() {
 
 private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
     modules(
+        appCompositionModule,
         module {
             single { DemoMailRepository() }
             single { MailDatabase(mailDatabasePath()) }

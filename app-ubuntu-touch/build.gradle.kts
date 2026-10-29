@@ -28,6 +28,7 @@ dependencies {
     implementation(projects.backend.demo)
     implementation(projects.backend.api)
     implementation(projects.backend.imap)
+    implementation(projects.appComposition)
     implementation(projects.legacy.logging)
     implementation(projects.mail.common)
     implementation(projects.core.common)

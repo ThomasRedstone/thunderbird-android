@@ -29,6 +29,7 @@ import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleLarge
 import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldOutlined
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 
 @Composable
 internal fun LiveMailScreen(
@@ -36,6 +37,7 @@ internal fun LiveMailScreen(
     keyboard: MaliitKeyboard? = null,
     onSave: ((MessageSaveEvent) -> Unit)? = null,
     onMove: ((MailMoveEvent.Open) -> Unit)? = null,
+    messageListRenderer: MessageListContract.MessageListScreenRenderer? = null,
     onEvent: (LiveMailEvent) -> Unit,
 ) {
     val height = keyboard?.height?.collectAsState()?.value ?: 0
@@ -64,7 +66,7 @@ internal fun LiveMailScreen(
             }
 
             state.folder != null -> {
-                MailMessageList(state, onEvent, keyboard, Modifier.weight(1f))
+                MailMessageList(state, onEvent, keyboard, messageListRenderer, Modifier.weight(1f))
             }
 
             state.account != null -> {
@@ -181,6 +183,7 @@ private fun MailMessageList(
     state: LiveMailState,
     onEvent: (LiveMailEvent) -> Unit,
     keyboard: MaliitKeyboard?,
+    messageListRenderer: MessageListContract.MessageListScreenRenderer?,
     modifier: Modifier = Modifier,
 ) {
     var editing by rememberMaliitEditor("${state.account}/${state.folder?.id}", state.query, keyboard) {}
@@ -224,15 +227,20 @@ private fun MailMessageList(
                 if (state.query.isBlank()) "No cached messages. Sync to receive mail." else "No cached matches",
             )
         }
-        LazyColumn(
-            modifier = Modifier.weight(1f).testTag("cached-message-list"),
-            state = rememberMailSortViewport(state.sort, state.busy),
-        ) {
-            items(state.searchHits, key = { listOf(it.account.toString(), it.folder.id, it.message.id) }) { hit ->
-                SearchResultButton(state, hit, onEvent)
-            }
-            items(state.messages, key = { it.id }) { message ->
-                MailFolderMessageButton(state, message, onEvent)
+        val canonical = if (state.query.isBlank()) state.canonicalMessageList() else null
+        if (canonical != null && messageListRenderer != null) {
+            CanonicalMessageListScreen(canonical, state, onEvent, messageListRenderer, Modifier.weight(1f))
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f).testTag("cached-message-list"),
+                state = rememberMailSortViewport(state.sort, state.busy),
+            ) {
+                items(state.searchHits, key = { listOf(it.account.toString(), it.folder.id, it.message.id) }) { hit ->
+                    SearchResultButton(state, hit, onEvent)
+                }
+                items(state.messages, key = { it.id }) { message ->
+                    MailFolderMessageButton(state, message, onEvent)
+                }
             }
         }
     }

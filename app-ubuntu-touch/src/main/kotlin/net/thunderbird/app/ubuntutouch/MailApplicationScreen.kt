@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
+import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 
 private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX, COMPOSE, SIGNATURES }
 
@@ -39,6 +40,7 @@ internal fun MailApplicationScreen(
     createSave: (() -> MessageSaveRuntime)? = null,
     createSignatures: (() -> SignatureSettingsViewModel)? = null,
     createMoves: (() -> MailMoveViewModel)? = null,
+    messageListRenderer: MessageListContract.MessageListScreenRenderer? = null,
 ) {
     val save = createSave?.let { loadOwnedMailModel(it)?.model }
     if (save != null) RegisterMailClose(save, lifecycle, save::flushForClose, {})
@@ -90,6 +92,7 @@ internal fun MailApplicationScreen(
                         destination = MailDestination.COMPOSE
                     }),
                     transfers,
+                    messageListRenderer,
                 )
             }
         }
@@ -171,6 +174,7 @@ private fun MailboxDestination(
     keyboard: MaliitKeyboard?,
     navigation: MailboxNavigation,
     transfers: MailboxTransfers,
+    messageListRenderer: MessageListContract.MessageListScreenRenderer?,
 ) {
     var saving by remember { mutableStateOf(false) }
     var moving by remember { mutableStateOf(false) }
@@ -209,6 +213,7 @@ private fun MailboxDestination(
                 navigation,
                 transfers,
                 MailboxPanels({ saving = true }, { moving = true }),
+                messageListRenderer,
             )
         }
     }
@@ -224,6 +229,7 @@ private fun MailboxContent(
     navigation: MailboxNavigation,
     transfers: MailboxTransfers,
     panels: MailboxPanels,
+    messageListRenderer: MessageListContract.MessageListScreenRenderer?,
 ) {
     val saveState = transfers.save
     NavigationButtons(state.busy, navigation.navigate, keyboard)
@@ -254,6 +260,7 @@ private fun MailboxContent(
             }
         },
         onEvent = onEvent,
+        messageListRenderer = messageListRenderer,
     )
 }
 

@@ -2,17 +2,31 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
-## 2026-10-31 cached HTML-only text fallback (source only)
+## 2026-10-31 installed 0.1.46 reader candidate
+
+Clean-source ARM64 Click 0.1.46 was built from `20f510a2610f1acc89e933a4d264af94672cfd5b` with an empty
+`SOURCE-CHANGES.patch`: `app-ubuntu-touch/build/ut-candidate-46/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.46_arm64.click`,
+160,184,608 bytes, SHA256 `f5169108b853b2ff0ded5b42c549fd4b0203bad4e14a7a409ceaf465bfc4f23f`.
+Clickable review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-ut-click-46.log`). The verified 0.1.45
+ARM64 runtime and pinned packager image were reused. The FP4 transfer hash matched; an integrity-checked private backup
+was made at `/home/phablet/.cache/mail-demo.thomasredstone/upgrades/pre-reader-46-lhia9tg6`, then Phone Manager installed
+0.1.46. The installed source marker and empty patch match the Click. The production cache remains schema 19 with
+`quick_check=ok`, one account, five folders, and five messages (`/tmp/thunderbird-046-upgrade.log`). Phone Manager
+reported launcher/user-bus and signature warnings, but the install command and post-install checks completed. The
+device still runs `lomiri --mode=full-greeter`, with Xwayland `:28` owned by the greeter. No 0.1.46 UI walkthrough is
+claimed.
+
+## 2026-10-31 cached HTML-only text fallback
 
 Commit `01a2acadf1` lets the cache-backed reader display inert text from an HTML-only MIME body instead of a placeholder.
 It uses the existing MIME viewable classification, parses bounded HTML with Jsoup, removes scripts, styles, embeds and
 forms, and renders text only; the parser makes no remote requests. A cached plain-text part remains preferred, and
 reply/forward still require one. The HTML-only cache regression passes along with the five-test resource suite, app
-Detekt and Spotless (`/tmp/thunderbird-ut-html-text-fallback-final.log`). This source is newer than the installed
-0.1.45 Click and has not been exercised on the FP4. Rich HTML rendering, link handling, and attachment Open remain
+Detekt and Spotless (`/tmp/thunderbird-ut-html-text-fallback-final.log`). This source is in the installed 0.1.46 Click
+but has not been exercised through the FP4 UI. Rich HTML rendering, link handling, and attachment Open remain
 future reader work.
 
-## 2026-10-31 shared reader attachment Save action (source only)
+## 2026-10-31 shared reader attachment Save action
 
 Commit `8cc1ce586d` adds a Save control on each shared reader attachment row. The Ubuntu Touch host sends an account,
 folder, and UID scoped request with the selected position and displayed metadata; `MessageSaveViewModel` reopens the
@@ -23,8 +37,8 @@ still show metadata without Save because that route has no export action.
 
 Focused app tests pass 10/10, including a row-to-request UI test and current-cache metadata check; reader API JVM tests,
 app and reader Detekt/Spotless pass (`/tmp/thunderbird-ut-reader-attachment-action-tests.log`,
-`/tmp/thunderbird-ut-reader-attachment-action-final.log`). This commit is newer than the installed 0.1.45 Click and has
-not been exercised on the FP4. Open behavior and HTML/privacy handling remain separate reader work.
+`/tmp/thunderbird-ut-reader-attachment-action-final.log`). This commit is in the installed 0.1.46 Click but has not
+been exercised through the FP4 UI. Open behavior and richer HTML/privacy handling remain separate reader work.
 
 ## 2026-10-31 real-mailbox entry and installed 0.1.45
 
@@ -110,7 +124,7 @@ metadata presentation; the original eight search WIP files remain untouched. The
 cache-backed MIME-part Open behavior, richer HTML/privacy handling, and on-device UI acceptance of
 the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
-navigation and attachment presentation. The installed 0.1.45 package still needs an unlocked Lomiri full shell before
+navigation and attachment presentation. The installed 0.1.46 package still needs an unlocked Lomiri full shell before
 that UI acceptance can run.
 
 The JVM reader implementation now aliases `MailPart` to the shared mail engine's `Part` interface, matching Android's

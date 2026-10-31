@@ -1,17 +1,6 @@
 package net.thunderbird.app.ubuntutouch
 
-import androidx.compose.runtime.Composable
-import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
+import net.thunderbird.feature.mail.message.reader.api.ui.MessageReaderAttachment
 
-@Composable
-internal fun MailReaderAttachments(content: MailContent) {
-    if (!content.complete) {
-        TextBodyLarge("Download the complete message to list attachments.")
-    } else if (content.attachments.isNotEmpty()) {
-        TextBodyLarge("Attachments (${content.attachments.size})")
-        content.attachments.forEach {
-            TextBodyLarge(it.displayName)
-            TextBodyLarge(it.mimeType)
-        }
-    }
-}
+internal fun MailContent.readerAttachments(): List<MessageReaderAttachment> =
+    attachments.map { MessageReaderAttachment(it.displayName, it.mimeType) }

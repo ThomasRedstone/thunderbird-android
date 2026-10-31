@@ -104,9 +104,10 @@ private fun ServerSearchReader(
             unread = content.summary.unread,
             starred = content.summary.starred,
             busy = busy,
+            attachments = content.readerAttachments(),
         ),
         modifier,
-    ) { MailReaderAttachments(content) }
+    )
 }
 
 @Composable

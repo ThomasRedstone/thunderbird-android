@@ -138,10 +138,11 @@ private fun CachedReader(
                 previousAvailable = previous != null,
                 nextAvailable = next != null,
                 busy = state.busy,
+                attachments = content.readerAttachments(),
             ),
             Modifier.weight(1f),
             onAction = { action -> onReaderAction(action, content, previous, next, onEvent) },
-        ) { MailReaderAttachments(content) }
+        )
     }
 }
 

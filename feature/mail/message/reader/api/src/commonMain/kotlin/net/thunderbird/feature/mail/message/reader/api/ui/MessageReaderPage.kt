@@ -28,8 +28,13 @@ data class MessageReaderPageContent(
     val previousAvailable: Boolean = false,
     val nextAvailable: Boolean = false,
     val busy: Boolean = false,
+    val attachments: List<MessageReaderAttachment> = emptyList(),
 ) {
     override fun toString(): String = "MessageReaderPageContent(redacted)"
+}
+
+data class MessageReaderAttachment(val filename: String, val mimeType: String) {
+    override fun toString(): String = "MessageReaderAttachment(redacted)"
 }
 
 enum class MessageReaderPageAction {
@@ -49,7 +54,6 @@ fun MessageReaderPage(
     content: MessageReaderPageContent,
     modifier: Modifier = Modifier,
     onAction: ((MessageReaderPageAction) -> Unit)? = null,
-    attachments: @Composable () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()), Arrangement.spacedBy(12.dp)) {
         if (!content.complete) {
@@ -96,7 +100,15 @@ fun MessageReaderPage(
             }
         }
         SelectionContainer { TextBodyLarge(content.body) }
-        attachments()
+        if (!content.complete) {
+            TextBodyLarge("Download the complete message to list attachments.")
+        } else if (content.attachments.isNotEmpty()) {
+            TextBodyLarge("Attachments (${content.attachments.size})")
+            content.attachments.forEach { attachment ->
+                TextBodyLarge(attachment.filename)
+                TextBodyLarge(attachment.mimeType)
+            }
+        }
     }
 }
 

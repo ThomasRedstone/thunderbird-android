@@ -29,12 +29,11 @@ import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
 
-private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX, COMPOSE, SIGNATURES }
+private enum class MailDestination { ACCOUNTS, MAILBOX, COMPOSE, SIGNATURES }
 
 @Composable
 @Suppress("LongMethod", "CyclomaticComplexMethod") // Routes the app destinations.
 internal fun MailApplicationScreen(
-    demo: DemoMailViewModel,
     keyboard: MaliitKeyboard?,
     createAccounts: () -> AccountSetupViewModel,
     createMailbox: () -> LiveMailViewModel,
@@ -59,14 +58,6 @@ internal fun MailApplicationScreen(
     var destination by remember { mutableStateOf(MailDestination.MAILBOX) }
     var composeRequest by remember { mutableStateOf<ComposeRequest?>(null) }
     when (destination) {
-        MailDestination.DEMO -> {
-            Column(Modifier.fillMaxSize()) {
-                NavigationButtons(false, { destination = it }, keyboard)
-                val state by demo.state.collectAsState()
-                DemoMailScreen(state, demo::event, keyboard)
-            }
-        }
-
         MailDestination.ACCOUNTS -> AccountsDestination({ createAccounts() }, keyboard, lifecycle) { destination = it }
 
         MailDestination.SIGNATURES -> SignatureSettingsDestination(createSignatures, keyboard, lifecycle) {
@@ -207,7 +198,6 @@ private fun MailboxDestination(
             when {
                 moving -> exitMove()
                 saving -> saving = false
-                state.account == null -> navigation.navigate(MailDestination.DEMO)
                 else -> onEvent(LiveMailEvent.Back)
             }
         },
@@ -314,7 +304,6 @@ private fun NavigationButtons(busy: Boolean, navigate: (MailDestination) -> Unit
         MailDestination.entries.forEach { destination ->
             ButtonText(
                 when (destination) {
-                    MailDestination.DEMO -> "Demo mailbox"
                     MailDestination.ACCOUNTS -> "Accounts"
                     MailDestination.MAILBOX -> "Mailboxes"
                     MailDestination.COMPOSE -> "Write"

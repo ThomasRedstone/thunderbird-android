@@ -1,21 +1,12 @@
 package net.thunderbird.app.ubuntutouch
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -25,14 +16,11 @@ import androidx.compose.ui.window.rememberWindowState
 import java.awt.Toolkit
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import net.thunderbird.app.composition.appCompositionModule
 import net.thunderbird.components.core.logging.DefaultLogger
 import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.components.core.logging.console.ConsoleLogSink
 import net.thunderbird.components.ui.bolt.atom.Surface
-import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
 import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 import org.koin.core.context.startKoin
@@ -54,46 +42,32 @@ fun main() {
     application {
         val scope = rememberCoroutineScope()
         val lifecycle = remember { MailWindowLifecycle(scope) }
-        var viewModel by remember { mutableStateOf<DemoMailViewModel?>(null) }
-        var failed by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) {
-            runCatching { withContext(Dispatchers.IO) { koin.get<DemoMailRepository>().load() } }
-                .onSuccess { viewModel = DemoMailViewModel(it) }
-                .onFailure { failed = true }
-        }
         Window(
             onCloseRequest = { lifecycle.requestClose(::exitApplication) },
-            title = "Mail demo — Ubuntu Touch",
+            title = "Mail — Ubuntu Touch",
             state = rememberWindowState(
                 width = screenSize?.width?.dp ?: 420.dp,
                 height = screenSize?.height?.dp ?: 800.dp,
             ),
-            onKeyEvent = { handleDemoKey(it, viewModel) },
         ) {
             KeyboardWindowFocus(window, keyboard, lifecycle)
             val density = if (isUbuntuTouch) Density(FP4_UI_DENSITY) else LocalDensity.current
             CompositionLocalProvider(LocalDensity provides density) {
                 ThunderbirdBoltTheme {
                     Surface(Modifier.fillMaxSize()) {
-                        val loaded = viewModel
-                        if (loaded == null) {
-                            LoadingDemo(failed)
-                        } else {
-                            MailApplicationScreen(
-                                loaded,
-                                keyboard,
-                                createAccounts = { koin.get<AccountSetupViewModel>() },
-                                createMailbox = { koin.get<LiveMailViewModel>() },
-                                createComposer = { koin.get<ComposerViewModel>() },
-                                lifecycle = lifecycle,
-                                createSave = { koin.get<MessageSaveRuntime>() },
-                                createSignatures = { koin.get<SignatureSettingsViewModel>() },
-                                createMoves = { koin.get<MailMoveViewModel>() },
-                                messageListRenderer = koin.get<MessageListContract.MessageListScreenRenderer>(),
-                                messageListStateMachineFactory = koin.get<MessageListContract.StateMachineFactory>(),
-                                createServerSearch = { koin.get<ServerSearchViewModel>() },
-                            )
-                        }
+                        MailApplicationScreen(
+                            keyboard,
+                            createAccounts = { koin.get<AccountSetupViewModel>() },
+                            createMailbox = { koin.get<LiveMailViewModel>() },
+                            createComposer = { koin.get<ComposerViewModel>() },
+                            lifecycle = lifecycle,
+                            createSave = { koin.get<MessageSaveRuntime>() },
+                            createSignatures = { koin.get<SignatureSettingsViewModel>() },
+                            createMoves = { koin.get<MailMoveViewModel>() },
+                            messageListRenderer = koin.get<MessageListContract.MessageListScreenRenderer>(),
+                            messageListStateMachineFactory = koin.get<MessageListContract.StateMachineFactory>(),
+                            createServerSearch = { koin.get<ServerSearchViewModel>() },
+                        )
                     }
                 }
             }
@@ -101,17 +75,10 @@ fun main() {
     }
 }
 
-private fun handleDemoKey(event: androidx.compose.ui.input.key.KeyEvent, model: DemoMailViewModel?): Boolean {
-    val back = event.key == Key.Escape && event.type == KeyEventType.KeyUp
-    if (back) model?.event(DemoMailEvent.Back)
-    return back
-}
-
 private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
     modules(
         appCompositionModule,
         module {
-            single { DemoMailRepository() }
             single { MailDatabase(mailDatabasePath()) }
             single { AccountSettingsStorage(get()) }
             single<CredentialStore> {
@@ -185,12 +152,4 @@ private fun KeyboardWindowFocus(window: java.awt.Window, keyboard: MaliitKeyboar
             keyboard?.windowFocusChanged(false)
         }
     }
-}
-
-@Composable
-private fun LoadingDemo(failed: Boolean) {
-    TextBodyLarge(
-        text = if (failed) "Unable to load demo messages. Please reopen the app." else "Loading demo messages…",
-        modifier = Modifier.padding(24.dp),
-    )
 }

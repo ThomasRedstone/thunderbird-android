@@ -28,7 +28,6 @@ class AccountEntryNavigationTest : ComposeUiTestHarness() {
                 val lifecycle = remember { MailWindowLifecycle(scope) }
                 ThunderbirdBoltTheme {
                     MailApplicationScreen(
-                        demo = DemoMailViewModel(emptyList()),
                         keyboard = null,
                         createAccounts = { AccountSetupViewModel(manager).also { accountsModel = it } },
                         createMailbox = { LiveMailViewModel(manager, EmptyMailRepository()) },
@@ -54,6 +53,7 @@ class AccountEntryNavigationTest : ComposeUiTestHarness() {
             awaitText("Set up account")
             onNodeWithText("Set up account").performClick()
             awaitText("Add account")
+            onNodeWithText("Demo mailbox").assertDoesNotExist()
             onNodeWithText("Add account").performClick()
             awaitText("Account setup")
             onNodeWithText("Cancel").performScrollTo().performClick()

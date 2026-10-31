@@ -37,7 +37,6 @@ class ResponseNavigationTest : ComposeUiTestHarness() {
                 val lifecycle = remember { MailWindowLifecycle(scope) }
                 ThunderbirdBoltTheme {
                     MailApplicationScreen(
-                        DemoMailViewModel(emptyList()),
                         null,
                         createAccounts = { error("Unused account setup") },
                         createMailbox = { LiveMailViewModel(manager, repository) },

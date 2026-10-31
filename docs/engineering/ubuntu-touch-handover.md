@@ -18,6 +18,16 @@ implementation Detekt and Spotless pass (`/tmp/thunderbird-ut-mailpart-jvm-test.
 `/tmp/thunderbird-ut-mailpart-quality.log`). This establishes the type boundary, but does not yet map protected cached
 attachments into reader state or complete their Open/Save behavior.
 
+The separate `feat/ut-search-reader-integration` branch is rebased over that fix. It carries the original server-search
+WIP in a clean integration worktree and uses the shared reader for search results; search results display the cached
+body and attachments without offering actions the search route cannot dispatch. The original `feat/ubuntu-touch-demo`
+worktree and its eight WIP files were not changed. Focused app tests pass 18/18, including the mailbox reader and both
+search suites (`/tmp/thunderbird-ut-search-reader-rebased-focused.log`); app Detekt and Spotless pass
+(`/tmp/thunderbird-ut-search-reader-quality-retry.log`). A full app test retry compiled and reached test execution,
+then the Gradle daemon disappeared under host pressure without an assertion result
+(`/tmp/thunderbird-ut-search-reader-app-test-retry.log`). This branch is a source integration checkpoint, not a phone
+accepted Click.
+
 ## 2026-10-31 shared reader slice (0.1.43 candidate)
 
 Android's `MessageViewContainerFragment` pages through the current ordered message list and forwards reader actions to

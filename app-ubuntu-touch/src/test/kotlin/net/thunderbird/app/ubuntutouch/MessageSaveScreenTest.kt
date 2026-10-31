@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import net.thunderbird.components.ui.bolt.atom.Surface
@@ -56,6 +57,38 @@ class MessageSaveScreenTest : ComposeUiTestHarness() {
         setContent { ThunderbirdBoltTheme { ReaderAttachmentAction(current, events::add) } }
         onNodeWithText("Save attachments").performClick()
         assertThat(events).isEqualTo(listOf(MessageSaveEvent.Attachments(MailMessageKey(account, "Archive", "42"))))
+    }
+
+    @Test
+    fun `reader attachment row requests its exact cached position`() = runComposeTest {
+        val account = AccountIdFactory.create()
+        val state = LiveMailState(
+            emptyList(),
+            account = account,
+            folder = MailFolder("Archive", "Archive"),
+            content = MailContent(
+                MailSummary("42", "Fixture", "Sender", false),
+                "Body",
+                true,
+                attachments = listOf(
+                    MailAttachmentInfo("first.bin", "application/octet-stream"),
+                    MailAttachmentInfo("second.bin", "application/octet-stream"),
+                ),
+            ),
+        )
+        val events = mutableListOf<MessageSaveEvent>()
+        setContent { ThunderbirdBoltTheme { Surface { LiveMailScreen(state, onSave = events::add, onEvent = {}) } } }
+        onNodeWithText("Save second.bin").performScrollTo().performClick()
+        assertThat(events).isEqualTo(
+            listOf(
+                MessageSaveEvent.PrepareAttachment(
+                    MailMessageKey(account, "Archive", "42"),
+                    1,
+                    "second.bin",
+                    "application/octet-stream",
+                ),
+            ),
+        )
     }
 
     @Test

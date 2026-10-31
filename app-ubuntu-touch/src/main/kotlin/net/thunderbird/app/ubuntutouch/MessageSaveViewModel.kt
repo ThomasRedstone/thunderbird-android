@@ -37,6 +37,14 @@ internal sealed interface MessageSaveEvent {
     data class Attachments(val key: MailMessageKey) : MessageSaveEvent {
         override fun toString(): String = "Attachments(redacted)"
     }
+    data class PrepareAttachment(
+        val key: MailMessageKey,
+        val ordinal: Int,
+        val expectedName: String,
+        val expectedMimeType: String,
+    ) : MessageSaveEvent {
+        override fun toString(): String = "PrepareAttachment(redacted)"
+    }
     data class Select(val destination: ExportDestination) : MessageSaveEvent
     data object Refresh : MessageSaveEvent
     data object Cancel : MessageSaveEvent
@@ -88,18 +96,19 @@ internal class MessageSaveViewModel(
                 MessageSaveState(attachments = controller.attachments(event.key))
             }
 
+            is MessageSaveEvent.PrepareAttachment -> {
+                check(record == null)
+                val attachment = controller.attachments(event.key).getOrNull(event.ordinal)
+                    ?: error("Attachment absent")
+                check(attachment.displayName == event.expectedName && attachment.mimeType == event.expectedMimeType) {
+                    "Cached attachment changed; reopen the message"
+                }
+                prepareAttachment(attachment.reference)
+            }
+
             is MessageSaveEvent.Prepare -> {
                 check(record == null)
-                val account = checkNotNull(accounts.findById(event.account))
-                val ready = controller.prepare(
-                    account.id,
-                    event.folder,
-                    event.uid,
-                    authorized = { accounts.findById(account.id) === account },
-                    handoff = { send -> accounts.withCurrentAccount(account, send) },
-                    attachment = event.attachment,
-                )
-                MessageSaveState(pending = ExportReconcileResult(ready), destinations = controller.destinations())
+                prepare(event.account, event.folder, event.uid, event.attachment)
             }
 
             is MessageSaveEvent.Select -> {
@@ -116,6 +125,27 @@ internal class MessageSaveViewModel(
 
             else -> refresh(record)
         }
+    }
+
+    private fun prepareAttachment(reference: AttachmentReference): MessageSaveState =
+        prepare(reference.account, reference.folder, reference.uid, reference)
+
+    private fun prepare(
+        accountId: AccountId,
+        folder: String,
+        uid: String,
+        attachment: AttachmentReference?,
+    ): MessageSaveState {
+        val account = checkNotNull(accounts.findById(accountId))
+        val ready = controller.prepare(
+            account.id,
+            folder,
+            uid,
+            authorized = { accounts.findById(account.id) === account },
+            handoff = { send -> accounts.withCurrentAccount(account, send) },
+            attachment = attachment,
+        )
+        return MessageSaveState(pending = ExportReconcileResult(ready), destinations = controller.destinations())
     }
 
     private fun refresh(record: ExportLeaseRecord?): MessageSaveState {

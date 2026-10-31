@@ -127,6 +127,7 @@ private fun CachedReader(
     val ids = if (state.searchAllFolders) emptyList() else state.messages.map { it.id }
     val previous = adjacentMessage(ids, content.summary.id, -1)
     val next = adjacentMessage(ids, content.summary.id, 1)
+    val saveRequest = state.saveRequest()
     Column(modifier) {
         ReaderTools(state, onSave, onMove, onEvent)
         MessageReaderPage(
@@ -146,6 +147,21 @@ private fun CachedReader(
             ),
             Modifier.weight(1f),
             onAction = { action -> onReaderAction(action, content, previous, next, onEvent) },
+            onAttachment = onSave?.let { save ->
+                { index ->
+                    val attachment = content.attachments.getOrNull(index)
+                    if (!state.busy && saveRequest != null && attachment != null) {
+                        save(
+                            MessageSaveEvent.PrepareAttachment(
+                                MailMessageKey(saveRequest.account, saveRequest.folder, saveRequest.uid),
+                                index,
+                                attachment.displayName,
+                                attachment.mimeType,
+                            ),
+                        )
+                    }
+                }
+            },
         )
     }
 }

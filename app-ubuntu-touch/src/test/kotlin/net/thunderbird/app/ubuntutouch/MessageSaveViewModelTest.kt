@@ -59,6 +59,32 @@ class MessageSaveViewModelTest {
     }
 
     @Test
+    fun `reader attachment position resolves current protected part and rejects mismatched metadata`() = runTest {
+        com.fsck.k9.mail.internet.BinaryTempFileBody.setTempDirectory(directory.newFolder("mime"))
+        fixture { database, accounts, controller, broker ->
+            val account = accounts.findAll().single().id
+            val raw = "Content-Type: multipart/mixed; boundary=x\r\n\r\n" +
+                "--x\r\nContent-Type: text/plain\r\n\r\nBody\r\n" +
+                "--x\r\nContent-Type: application/octet-stream\r\n" +
+                "Content-Disposition: attachment; filename=file.bin\r\n" +
+                "Content-Transfer-Encoding: base64\r\n\r\nAAECAw==\r\n--x--\r\n"
+            database.execute("UPDATE messages SET mime=?", raw.toByteArray())
+            val testSubject = MessageSaveViewModel(controller, accounts, backgroundScope)
+            testSubject.state.first { !it.busy }
+            val key = MailMessageKey(account, "INBOX", "1")
+            testSubject.event(MessageSaveEvent.PrepareAttachment(key, 0, "other.bin", "application/octet-stream"))
+            val rejected = testSubject.state.first { !it.busy }
+            assertThat(rejected.pending?.record).isEqualTo(null)
+            assertThat(broker.charges).isEqualTo(0)
+            testSubject.event(MessageSaveEvent.PrepareAttachment(key, 0, "file.bin", "application/octet-stream"))
+            val ready = testSubject.state.first { !it.busy }
+            assertThat(ready.pending?.record?.phase).isEqualTo(ExportLeasePhase.READY)
+            assertThat(ready.destinations).isEqualTo(listOf(broker.destination))
+            assertThat(broker.charges).isEqualTo(0)
+        }
+    }
+
+    @Test
     fun `receiver discovery failure keeps prepared export visible and refresh can retry selection`() = runTest {
         fixture { database, accounts, controller, broker ->
             val testSubject = MessageSaveViewModel(controller, accounts, backgroundScope)

@@ -54,6 +54,7 @@ fun MessageReaderPage(
     content: MessageReaderPageContent,
     modifier: Modifier = Modifier,
     onAction: ((MessageReaderPageAction) -> Unit)? = null,
+    onAttachment: ((Int) -> Unit)? = null,
 ) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()), Arrangement.spacedBy(12.dp)) {
         if (!content.complete) {
@@ -104,8 +105,12 @@ fun MessageReaderPage(
             TextBodyLarge("Download the complete message to list attachments.")
         } else if (content.attachments.isNotEmpty()) {
             TextBodyLarge("Attachments (${content.attachments.size})")
-            content.attachments.forEach { attachment ->
-                TextBodyLarge(attachment.filename)
+            content.attachments.forEachIndexed { index, attachment ->
+                if (onAttachment == null) {
+                    TextBodyLarge(attachment.filename)
+                } else {
+                    ButtonText("Save ${attachment.filename}", { onAttachment(index) }, enabled = !content.busy)
+                }
                 TextBodyLarge(attachment.mimeType)
             }
         }

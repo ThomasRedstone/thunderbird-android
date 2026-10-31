@@ -2,6 +2,22 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## Current next phase
+
+Finish the shared single-account mail flow, then accept it on the FP4. The current clean candidate has the canonical
+message list and shared plain-text reader; the separate server-search work has been adapted to that reader in an
+integration worktree while the original eight search WIP files remain untouched. The remaining implementation work is
+shared account/folder navigation, cache-backed reader attachment mapping and download actions, and search integration.
+The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
+navigation and attachment presentation. The installed 0.1.43 package still needs an unlocked Lomiri full shell before
+that UI acceptance can run.
+
+The JVM reader implementation now aliases `MailPart` to the shared mail engine's `Part` interface, matching Android's
+MIME part type. A JVM reader test passes a real `MimeBodyPart` through attachment state; app JVM compilation, reader
+implementation Detekt and Spotless pass (`/tmp/thunderbird-ut-mailpart-jvm-test.log`,
+`/tmp/thunderbird-ut-mailpart-quality.log`). This establishes the type boundary, but does not yet map protected cached
+attachments into reader state or complete their Open/Save behavior.
+
 ## 2026-10-31 shared reader slice (0.1.43 candidate)
 
 Android's `MessageViewContainerFragment` pages through the current ordered message list and forwards reader actions to

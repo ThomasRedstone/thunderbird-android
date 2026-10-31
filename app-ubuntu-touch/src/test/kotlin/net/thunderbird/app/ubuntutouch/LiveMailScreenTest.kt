@@ -190,4 +190,31 @@ class LiveMailScreenTest : ComposeUiTestHarness() {
             state.value.copy(content = checkNotNull(state.value.content).copy(complete = true, plainText = false))
         onNodeWithText("Forward text").assertIsNotEnabled()
     }
+
+    @Test
+    fun `reader navigation stays in the current folder list`() = runComposeTest {
+        val first = MailSummary("1", "First", "Sender", false)
+        val middle = MailSummary("2", "Middle", "Sender", false)
+        val last = MailSummary("3", "Last", "Sender", false)
+        val state = mutableStateOf(
+            LiveMailState(
+                emptyList(),
+                account = AccountIdFactory.create(),
+                folder = MailFolder("INBOX", "Inbox"),
+                messages = listOf(first, middle, last),
+                content = MailContent(middle, "Body", true),
+            ),
+        )
+        var event: LiveMailEvent? = null
+        setContent { ThunderbirdBoltTheme { LiveMailScreen(state.value) { event = it } } }
+
+        onNodeWithText("Previous message").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.OpenMessage(first.id))
+        onNodeWithText("Next message").performClick()
+        assertThat(event).isEqualTo(LiveMailEvent.OpenMessage(last.id))
+
+        state.value = state.value.copy(searchScope = CachedSearchScope.ACCOUNT)
+        onNodeWithText("Previous message").assertIsNotEnabled()
+        onNodeWithText("Next message").assertIsNotEnabled()
+    }
 }

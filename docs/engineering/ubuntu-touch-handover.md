@@ -2,6 +2,32 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 shared reader slice (0.1.43 candidate)
+
+Android's `MessageViewContainerFragment` pages through the current ordered message list and forwards reader actions to
+`MessageViewFragment`; `MessageTopView` hosts its header, body and attachments. The existing KMP reader view model only
+handles the actions bottom sheet and attachment state. Its JVM `MailPart` actual remains an interface, and Android's
+HTML/WebView and attachment controllers are not portable by simple class relocation.
+
+`feature/mail/message/reader/api` now contains a Compose `MessageReaderPage` with the mobile reader's plain-text
+header, cached-body, download, read/star, reply/forward and adjacent-message controls. It accepts redacted content
+state and action callbacks; it does not fetch, log or persist mail. `app-ubuntu-touch` maps its protected cache's
+`MailContent` and existing `LiveMailEvent` actions into that page. The old app-local reader body and response/flag
+controls were removed. Previous/next follows only the current folder's ordered cached list; search across folders
+disables it. Existing `LiveMailViewModel` account, folder, flag journal, composer and cache safeguards remain in charge.
+
+JVM reader tests and the UT app compile pass. App Detekt and Spotless pass. The full app run completed 497 tests with
+one unrelated `AccountSetupScreenTest` coroutine timeout under host load; that exact test passed on an isolated rerun.
+The new reader navigation Compose regression passed in the full run. Android reader API host tests and the legacy UI
+consumer compile also pass (`/tmp/thunderbird-ut-reader-android.log`). Logs:
+`/tmp/thunderbird-ut-reader-tests.log`, `/tmp/thunderbird-ut-account-ui-retry.log`,
+`/tmp/thunderbird-ut-reader-quality-final.log`. The 0.1.43 Click is being checked separately.
+
+This is a bounded reader portability step, not a complete Android reader replacement: HTML rendering, MIME-part
+attachment adaptation, translated reader strings and a shared whole-app navigation host remain open. The FP4 has not
+yet run 0.1.43. The complete account setup → sync → read → compose/send → restart → offline read journey still needs
+phone UI evidence; the prior Ethereal setup and sync used one-off helpers. Do not put test credentials in this handover.
+
 ## 2026-10-31 FP4 cached-list acceptance with disposable IMAP account
 
 The owner supplied a disposable Ethereal account. Its address and password are deliberately omitted here. A one-off Java helper invoked the app's existing `UtAccountManager.createWithPasswords` path on the FP4, backed by `ChunkedCredentialStore`, `SignonCredentialStore` and `ProtectedPayloadJournal`; credentials entered over standard input and were not placed in a shell command, SQLite row or log. The helper class was removed after setup. Private integrity-checked SQLite backups were made before account setup at `/home/phablet/.cache/mail-demo.thomasredstone/provisioning/ethereal-y30_w9_1` and before sync at `/home/phablet/.cache/mail-demo.thomasredstone/provisioning/before-sync-02pqnjnn`.

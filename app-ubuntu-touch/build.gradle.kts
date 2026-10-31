@@ -11,7 +11,7 @@ plugins {
     alias(libs.plugins.compose)
 }
 
-version = "0.1.42"
+version = "0.1.43"
 
 application {
     mainClass.set("net.thunderbird.app.ubuntutouch.MainKt")
@@ -37,6 +37,7 @@ dependencies {
     implementation(projects.feature.mail.account.api)
     implementation(projects.feature.mail.folder.api)
     implementation(projects.feature.mail.message.list.api)
+    implementation(projects.feature.mail.message.reader.api)
     implementation(libs.tb.mobile.components.ui.bolt)
     testImplementation(libs.tb.mobile.components.ui.testing)
     testImplementation(libs.jetbrains.compose.ui.test)

@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,6 +29,10 @@ import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
+import net.thunderbird.feature.mail.message.reader.api.ui.MessageReaderPage
+import net.thunderbird.feature.mail.message.reader.api.ui.MessageReaderPageAction
+import net.thunderbird.feature.mail.message.reader.api.ui.MessageReaderPageContent
+import net.thunderbird.feature.mail.message.reader.api.ui.adjacentMessage
 
 @Composable
 @Suppress("LongMethod") // Routes the mailbox, folder, reader and source views within one screen.
@@ -58,16 +60,7 @@ internal fun LiveMailScreen(
         when {
             state.source != null -> MailSourceScreen(state.source, state.busy, onEvent, Modifier.weight(1f))
 
-            content != null -> {
-                if (!content.complete) {
-                    TextBodyLarge("Only a preview is cached.")
-                    ButtonText("Download full message", { onEvent(LiveMailEvent.Download) }, enabled = !state.busy)
-                }
-                ReaderTools(state, onSave, onMove, onEvent)
-                MessageFlagButtons(content.summary, state.busy, onEvent)
-                ResponseButtons(content, state.busy, onEvent)
-                MailReader(content, state.accounts.find { it.id == state.account }?.displayName, Modifier.weight(1f))
-            }
+            content != null -> CachedReader(state, content, onSave, onMove, onEvent, Modifier.weight(1f))
 
             state.folder != null -> {
                 MailMessageList(
@@ -116,6 +109,59 @@ internal fun LiveMailScreen(
 }
 
 @Composable
+private fun CachedReader(
+    state: LiveMailState,
+    content: MailContent,
+    onSave: ((MessageSaveEvent) -> Unit)?,
+    onMove: ((MailMoveEvent.Open) -> Unit)?,
+    onEvent: (LiveMailEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ids = if (state.searchAllFolders) emptyList() else state.messages.map { it.id }
+    val previous = adjacentMessage(ids, content.summary.id, -1)
+    val next = adjacentMessage(ids, content.summary.id, 1)
+    Column(modifier) {
+        ReaderTools(state, onSave, onMove, onEvent)
+        MessageReaderPage(
+            MessageReaderPageContent(
+                subject = content.summary.subject,
+                sender = content.summary.sender,
+                body = content.body,
+                accountName = state.accounts.find { it.id == state.account }?.displayName,
+                complete = content.complete,
+                plainText = content.plainText,
+                unread = content.summary.unread,
+                starred = content.summary.starred,
+                previousAvailable = previous != null,
+                nextAvailable = next != null,
+                busy = state.busy,
+            ),
+            Modifier.weight(1f),
+            onAction = { action -> onReaderAction(action, content, previous, next, onEvent) },
+        ) { MailReaderAttachments(content) }
+    }
+}
+
+private fun onReaderAction(
+    action: MessageReaderPageAction,
+    content: MailContent,
+    previous: String?,
+    next: String?,
+    onEvent: (LiveMailEvent) -> Unit,
+) {
+    when (action) {
+        MessageReaderPageAction.DOWNLOAD -> onEvent(LiveMailEvent.Download)
+        MessageReaderPageAction.REPLY -> onEvent(LiveMailEvent.Respond(ResponseMode.REPLY))
+        MessageReaderPageAction.REPLY_ALL -> onEvent(LiveMailEvent.Respond(ResponseMode.REPLY_ALL))
+        MessageReaderPageAction.FORWARD -> onEvent(LiveMailEvent.Respond(ResponseMode.FORWARD))
+        MessageReaderPageAction.TOGGLE_READ -> onEvent(LiveMailEvent.ChangeFlag(Flag.SEEN, content.summary.unread))
+        MessageReaderPageAction.TOGGLE_STAR -> onEvent(LiveMailEvent.ChangeFlag(Flag.FLAGGED, !content.summary.starred))
+        MessageReaderPageAction.PREVIOUS -> previous?.let { onEvent(LiveMailEvent.OpenMessage(it)) }
+        MessageReaderPageAction.NEXT -> next?.let { onEvent(LiveMailEvent.OpenMessage(it)) }
+    }
+}
+
+@Composable
 internal fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> Unit) {
     if (state.account != null) {
         ButtonText("Back", { onEvent(LiveMailEvent.Back) }, enabled = !state.busy)
@@ -144,48 +190,6 @@ internal fun MailboxControls(state: LiveMailState, onEvent: (LiveMailEvent) -> U
             ButtonText("Keep changes", { onEvent(LiveMailEvent.CancelDiscard) }, enabled = !state.busy)
         } else {
             ButtonText("Review local changes", { onEvent(LiveMailEvent.DiscardPending) }, enabled = !state.busy)
-        }
-    }
-}
-
-@Composable
-private fun ResponseButtons(content: MailContent, busy: Boolean, onEvent: (LiveMailEvent) -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState())) {
-        listOf(
-            ResponseMode.REPLY to "Reply",
-            ResponseMode.REPLY_ALL to "Reply all",
-            ResponseMode.FORWARD to "Forward text",
-        )
-            .forEach { (mode, label) ->
-                ButtonText(
-                    label,
-                    { onEvent(LiveMailEvent.Respond(mode)) },
-                    enabled = !busy && content.complete && content.plainText,
-                )
-            }
-    }
-    if (!content.plainText) TextBodyLarge("Reply and forward require a cached plain-text body in this preview.")
-}
-
-@Composable
-private fun MessageFlagButtons(summary: MailSummary, busy: Boolean, onEvent: (LiveMailEvent) -> Unit) {
-    ButtonText(if (summary.unread) "Mark read" else "Mark unread", {
-        onEvent(LiveMailEvent.ChangeFlag(Flag.SEEN, summary.unread))
-    }, enabled = !busy)
-    ButtonText(if (summary.starred) "Remove star" else "Star message", {
-        onEvent(LiveMailEvent.ChangeFlag(Flag.FLAGGED, !summary.starred))
-    }, enabled = !busy)
-}
-
-@Composable
-private fun MailReader(content: MailContent, accountName: String?, modifier: Modifier = Modifier) {
-    SelectionContainer(modifier) {
-        Column(Modifier.verticalScroll(rememberScrollState()), Arrangement.spacedBy(12.dp)) {
-            TextTitleLarge(content.summary.subject)
-            accountName?.let { TextBodyLarge("Account: $it") }
-            TextBodyLarge(content.summary.sender)
-            TextBodyLarge(content.body)
-            MailReaderAttachments(content)
         }
     }
 }

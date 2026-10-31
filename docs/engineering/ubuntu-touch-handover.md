@@ -2,6 +2,16 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 cached HTML-only text fallback (source only)
+
+Commit `01a2acadf1` lets the cache-backed reader display inert text from an HTML-only MIME body instead of a placeholder.
+It uses the existing MIME viewable classification, parses bounded HTML with Jsoup, removes scripts, styles, embeds and
+forms, and renders text only; the parser makes no remote requests. A cached plain-text part remains preferred, and
+reply/forward still require one. The HTML-only cache regression passes along with the five-test resource suite, app
+Detekt and Spotless (`/tmp/thunderbird-ut-html-text-fallback-final.log`). This source is newer than the installed
+0.1.45 Click and has not been exercised on the FP4. Rich HTML rendering, link handling, and attachment Open remain
+future reader work.
+
 ## 2026-10-31 shared reader attachment Save action (source only)
 
 Commit `8cc1ce586d` adds a Save control on each shared reader attachment row. The Ubuntu Touch host sends an account,
@@ -97,7 +107,7 @@ on the FP4.
 Finish the shared single-account mail flow, then accept it on the FP4. The integration branch has the canonical list,
 shared plain-text reader, Bolt drawer for cache-backed account/folder navigation, server search, and shared attachment
 metadata presentation; the original eight search WIP files remain untouched. The remaining implementation work is
-cache-backed MIME-part Open behavior, HTML/privacy handling, and on-device UI acceptance of
+cache-backed MIME-part Open behavior, richer HTML/privacy handling, and on-device UI acceptance of
 the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
 navigation and attachment presentation. The installed 0.1.45 package still needs an unlocked Lomiri full shell before

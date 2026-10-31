@@ -40,6 +40,7 @@ internal fun LiveMailScreen(
     state: LiveMailState,
     keyboard: MaliitKeyboard? = null,
     openNavigation: (() -> Unit)? = null,
+    onAddAccount: (() -> Unit)? = null,
     onSave: ((MessageSaveEvent) -> Unit)? = null,
     onMove: ((MailMoveEvent.Open) -> Unit)? = null,
     messageListRenderer: MessageListContract.MessageListScreenRenderer? = null,
@@ -96,7 +97,10 @@ internal fun LiveMailScreen(
             }
 
             else -> {
-                if (state.accounts.isEmpty()) TextBodyLarge("Add an account in Accounts to get started.")
+                if (state.accounts.isEmpty()) {
+                    TextBodyLarge("Add an account to get started.")
+                    if (onAddAccount != null) ButtonText("Set up account", onAddAccount)
+                }
                 LazyColumn(Modifier.weight(1f)) {
                     items(state.accounts, key = { it.id.toString() }) { account ->
                         ButtonText(

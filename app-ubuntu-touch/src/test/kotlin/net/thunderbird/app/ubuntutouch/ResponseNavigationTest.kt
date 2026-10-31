@@ -70,7 +70,6 @@ class ResponseNavigationTest : ComposeUiTestHarness() {
                     withContext(Dispatchers.IO) { delay(10) }
                 }
             }
-            onNodeWithText("Mailboxes").performClick()
             awaitText("Menu")
             onNodeWithText("Menu").performClick()
             val accountTag = "drawer-account-${account.id}"

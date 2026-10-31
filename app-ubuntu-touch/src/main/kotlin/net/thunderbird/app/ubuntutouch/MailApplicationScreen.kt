@@ -56,7 +56,7 @@ internal fun MailApplicationScreen(
         RegisterMailClose(serverSearch, lifecycle, serverSearch::flushForClose, serverSearch::background)
     }
     val transfers = collectMailboxTransfers(save, moves)
-    var destination by remember { mutableStateOf(MailDestination.DEMO) }
+    var destination by remember { mutableStateOf(MailDestination.MAILBOX) }
     var composeRequest by remember { mutableStateOf<ComposeRequest?>(null) }
     when (destination) {
         MailDestination.DEMO -> {
@@ -130,7 +130,7 @@ private fun AccountsDestination(
                 if (state.editing) {
                     accounts.event(AccountSetupEvent.Cancel)
                 } else {
-                    navigate(MailDestination.DEMO)
+                    navigate(MailDestination.MAILBOX)
                 }
                 keyboard?.focus(false)
             },
@@ -154,7 +154,7 @@ private fun SignatureSettingsDestination(
     Column(
         Modifier.fillMaxSize().mailBack(!state.busy) {
             if (state.account == null) {
-                navigate(MailDestination.DEMO)
+                navigate(MailDestination.MAILBOX)
             } else {
                 signatures.event(SignatureSettingsEvent.Back)
             }
@@ -272,6 +272,7 @@ private fun MailboxContent(
             state,
             keyboard,
             openNavigation = openDrawer,
+            onAddAccount = { navigation.navigate(MailDestination.ACCOUNTS) },
             onSave = saveState?.let { saved ->
                 { request ->
                     keyboard?.focus(false)
@@ -372,7 +373,7 @@ private fun ComposerDestination(
     Column(
         Modifier.fillMaxSize().mailBack(!state.busy) {
             keyboard?.focus(false)
-            if (state.account == null) navigate(MailDestination.DEMO) else onEvent(ComposerEvent.Back)
+            if (state.account == null) navigate(MailDestination.MAILBOX) else onEvent(ComposerEvent.Back)
         },
     ) {
         NavigationButtons(state.busy || state.dirty, navigate, keyboard)

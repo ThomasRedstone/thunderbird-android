@@ -2,6 +2,24 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 integrated 0.1.44 phone candidate
+
+Clean-source ARM64 Click 0.1.44 was built from `54e75d47e2cd16715f4d6a97117653f742b03dcf` with an empty
+`SOURCE-CHANGES.patch`:
+`app-ubuntu-touch/build/ut-candidate-44/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.44_arm64.click`,
+159,747,356 bytes, SHA256 `7e8a81a9fac6f9e96416152b57442774fc4cba575b28e03560079c3b164c90d2`.
+Clickable review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-ut-click-44.log`). The verified
+0.1.43 ARM64 runtime and pinned packager image were reused; this is not a cold runtime build. The changed reader API's
+Android host tests pass (`/tmp/thunderbird-ut-reader44-android-host.log`).
+
+The FP4 transfer hash matched. An integrity-checked private backup was made at
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/pre-reader-44-kbpck7b9`, then Phone Manager installed 0.1.44.
+The installed source marker and empty patch match the Click. The production cache remains schema 19 with
+`quick_check=ok`, one account, five folders, and five messages. Phone Manager reported a user-bus warning while
+updating launcher metadata, but the installed package and cache checks completed. Xwayland is still absent; no 0.1.44
+window, reader interaction, setup, send, restart, or offline UI acceptance is claimed. Unlock the FP4 and run the
+complete one-account journey through its UI.
+
 ## 2026-10-31 shared reader attachment metadata
 
 `MessageReaderPage` now renders attachment names and MIME types from its shared content model for both the cached
@@ -36,7 +54,8 @@ on the FP4.
 Finish the shared single-account mail flow, then accept it on the FP4. The integration branch has the canonical list,
 shared plain-text reader, Bolt drawer for cache-backed account/folder navigation, server search, and shared attachment
 metadata presentation; the original eight search WIP files remain untouched. The remaining implementation work is
-cache-backed MIME-part reader actions and attachment Open/Save, HTML/privacy handling, and a clean integrated Click.
+cache-backed MIME-part reader actions and attachment Open/Save, HTML/privacy handling, and on-device UI acceptance of
+the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
 navigation and attachment presentation. The installed 0.1.43 package still needs an unlocked Lomiri full shell before
 that UI acceptance can run.

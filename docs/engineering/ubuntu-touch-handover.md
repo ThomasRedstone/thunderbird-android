@@ -2,6 +2,32 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 real-mailbox entry and installed 0.1.45
+
+The app now opens the protected mailbox on startup instead of the preview. With no accounts, that screen offers a
+"Set up account" route into the existing account form; account, signature, and empty-composer Back routes return to the
+mailbox. The empty-account navigation and reader → reply draft tests pass
+(`/tmp/thunderbird-ut-real-entry-debug4.log`, `/tmp/thunderbird-ut-real-entry-tests.log`). App Detekt and Spotless pass
+(`/tmp/thunderbird-ut-real-entry-quality.log`). A later combined verification run lost its Gradle daemon during host
+configuration before producing a test assertion (`/tmp/thunderbird-ut-real-entry-final.log`).
+
+The launcher now discovers numbered Xwayland sockets beyond `:9`; the FP4 greeter created `:28`. The launcher test
+passes. Clean-source ARM64 Click 0.1.45 was built from `72902ba61e75cc1d61cf5a8caa735a87b32a516c` with an empty
+`SOURCE-CHANGES.patch`: `app-ubuntu-touch/build/ut-candidate-45/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.45_arm64.click`,
+159,748,148 bytes, SHA256 `535203e1624e916be98a6390f12123077dd912beaf8fbc99974605853899c031`.
+Clickable review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-ut-click-45-retry.log`). The verified
+0.1.44 ARM64 runtime and pinned packager image were reused. The first build attempt was killed during Gradle startup
+under host load; the retry completed.
+
+The FP4 transfer hash matched. An integrity-checked private backup was made at
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/pre-reader-45-c_6y3qw1`, then Phone Manager installed 0.1.45.
+The installed source marker and empty patch match the Click. The production cache remains schema 19 with
+`quick_check=ok`, one account, five folders, and five messages (`/tmp/thunderbird-045-upgrade.log`). Phone Manager
+reported launcher/user-bus and signature warnings, but the install command and post-install checks completed. The
+device is still running `lomiri --mode=full-greeter`; its Xwayland `:28` belongs to that greeter. No 0.1.45 UI
+walkthrough is claimed. Unlock the FP4, then run the full setup → sync → read → compose/send → restart → offline read
+journey through its UI.
+
 ## 2026-10-31 integrated 0.1.44 phone candidate
 
 Clean-source ARM64 Click 0.1.44 was built from `54e75d47e2cd16715f4d6a97117653f742b03dcf` with an empty
@@ -60,7 +86,7 @@ metadata presentation; the original eight search WIP files remain untouched. The
 cache-backed MIME-part reader actions and attachment Open/Save, HTML/privacy handling, and on-device UI acceptance of
 the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
-navigation and attachment presentation. The installed 0.1.43 package still needs an unlocked Lomiri full shell before
+navigation and attachment presentation. The installed 0.1.45 package still needs an unlocked Lomiri full shell before
 that UI acceptance can run.
 
 The JVM reader implementation now aliases `MailPart` to the shared mail engine's `Part` interface, matching Android's

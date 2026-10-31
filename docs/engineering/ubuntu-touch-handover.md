@@ -2,6 +2,17 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 real mailbox startup without demo dependency (source only)
+
+Commit `544cafa0b8` removes the preview destination from normal navigation. `Main` no longer loads demo messages or
+requires a demo model before constructing the real protected mailbox; its global demo Escape handler was removed, so
+mailbox Back handling can receive that key. The demo backend and its isolated tests remain available as Milestone 1
+fixtures, but are not on the production startup path. The account-entry UI test now verifies the demo button is absent
+on the account screen; it and the reader-response navigation test pass. App Detekt and Spotless pass
+(`/tmp/thunderbird-ut-real-entry-without-demo-final.log`, `/tmp/thunderbird-ut-real-entry-without-demo-spotless.log`,
+`/tmp/thunderbird-ut-no-demo-account-test.log`). This is newer than the installed 0.1.46 Click and needs phone UI
+acceptance.
+
 ## 2026-10-31 installed 0.1.46 reader candidate
 
 Clean-source ARM64 Click 0.1.46 was built from `20f510a2610f1acc89e933a4d264af94672cfd5b` with an empty

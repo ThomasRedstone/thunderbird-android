@@ -2,7 +2,21 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
-## 2026-10-31 real mailbox startup without demo dependency (source only)
+## 2026-10-31 installed 0.1.47 real-mailbox candidate
+
+Clean-source ARM64 Click 0.1.47 was built from `4d996d47635602d37eb4e11bd62914f273ddf9c3` with an empty
+`SOURCE-CHANGES.patch`: `app-ubuntu-touch/build/ut-candidate-47/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.47_arm64.click`,
+160,177,756 bytes, SHA256 `114f0536d6afca6c00821851b3747dc7b0fd734585b1f87f1fdb19af5738987c`.
+Clickable review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-ut-click-47.log`). The verified 0.1.46
+ARM64 runtime and pinned packager image were reused. The FP4 transfer hash matched; an integrity-checked private backup
+was made at `/home/phablet/.cache/mail-demo.thomasredstone/upgrades/pre-reader-47-czwqp8t3`, then Phone Manager installed
+0.1.47. The installed source marker and empty patch match the Click. The production cache remains schema 19 with
+`quick_check=ok`, one account, five folders, and five messages (`/tmp/thunderbird-047-upgrade.log`). Phone Manager
+reported launcher/user-bus and signature warnings, but the install command and post-install checks completed. The
+device still runs `lomiri --mode=full-greeter`, with Xwayland `:28` owned by the greeter. No 0.1.47 UI walkthrough is
+claimed.
+
+## 2026-10-31 real mailbox startup without demo dependency
 
 Commit `544cafa0b8` removes the preview destination from normal navigation. `Main` no longer loads demo messages or
 requires a demo model before constructing the real protected mailbox; its global demo Escape handler was removed, so
@@ -10,7 +24,7 @@ mailbox Back handling can receive that key. The demo backend and its isolated te
 fixtures, but are not on the production startup path. The account-entry UI test now verifies the demo button is absent
 on the account screen; it and the reader-response navigation test pass. App Detekt and Spotless pass
 (`/tmp/thunderbird-ut-real-entry-without-demo-final.log`, `/tmp/thunderbird-ut-real-entry-without-demo-spotless.log`,
-`/tmp/thunderbird-ut-no-demo-account-test.log`). This is newer than the installed 0.1.46 Click and needs phone UI
+`/tmp/thunderbird-ut-no-demo-account-test.log`). This is included in the installed 0.1.47 Click and needs phone UI
 acceptance.
 
 ## 2026-10-31 installed 0.1.46 reader candidate
@@ -135,7 +149,7 @@ metadata presentation; the original eight search WIP files remain untouched. The
 cache-backed MIME-part Open behavior, richer HTML/privacy handling, and on-device UI acceptance of
 the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
-navigation and attachment presentation. The installed 0.1.46 package still needs an unlocked Lomiri full shell before
+navigation and attachment presentation. The installed 0.1.47 package still needs an unlocked Lomiri full shell before
 that UI acceptance can run.
 
 The JVM reader implementation now aliases `MailPart` to the shared mail engine's `Part` interface, matching Android's

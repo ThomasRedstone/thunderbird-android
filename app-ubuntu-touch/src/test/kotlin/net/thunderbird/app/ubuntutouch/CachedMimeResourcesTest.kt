@@ -73,6 +73,32 @@ class CachedMimeResourcesTest {
     }
 
     @Test
+    fun `HTML-only cached message displays inert text without remote references`() = runTest {
+        MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
+            val account = seed(database)
+            val html = "From: sender@example.invalid\r\nSubject: HTML fixture\r\n" +
+                "Content-Type: text/html; charset=utf-8\r\n\r\n" +
+                "<html><body><p>Hello &amp; World</p>" +
+                "<img src='https://remote.example.invalid/pixel'>" +
+                "<script>secret-script</script><style>secret-style</style>" +
+                "<a href='https://remote.example.invalid/click'>offer</a></body></html>"
+            database.execute("UPDATE messages SET mime=?", html.toByteArray())
+            val manager = UtAccountManager(AccountSettingsStorage(database), FakeCredentialStore())
+            val sessions = ForegroundMailSessionFactory(
+                manager,
+                database,
+                JvmTrustedSocketFactory(),
+                logger,
+                directory.root.toPath(),
+            )
+            val content = PersistentLiveMailRepository(database, sessions).content(account.id, "INBOX", "1")
+            assertThat(content.body).isEqualTo("Hello & World offer")
+            assertThat(content.plainText).isEqualTo(false)
+            assertThat(content.complete).isEqualTo(true)
+        }
+    }
+
+    @Test
     fun `projection exception and cancellation release nested message temporary bodies`() = runTest {
         MailDatabase(directory.root.toPath().resolve("mail.sqlite")).use { database ->
             val account = seed(database, nested = true)

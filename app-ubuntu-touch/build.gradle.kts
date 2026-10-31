@@ -24,6 +24,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.jsoup)
     runtimeOnly(libs.dbus.java.transport.junixsocket)
     implementation(projects.backend.demo)
     implementation(projects.backend.api)

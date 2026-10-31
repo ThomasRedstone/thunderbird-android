@@ -101,7 +101,7 @@ internal class PersistentLiveMailRepository(
             val complete = Flag.X_DOWNLOADED_FULL in cached.getMessageFlags(uid)
             MailContent(
                 summary(account, folder, cached, uid, message, cached.getAllMessagesAndEffectiveDates()[uid]),
-                text ?: "No cached plain-text body. HTML viewing is not available yet.",
+                text ?: htmlTextBody(message) ?: "No cached readable body.",
                 complete,
                 text != null,
                 if (complete) attachmentParts(message).map(::attachmentInfo) else emptyList(),

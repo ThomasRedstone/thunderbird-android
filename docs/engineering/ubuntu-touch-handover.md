@@ -21,11 +21,32 @@ one unrelated `AccountSetupScreenTest` coroutine timeout under host load; that e
 The new reader navigation Compose regression passed in the full run. Android reader API host tests and the legacy UI
 consumer compile also pass (`/tmp/thunderbird-ut-reader-android.log`). Logs:
 `/tmp/thunderbird-ut-reader-tests.log`, `/tmp/thunderbird-ut-account-ui-retry.log`,
-`/tmp/thunderbird-ut-reader-quality-final.log`. The 0.1.43 Click is being checked separately.
+`/tmp/thunderbird-ut-reader-quality-final.log`.
+
+Clean-source ARM64 Click 0.1.43:
+`app-ubuntu-touch/build/ut-candidate-43/build/aarch64-linux-gnu/app/mail-demo.thomasredstone_0.1.43_arm64.click`,
+159,647,280 bytes, SHA256 `0fc1bcf06b90a89dec0c369600fa8c2ca9f55af12f3da6089913dd3d5ad71978`.
+The embedded source is `99e6ee1279a5aab8a9bc6d24f2ac3332d06f4511`, and `SOURCE-CHANGES.patch` is empty.
+Clickable review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird-ut-reader-click-43.log`). The
+verified 0.1.42 ARM64 runtime and pinned packager were reused. The commit was pushed on `feat/ut-canonical-list`.
+
+The FP4 package transfer hash matched; an integrity-checked private schema-19 database backup was made at
+`/home/phablet/.cache/mail-demo.thomasredstone/upgrades/pre-reader-43-8hiu2csz`. Phone Manager installed 0.1.43,
+and the installed source marker and empty patch match. The production cache remains schema 19, `quick_check=ok`,
+with one account, five folders and five messages. The first launcher request printed `Started` but the JVM exited
+before drawing: the phone was on `lomiri-full-greeter`, `lomiri-full-shell` was inactive, and no Xwayland server was
+accepting `:0`; the user journal shows `java.awt.AWTError: Can't connect to X11 window server`. This is a display
+availability gate, not reader UI acceptance. Unlock the phone and repeat the launch and UI checks.
+
+Navigation trace: Android's `DropDownDrawer` wraps a Compose `DrawerView` in `AppCompatActivity`/`DrawerLayout`.
+Its module is Android Compose and its view model depends on legacy account, mailstore, folder and notification services.
+`core/ui/navigation` has shared `Route` types but its `Navigation` API still takes `NavGraphBuilder`; it is not a
+ready-made desktop app host. The next source extraction should separate the drawer's account/folder presentation from
+those Android services, then connect it to the same protected cache projection used by the current message list.
 
 This is a bounded reader portability step, not a complete Android reader replacement: HTML rendering, MIME-part
 attachment adaptation, translated reader strings and a shared whole-app navigation host remain open. The FP4 has not
-yet run 0.1.43. The complete account setup → sync → read → compose/send → restart → offline read journey still needs
+yet displayed 0.1.43. The complete account setup → sync → read → compose/send → restart → offline read journey still needs
 phone UI evidence; the prior Ethereal setup and sync used one-off helpers. Do not put test credentials in this handover.
 
 ## 2026-10-31 FP4 cached-list acceptance with disposable IMAP account

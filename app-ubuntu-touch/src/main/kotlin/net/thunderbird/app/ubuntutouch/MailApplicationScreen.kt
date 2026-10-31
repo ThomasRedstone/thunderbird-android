@@ -253,7 +253,6 @@ private fun MailboxContent(
     onCanonicalEvent: ((MessageListEvent) -> Unit)?,
 ) {
     val saveState = transfers.save
-    NavigationButtons(state.busy, navigation.navigate, keyboard)
     if (saveState?.pending?.record != null || saveState?.notice != null) {
         ButtonText("Review message transfer", panels.save)
     }
@@ -263,28 +262,36 @@ private fun MailboxContent(
             panels.move()
         })
     }
-    LiveMailScreen(
-        state,
-        keyboard,
-        onSave = saveState?.let { saved ->
-            { request ->
-                keyboard?.focus(false)
-                if (!saved.busy && saved.pending?.record == null) transfers.saveEvent(request)
-                panels.save()
-            }
-        },
-        onMove = transfers.moves?.let {
-            { request ->
-                keyboard?.focus(false)
-                transfers.moveEvent(request)
-                panels.move()
-            }
-        },
+    MailNavigationDrawer(
+        state = state,
         onEvent = onEvent,
-        messageListRenderer = messageListRenderer,
-        canonicalState = canonicalState,
-        onCanonicalEvent = onCanonicalEvent,
-    )
+        onAccounts = { navigation.navigate(MailDestination.ACCOUNTS) },
+        onCompose = { navigation.navigate(MailDestination.COMPOSE) },
+    ) { openDrawer ->
+        LiveMailScreen(
+            state,
+            keyboard,
+            openNavigation = openDrawer,
+            onSave = saveState?.let { saved ->
+                { request ->
+                    keyboard?.focus(false)
+                    if (!saved.busy && saved.pending?.record == null) transfers.saveEvent(request)
+                    panels.save()
+                }
+            },
+            onMove = transfers.moves?.let {
+                { request ->
+                    keyboard?.focus(false)
+                    transfers.moveEvent(request)
+                    panels.move()
+                }
+            },
+            onEvent = onEvent,
+            messageListRenderer = messageListRenderer,
+            canonicalState = canonicalState,
+            onCanonicalEvent = onCanonicalEvent,
+        )
+    }
 }
 
 @Composable

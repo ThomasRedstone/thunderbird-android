@@ -39,6 +39,7 @@ import net.thunderbird.feature.mail.message.reader.api.ui.adjacentMessage
 internal fun LiveMailScreen(
     state: LiveMailState,
     keyboard: MaliitKeyboard? = null,
+    openNavigation: (() -> Unit)? = null,
     onSave: ((MessageSaveEvent) -> Unit)? = null,
     onMove: ((MailMoveEvent.Open) -> Unit)? = null,
     messageListRenderer: MessageListContract.MessageListScreenRenderer? = null,
@@ -53,8 +54,10 @@ internal fun LiveMailScreen(
         Modifier.fillMaxSize().padding(16.dp).padding(bottom = inset),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        TextTitleLarge("Mailboxes")
-        TextBodyLarge("Foreground preview · Cached mail opens offline")
+        Row {
+            if (openNavigation != null) ButtonText("Menu", openNavigation, enabled = !state.busy)
+            TextTitleLarge("Mailboxes")
+        }
         ReaderNavigationControls(state, onEvent)
         val content = state.content
         when {

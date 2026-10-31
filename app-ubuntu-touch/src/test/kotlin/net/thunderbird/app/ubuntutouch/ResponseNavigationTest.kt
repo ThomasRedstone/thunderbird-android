@@ -62,11 +62,23 @@ class ResponseNavigationTest : ComposeUiTestHarness() {
                     withContext(Dispatchers.IO) { delay(10) }
                 }
             }
+            suspend fun awaitTag(tag: String) {
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+                while (runCatching { onNodeWithTag(tag).fetchSemanticsNode() }.isFailure) {
+                    check(System.nanoTime() < deadline) { "Response drawer navigation did not finish" }
+                    waitForIdle()
+                    withContext(Dispatchers.IO) { delay(10) }
+                }
+            }
             onNodeWithText("Mailboxes").performClick()
-            awaitText("Fixture account")
-            onNodeWithText("Fixture account").performClick()
-            awaitText("Inbox")
-            onNodeWithText("Inbox").performClick()
+            awaitText("Menu")
+            onNodeWithText("Menu").performClick()
+            val accountTag = "drawer-account-${account.id}"
+            awaitTag(accountTag)
+            onNodeWithTag(accountTag).performClick()
+            onNodeWithText("Menu").performClick()
+            awaitTag("drawer-folder-INBOX")
+            onNodeWithTag("drawer-folder-INBOX").performClick()
             awaitText("Unread · Original\nSender")
             onNodeWithText("Unread · Original\nSender").performClick()
             awaitText("Cached source body")

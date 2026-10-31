@@ -9,11 +9,14 @@ export TMPDIR="$XDG_CACHE_HOME/$MAIL_DEMO_CACHE_ID/tmp"
 # Java creates this directory before loading AWT or parsing MIME bodies.
 # Lomiri does not always set DISPLAY for Click-launched Xwayland clients.
 if [ -z "${DISPLAY:-}" ]; then
-    for n in 0 1 2 3 4 5 6 7 8 9; do
-        if [ -S "/tmp/.X11-unix/X$n" ]; then
-            export DISPLAY=":$n"
-            break
-        fi
+    for socket in /tmp/.X11-unix/X[0-9]*; do
+        [ -S "$socket" ] || continue
+        number=${socket##*/X}
+        case "$number" in
+            *[!0-9]*|'') continue ;;
+        esac
+        export DISPLAY=":$number"
+        break
     done
 fi
 if [ -z "${DISPLAY:-}" ]; then

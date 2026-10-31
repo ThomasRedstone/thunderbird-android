@@ -2,6 +2,18 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 shared reader attachment metadata
+
+`MessageReaderPage` now renders attachment names and MIME types from its shared content model for both the cached
+mailbox and server-search reader. The UT host maps only metadata already derived from the account-scoped protected
+cache; incomplete messages still hide provisional attachment metadata. Save continues through the existing
+`CachedAttachmentStore` reference and export safeguards. This does not yet connect the reader's MIME-part attachment
+state to Open/Save actions or render HTML. The five focused cached-reader and server-search UI tests pass; reader API
+JVM tests and app compilation pass. Reader API and app Detekt/Spotless pass
+(`/tmp/thunderbird-ut-shared-attachments-tests.log`, `/tmp/thunderbird-ut-shared-attachments-compile.log`,
+`/tmp/thunderbird-ut-shared-attachments-app-tests.log`, `/tmp/thunderbird-ut-shared-attachments-quality.log`). The
+combined test command was killed by the host memory limit after reader API tests; app UI tests passed separately.
+
 ## 2026-10-31 shared drawer navigation slice
 
 The search-reader integration branch now uses Bolt's shared `ModalNavigationDrawer`, `ModalDrawerSheet`, and
@@ -21,10 +33,10 @@ on the FP4.
 
 ## Current next phase
 
-Finish the shared single-account mail flow, then accept it on the FP4. The current clean candidate has the canonical
-message list and shared plain-text reader; the separate server-search work has been adapted to that reader in an
-integration worktree while the original eight search WIP files remain untouched. The remaining implementation work is
-shared account/folder navigation, cache-backed reader attachment mapping and download actions, and search integration.
+Finish the shared single-account mail flow, then accept it on the FP4. The integration branch has the canonical list,
+shared plain-text reader, Bolt drawer for cache-backed account/folder navigation, server search, and shared attachment
+metadata presentation; the original eight search WIP files remain untouched. The remaining implementation work is
+cache-backed MIME-part reader actions and attachment Open/Save, HTML/privacy handling, and a clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
 navigation and attachment presentation. The installed 0.1.43 package still needs an unlocked Lomiri full shell before
 that UI acceptance can run.

@@ -2,6 +2,20 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 shared reader attachment Save action (source only)
+
+Commit `8cc1ce586d` adds a Save control on each shared reader attachment row. The Ubuntu Touch host sends an account,
+folder, and UID scoped request with the selected position and displayed metadata; `MessageSaveViewModel` reopens the
+protected cached MIME message through `CachedAttachmentStore`, checks the current name and MIME type, then prepares the
+existing Content Hub export using its fingerprinted `AttachmentReference`. A stale or missing part cannot be prepared,
+and the reader retains only detached metadata. The existing attachment picker remains available. Server-search results
+still show metadata without Save because that route has no export action.
+
+Focused app tests pass 10/10, including a row-to-request UI test and current-cache metadata check; reader API JVM tests,
+app and reader Detekt/Spotless pass (`/tmp/thunderbird-ut-reader-attachment-action-tests.log`,
+`/tmp/thunderbird-ut-reader-attachment-action-final.log`). This commit is newer than the installed 0.1.45 Click and has
+not been exercised on the FP4. Open behavior and HTML/privacy handling remain separate reader work.
+
 ## 2026-10-31 real-mailbox entry and installed 0.1.45
 
 The app now opens the protected mailbox on startup instead of the preview. With no accounts, that screen offers a
@@ -83,7 +97,7 @@ on the FP4.
 Finish the shared single-account mail flow, then accept it on the FP4. The integration branch has the canonical list,
 shared plain-text reader, Bolt drawer for cache-backed account/folder navigation, server search, and shared attachment
 metadata presentation; the original eight search WIP files remain untouched. The remaining implementation work is
-cache-backed MIME-part reader actions and attachment Open/Save, HTML/privacy handling, and on-device UI acceptance of
+cache-backed MIME-part Open behavior, HTML/privacy handling, and on-device UI acceptance of
 the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
 navigation and attachment presentation. The installed 0.1.45 package still needs an unlocked Lomiri full shell before

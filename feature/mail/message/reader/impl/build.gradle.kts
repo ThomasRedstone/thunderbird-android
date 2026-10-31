@@ -22,6 +22,9 @@ kotlin {
             // to drop below dependency. Needed because of AttachmentViewInfo.
             implementation(projects.legacy.core)
         }
+        jvmMain.dependencies {
+            implementation(projects.mail.common)
+        }
     }
 }
 

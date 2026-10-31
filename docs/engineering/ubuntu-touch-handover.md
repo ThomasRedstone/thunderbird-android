@@ -2,6 +2,23 @@
 
 Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-10-31 shared drawer navigation slice
+
+The search-reader integration branch now uses Bolt's shared `ModalNavigationDrawer`, `ModalDrawerSheet`, and
+`NavigationDrawerItem` in the live mailbox. Its account and folder entries are projections of `LiveMailState`, and taps
+dispatch the existing guarded `OpenAccount` and `OpenFolder` events; the protected cache remains the only source of mail
+state. The mailbox title row opens the drawer, and the preview subtitle was removed. Account and folder lists remain
+available in the mailbox content. Android's dropdown drawer still depends on `AppCompatActivity`, Android settings,
+legacy mailstore, and notification services; this is its portable UI component path, not a wholesale module relocation.
+
+The Compose drawer event test and reader → reply draft navigation test pass, with no send on opening the draft.
+App Detekt and Spotless pass (`/tmp/thunderbird-ut-drawer-check8.log`). A broader nearby test batch was killed by the
+host workload memory limit before reaching app test execution (`/tmp/thunderbird-ut-drawer-relevant-tests.log`); no
+additional app test result is claimed. An isolated `LiveMailScreenTest` retry also reached the test task before the
+same host memory kill (`/tmp/thunderbird-ut-drawer-list-test.log`). The earlier 9/9 list UI tests passed before this
+drawer edit; list behavior still needs a fresh run or device verification. This source is not yet packaged or accepted
+on the FP4.
+
 ## Current next phase
 
 Finish the shared single-account mail flow, then accept it on the FP4. The current clean candidate has the canonical

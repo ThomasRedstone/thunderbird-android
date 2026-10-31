@@ -68,14 +68,7 @@ fun main() {
                 width = screenSize?.width?.dp ?: 420.dp,
                 height = screenSize?.height?.dp ?: 800.dp,
             ),
-            onKeyEvent = {
-                if (it.key == Key.Escape && it.type == KeyEventType.KeyUp) {
-                    viewModel?.event(DemoMailEvent.Back)
-                    true
-                } else {
-                    false
-                }
-            },
+            onKeyEvent = { handleDemoKey(it, viewModel) },
         ) {
             KeyboardWindowFocus(window, keyboard, lifecycle)
             val density = if (isUbuntuTouch) Density(FP4_UI_DENSITY) else LocalDensity.current
@@ -98,6 +91,7 @@ fun main() {
                                 createMoves = { koin.get<MailMoveViewModel>() },
                                 messageListRenderer = koin.get<MessageListContract.MessageListScreenRenderer>(),
                                 messageListStateMachineFactory = koin.get<MessageListContract.StateMachineFactory>(),
+                                createServerSearch = { koin.get<ServerSearchViewModel>() },
                             )
                         }
                     }
@@ -105,6 +99,12 @@ fun main() {
             }
         }
     }
+}
+
+private fun handleDemoKey(event: androidx.compose.ui.input.key.KeyEvent, model: DemoMailViewModel?): Boolean {
+    val back = event.key == Key.Escape && event.type == KeyEventType.KeyUp
+    if (back) model?.event(DemoMailEvent.Back)
+    return back
 }
 
 private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
@@ -139,6 +139,7 @@ private fun startApplicationKoin(isUbuntuTouch: Boolean) = startKoin {
             single { ForegroundMailSessionFactory(get(), get(), JvmTrustedSocketFactory(), get(), oauth = get()) }
             single<LiveMailRepository> { PersistentLiveMailRepository(get(), get()) }
             single<ServerSearchOperations> { PersistentServerSearchOperations(get(), get(), get()) }
+            factory { ServerSearchViewModel(get(), get()) }
             single { MailSortPreferences(mailDatabasePath().resolveSibling("mail-sort")) }
             factory { LiveMailViewModel(get(), get(), sortPreferences = get()) }
             single {

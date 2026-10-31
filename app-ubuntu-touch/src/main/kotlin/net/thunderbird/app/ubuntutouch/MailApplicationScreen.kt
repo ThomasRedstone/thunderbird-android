@@ -32,6 +32,7 @@ import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
 private enum class MailDestination { DEMO, ACCOUNTS, MAILBOX, COMPOSE, SIGNATURES }
 
 @Composable
+@Suppress("LongMethod", "CyclomaticComplexMethod") // Routes the app destinations.
 internal fun MailApplicationScreen(
     demo: DemoMailViewModel,
     keyboard: MaliitKeyboard?,
@@ -44,11 +45,16 @@ internal fun MailApplicationScreen(
     createMoves: (() -> MailMoveViewModel)? = null,
     messageListRenderer: MessageListContract.MessageListScreenRenderer? = null,
     messageListStateMachineFactory: MessageListContract.StateMachineFactory? = null,
+    createServerSearch: (() -> ServerSearchViewModel)? = null,
 ) {
     val save = createSave?.let { loadOwnedMailModel(it)?.model }
     if (save != null) RegisterMailClose(save, lifecycle, save::flushForClose, {})
     val moves = createMoves?.let { loadOwnedMailModel(it) }
     if (moves != null) RegisterMailClose(moves, lifecycle, moves::flushForClose, moves::background)
+    val serverSearch = createServerSearch?.let { loadOwnedMailModel(it) }
+    if (serverSearch != null) {
+        RegisterMailClose(serverSearch, lifecycle, serverSearch::flushForClose, serverSearch::background)
+    }
     val transfers = collectMailboxTransfers(save, moves)
     var destination by remember { mutableStateOf(MailDestination.DEMO) }
     var composeRequest by remember { mutableStateOf<ComposeRequest?>(null) }
@@ -88,19 +94,21 @@ internal fun MailApplicationScreen(
                 val controller = rememberCanonicalMessageListController(mailbox, messageListStateMachineFactory)
                 val state by mailbox.state.collectAsState()
                 val canonicalState = controller?.state?.collectAsState()?.value
-                MailboxDestination(
-                    state,
-                    mailbox::event,
-                    keyboard,
-                    MailboxNavigation({ destination = it }, {
-                        composeRequest = it
-                        destination = MailDestination.COMPOSE
-                    }),
-                    transfers,
-                    messageListRenderer,
-                    canonicalState,
-                    controller.eventHandlerFor(canonicalState),
-                )
+                ServerSearchPanel(state, serverSearch, keyboard, { mailbox.event(LiveMailEvent.ReloadCached) }) {
+                    MailboxDestination(
+                        state,
+                        mailbox::event,
+                        keyboard,
+                        MailboxNavigation({ destination = it }, {
+                            composeRequest = it
+                            destination = MailDestination.COMPOSE
+                        }),
+                        transfers,
+                        messageListRenderer,
+                        canonicalState,
+                        controller.eventHandlerFor(canonicalState),
+                    )
+                }
             }
         }
     }
@@ -338,7 +346,7 @@ private fun <T : AutoCloseable> loadOwnedMailModel(create: () -> T): T? {
     return current
 }
 
-private fun Modifier.mailBack(enabled: Boolean, back: () -> Unit): Modifier = onPreviewKeyEvent { event ->
+internal fun Modifier.mailBack(enabled: Boolean, back: () -> Unit): Modifier = onPreviewKeyEvent { event ->
     if (event.key == Key.Escape && event.type == KeyEventType.KeyUp) {
         if (enabled) back()
         true

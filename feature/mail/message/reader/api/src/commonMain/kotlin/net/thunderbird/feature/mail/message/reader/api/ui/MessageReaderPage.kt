@@ -48,46 +48,52 @@ enum class MessageReaderPageAction {
 fun MessageReaderPage(
     content: MessageReaderPageContent,
     modifier: Modifier = Modifier,
-    onAction: (MessageReaderPageAction) -> Unit,
+    onAction: ((MessageReaderPageAction) -> Unit)? = null,
     attachments: @Composable () -> Unit = {},
 ) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()), Arrangement.spacedBy(12.dp)) {
         if (!content.complete) {
             TextBodyLarge("Only a preview is cached.")
-            ButtonText("Download full message", { onAction(MessageReaderPageAction.DOWNLOAD) }, enabled = !content.busy)
+            if (onAction != null) {
+                ButtonText("Download full message", {
+                    onAction(MessageReaderPageAction.DOWNLOAD)
+                }, enabled = !content.busy)
+            }
         }
         TextTitleLarge(content.subject)
         TextBodyLarge(content.sender)
         content.accountName?.let { TextBodyLarge("Account: $it") }
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
-            ButtonText(
-                if (content.unread) "Mark read" else "Mark unread",
-                { onAction(MessageReaderPageAction.TOGGLE_READ) },
-                enabled = !content.busy,
-            )
-            ButtonText(
-                if (content.starred) "Remove star" else "Star message",
-                { onAction(MessageReaderPageAction.TOGGLE_STAR) },
-                enabled = !content.busy,
-            )
-        }
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
-            ButtonText("Reply", { onAction(MessageReaderPageAction.REPLY) }, enabled = content.canRespond)
-            ButtonText("Reply all", { onAction(MessageReaderPageAction.REPLY_ALL) }, enabled = content.canRespond)
-            ButtonText("Forward text", { onAction(MessageReaderPageAction.FORWARD) }, enabled = content.canRespond)
-        }
-        if (!content.plainText) TextBodyLarge("Reply and forward require a cached plain-text body in this preview.")
-        Row {
-            ButtonText(
-                "Previous message",
-                { onAction(MessageReaderPageAction.PREVIOUS) },
-                enabled = !content.busy && content.previousAvailable,
-            )
-            ButtonText(
-                "Next message",
-                { onAction(MessageReaderPageAction.NEXT) },
-                enabled = !content.busy && content.nextAvailable,
-            )
+        if (onAction != null) {
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                ButtonText(
+                    if (content.unread) "Mark read" else "Mark unread",
+                    { onAction(MessageReaderPageAction.TOGGLE_READ) },
+                    enabled = !content.busy,
+                )
+                ButtonText(
+                    if (content.starred) "Remove star" else "Star message",
+                    { onAction(MessageReaderPageAction.TOGGLE_STAR) },
+                    enabled = !content.busy,
+                )
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                ButtonText("Reply", { onAction(MessageReaderPageAction.REPLY) }, enabled = content.canRespond)
+                ButtonText("Reply all", { onAction(MessageReaderPageAction.REPLY_ALL) }, enabled = content.canRespond)
+                ButtonText("Forward text", { onAction(MessageReaderPageAction.FORWARD) }, enabled = content.canRespond)
+            }
+            if (!content.plainText) TextBodyLarge("Reply and forward require a cached plain-text body in this preview.")
+            Row {
+                ButtonText(
+                    "Previous message",
+                    { onAction(MessageReaderPageAction.PREVIOUS) },
+                    enabled = !content.busy && content.previousAvailable,
+                )
+                ButtonText(
+                    "Next message",
+                    { onAction(MessageReaderPageAction.NEXT) },
+                    enabled = !content.busy && content.nextAvailable,
+                )
+            }
         }
         SelectionContainer { TextBodyLarge(content.body) }
         attachments()

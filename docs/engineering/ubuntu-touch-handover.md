@@ -26,7 +26,10 @@ complete one-account journey through its UI.
 mailbox and server-search reader. The UT host maps only metadata already derived from the account-scoped protected
 cache; incomplete messages still hide provisional attachment metadata. Save continues through the existing
 `CachedAttachmentStore` reference and export safeguards. This does not yet connect the reader's MIME-part attachment
-state to Open/Save actions or render HTML. The five focused cached-reader and server-search UI tests pass; reader API
+state to Open/Save actions or render HTML. `withCachedMessage` explicitly requires detached return values and releases
+temporary MIME body resources when its callback ends; a JVM reader adapter must retain a protected cache reference and
+reopen it for actions, rather than keep a parsed `Part` in UI state. The five focused cached-reader and server-search
+UI tests pass; reader API
 JVM tests and app compilation pass. Reader API and app Detekt/Spotless pass
 (`/tmp/thunderbird-ut-shared-attachments-tests.log`, `/tmp/thunderbird-ut-shared-attachments-compile.log`,
 `/tmp/thunderbird-ut-shared-attachments-app-tests.log`, `/tmp/thunderbird-ut-shared-attachments-quality.log`). The

@@ -1,6 +1,14 @@
 # Ubuntu Touch mail port handover
 
-Updated 2026-10-29. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
+Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
+
+## 2026-10-31 FP4 cached-list acceptance with disposable IMAP account
+
+The owner supplied a disposable Ethereal account. Its address and password are deliberately omitted here. A one-off Java helper invoked the app's existing `UtAccountManager.createWithPasswords` path on the FP4, backed by `ChunkedCredentialStore`, `SignonCredentialStore` and `ProtectedPayloadJournal`; credentials entered over standard input and were not placed in a shell command, SQLite row or log. The helper class was removed after setup. Private integrity-checked SQLite backups were made before account setup at `/home/phablet/.cache/mail-demo.thomasredstone/provisioning/ethereal-y30_w9_1` and before sync at `/home/phablet/.cache/mail-demo.thomasredstone/provisioning/before-sync-02pqnjnn`.
+
+Four synthetic messages were sent through Ethereal SMTP to `.invalid` recipients; Ethereal IMAP reported five INBOX messages including its welcome mail. A one-off helper then used the app's `ForegroundMailSessionFactory` and `PersistentLiveMailRepository` to refresh folders, sync INBOX and download bodies through the same protected account path as the UI; it too was removed. The phone's production SQLite now has schema 19, `quick_check=ok`, one account, five folders and five cached messages. The first reader body was verified complete (`/tmp/thunderbird-ethereal-phone-sync.log`). This proves real IMAP-to-cache operation, not an inserted fixture row.
+
+The installed 0.1.42 launcher returned zero and printed `Started` (`/tmp/thunderbird-ethereal-phone-launch.log`); its exact-source confined JVM was observed. Xwayland screenshots of the actual FP4 app showed the shared mobile list rows for INBOX (`/tmp/ut-screen-after-escape.png`), later rows after remote pointer scrolling (`/tmp/ut-screen-after-scroll.png`), a selected cached message and body in the reader (`/tmp/ut-screen-after-click.png`), and the list after the on-screen Back control (`/tmp/ut-screen-after-back2.png`). The final screen was left on the list (`/tmp/ut-screen-final-list2.png`). Remote input used XTest pointer events; literal capacitive finger input was not separately measured. The temporary phone-side input/capture scripts and raw image were removed; local screenshots are mode 0600. The owner's visual feedback was that the shell looks basic; this slice does not establish full Thunderbird visual or feature parity. No code was changed or rebuilt for this acceptance pass. Ethereal test mail expires after a few hours, while the protected local cache remains until removed.
 
 ## 2026-10-29 folder-bound actions and FP4 0.1.42
 

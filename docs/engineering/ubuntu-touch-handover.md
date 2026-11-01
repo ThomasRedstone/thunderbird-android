@@ -2,6 +2,14 @@
 
 Updated 2026-11-01. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-11-01 second disposable account created through the FP4 UI
+
+Tom supplied a second disposable Ethereal mailbox. On the installed 0.1.47 Click, **Accounts → Add account** accepted its name, address, IMAP host/port with direct TLS, and SMTP host/port with required STARTTLS, with both passwords entered into masked fields. **Save account** confirmed success and showed two accounts. No credential or address was added to this repository.
+
+For the new account, **Mailboxes → Refresh folders** discovered five server folders. **INBOX → Sync folder** fetched the mailbox's welcome message; the shared reader displayed its sender, subject, account, and cached body. **Write** selected the new account, saved an addressed draft locally, queued a self-addressed message, and **Send now** reported **Accepted by SMTP** and **Server copy saved in Sent Mail**. Independent read-only IMAP searches found exactly one matching message in INBOX and one in Sent Mail. After terminating and relaunching the app, the second account, folders, cached INBOX message, and reader body reopened successfully. Private local UI evidence is under `/tmp/ut-screen-047-second-*`.
+
+This completes the online UI setup → sync → read → compose/send → restart → cached read journey for one account. The genuine network-offline reader check and attachment actions on a message with attachments remain open. Versioned SignOn credential access across a future Click upgrade also remains untested; the restart only tested the same installed version.
+
 ## 2026-11-01 FP4 0.1.47 UI acceptance
 
 Tom unlocked the FP4. Launching the installed `mail-demo.thomasredstone_mail-demo_0.1.47` through Lomiri started the confined JVM, and a Mir physical screencast showed the real mailbox screen with the existing Ethereal test account. The greeter process name alone was not evidence that the screen was locked. Xwayland window captures then showed the real account's folder screen, the cached INBOX with five messages, and the shared reader opening the Ethereal welcome message and stepping to `Ubuntu Touch list fixture 1`. The reader displayed the cached plain-text body, sender, star/read controls, reply actions, and previous/next navigation. This confirms production startup and cached list/reader rendering on the phone; the account was provisioned earlier, so it does not prove the UI setup form.
@@ -12,7 +20,7 @@ A metadata-only SignOn ACL repair attempted from the helper unexpectedly replace
 
 A restart before the credential repair reopened the account, five-message cached INBOX, and reader successfully. A fresh self-addressed fixture was then deposited directly through the disposable mailbox for sync testing. The app's **Sync folder** fetched it, and the shared reader displayed its body. After confirming the original send subject was absent from IMAP, the UI's guarded **Review retry** → **Send again despite duplicate risk** path accepted the queued message. The app reported **Accepted by SMTP** and **Server copy saved in Sent Mail**. Independent read-only IMAP checks found exactly one matching copy in INBOX and one in Sent Mail. The outgoing row is now `SENT`; `uncertain_attempt=1` records the earlier uncertain attempt, not a current delivery failure.
 
-Final phone database check: schema 19 `quick_check=ok`, one account, five folders, one freshly synced message, one `SENT` outgoing row, zero pending credential cleanup rows, and active app-owned SignOn identities with nonempty secrets. Screenshots under `/tmp/ut-screen-047-*` are private local evidence. Still open: end-to-end **new account creation** through the UI, a genuine network-offline reader check, and attachment presentation/action checks on a message with attachments. Also verify that versioned SignOn ownership survives the next Click upgrade before treating the restored credentials as upgrade-safe. Capture screenshots and diagnostic logs under private permissions; never commit mailbox credentials or message contents. The initial phone lock and uncertain-send blockers are resolved.
+At the end of this first-account recovery, the phone database had schema 19 `quick_check=ok`, one account, five folders, one freshly synced message, one `SENT` outgoing row, zero pending credential cleanup rows, and active app-owned SignOn identities with nonempty secrets. The second-account walkthrough above supersedes these counts. Screenshots under `/tmp/ut-screen-047-*` are private local evidence. Also verify that versioned SignOn ownership survives the next Click upgrade before treating the restored credentials as upgrade-safe. Capture screenshots and diagnostic logs under private permissions; never commit mailbox credentials or message contents. The initial phone lock and uncertain-send blockers are resolved.
 
 ## 2026-10-31 installed 0.1.47 real-mailbox candidate
 
@@ -160,9 +168,9 @@ metadata presentation; the original eight search WIP files remain untouched. The
 cache-backed MIME-part Open behavior, richer HTML/privacy handling, and on-device UI acceptance of
 the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
-navigation and attachment presentation. The 2026-11-01 walkthrough proved startup, cached read/navigation, account
-editing with protected credential storage, live sync/read, draft persistence, guarded SMTP send with server-copy
-verification, and restart persistence. New-account creation, network-offline reading, and attachment actions remain open.
+navigation and attachment presentation. The 2026-11-01 walkthrough proved startup, cached read/navigation, new-account
+creation and account editing with protected credential storage, live sync/read, draft persistence, SMTP send with
+server-copy verification, and restart persistence. Network-offline reading and attachment actions remain open.
 
 The JVM reader implementation now aliases `MailPart` to the shared mail engine's `Part` interface, matching Android's
 MIME part type. A JVM reader test passes a real `MimeBodyPart` through attachment state; app JVM compilation, reader

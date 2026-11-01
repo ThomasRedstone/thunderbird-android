@@ -2,6 +2,28 @@
 
 Updated 2026-11-01. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-11-01 handover: next goal — daily-use foreground mail
+
+**Goal:** Deliver the roadmap's [Milestone 3](ubuntu-touch-roadmap.md#milestone-3-daily-use-in-the-foreground) as a substantial, usable foreground mail experience on Ubuntu Touch. Reuse Thunderbird's shared mobile list, reader and state contracts with JVM/Linux adapters. Keep the existing protected account-scoped cache, mail engine and guarded outgoing/operation journals until a shared replacement proves equivalent. This goal ends with physical FP4 journeys and server assertions, not merely source compilation or a new screen.
+
+**Current baseline.** The last phone-tested integration checkpoint on `feat/ut-search-reader-integration` is `31c777aef2`; the branch is pushed and this handover adds documentation. The installed FP4 Click is 0.1.47, built from `4d996d47635602d37eb4e11bd62914f273ddf9c3` with an empty source patch; the package hash and backup are below. The real mailbox starts without the demo preview. The canonical mobile list, shared plain-text reader, Bolt drawer, cache-backed folder/account routing, guarded search results and attachment metadata/Save entry point are integrated. On 2026-11-01 the FP4 UI created a second disposable IMAP/SMTP account, discovered folders, synced and read mail, saved/queued/sent a self-addressed draft, and reopened that account and its cached reader after restart. SMTP acceptance and one Inbox/one Sent Mail copy were checked independently. The first-account credential recovery and its limits are recorded below. This is a strong online foreground vertical slice; it is not yet Milestone 2's complete offline/error matrix or Milestone 3 acceptance.
+
+**Finish the remaining vertical-slice gates first.** Demonstrate a cached reader body with network unavailable, then restore connectivity and check normal sync. With a private integrity-checked backup, test a versioned 0.1.47→0.1.48 Click upgrade: both app-created SignOn identities must remain accessible, both accounts and cached mail must survive, and sync/send must still work. The identities currently have a versioned 0.1.47 owner; do not assume a same-version restart proves upgrade safety. Exercise rejected credentials, invalid certificate, interrupted sync and uncertain send against controlled fixtures before extending the feature set. Keep the disposable mailbox credentials out of Git and logs; do not edit SignOn identities through metadata-only `store_info` (see recovery below). Phone network changes need a controlled way to reconnect and observe the UI; no offline pass has yet been recorded.
+
+**Work packages for the next goal, in delivery order:**
+
+| Package | Implement and reuse | Evidence required to close it |
+| --- | --- | --- |
+| Rich reader and privacy | Select a supported Linux HTML renderer only after the experiments in [HTML feasibility](ubuntu-touch-html-feasibility.md). Use the engine's MIME viewable-part classification, preserve a readable plain-text fallback, handle inline CID images and safe links, and make external content consent explicit per message. | Host malformed/large MIME tests and a network oracle showing zero remote requests by default; FP4 HTML, link, rotation, keyboard and offline reading with no cross-account resource access. HTML-to-text fallback alone does not close this. |
+| Attachment lifecycle | Complete the shared reader's cache-scoped MIME-part actions. Prove real Content Hub Save and Open with a receiving app, private lease cleanup and interrupted/restarted transfer recovery. Add selected outgoing attachments and preserve them in drafts, send and forward where supported. | Exact-byte/decoded-file assertions, bounded large-file and cancellation tests, account-isolation checks, and an FP4 receive → open/save → attach → send journey. The existing metadata/Save button and fake receiver are only partial evidence. |
+| Composition and message actions | Extend the current plain-text response/draft path to HTML-only replies, quote/identity/signature choices and attachment-aware forwarding. Finish offline read/star, archive/trash, move/copy and bulk-operation replay through the shared state path. | Controlled IMAP/SMTP assertions for recipient privacy, one delivery/Sent copy, UID-validity and conflict handling; reopen/reconnect tests and FP4 journeys across accounts. No blind retry after an uncertain SMTP result. |
+| Multi-account mailbox and discovery | Provide a dedicated unified inbox, account-scoped and unified search with usable server-result routing, sorting, paging/cancellation and conversation navigation. Keep account removal and operations isolated while work is active. | Two-account FP4 switching/unified/search journeys, offline search and isolation checks, large-mailbox measurements, and server-side assertions for affected messages. Current unified cached search and server search are partial implementations. |
+| Provider setup and interaction quality | Complete supported Google/Microsoft OAuth browser callback, verified identity/scope/refresh and cancellation flows once dedicated registrations and provider policies are configured. Improve touch/rotation, keyboard focus/avoidance, accessibility and error feedback. | Real-provider FP4 sign-in/restart/expiry/cancel journeys plus accessibility and device layout checks. Generic host OAuth plumbing and approved registration *intent* are not provider acceptance; no client IDs are currently configured. |
+
+**Exit gate for this goal.** Build a clean-source ARM64 Click, preserve artifact/source hashes, back up the installed schema and account data, then run full journeys on the FP4 with at least two disposable accounts and controlled MIME fixtures: setup, online/offline read, HTML privacy, incoming and outgoing attachments, compose/reply/forward, mailbox actions, unified/search, restart and upgrade. Verify server outcomes independently and record failures without exposing message bodies or secrets. Each package needs focused JVM/Android regressions where it changes shared code, then confined and physical acceptance. Background sync/notifications, OpenPGP, complete import/export and release readiness remain later roadmap milestones; this goal must preserve their interfaces and avoid claiming them complete.
+
+**Starting points and boundaries.** Work in `/home/tom/own/thunderbird-android-ut-search-reader` on `feat/ut-search-reader-integration`; inspect `git status` before editing. The separate `/home/tom/own/thunderbird-android` checkout has unrelated uncommitted server-search work and must not be reset or broadly staged. Start with `feature/mail/message/reader/api/.../MessageReaderPage.kt`, `app-ubuntu-touch/.../LiveMailScreen.kt`, `CachedAttachmentStore.kt`, `MessageSaveViewModel.kt`, `DbusContentExportBroker.kt`, `ComposerViewModel.kt`, `ForegroundMailSession.kt`, and the [feature inventory](ubuntu-touch-feature-inventory.md). Use the device protocol and current package/build evidence below before any install. The FP4 was reachable as `phablet@100.87.156.48:2222` during the 0.1.47 walkthrough; recheck its state, process and package. Screenshots under `/tmp/ut-screen-047-*` are private local evidence, not repository fixtures. Desk note `n-yxsx` tracks the versioned SignOn upgrade risk. Current goal status in the session tracker may lag this handover; use this evidence rather than inferring completion from its label.
+
 ## 2026-11-01 second disposable account created through the FP4 UI
 
 Tom supplied a second disposable Ethereal mailbox. On the installed 0.1.47 Click, **Accounts → Add account** accepted its name, address, IMAP host/port with direct TLS, and SMTP host/port with required STARTTLS, with both passwords entered into masked fields. **Save account** confirmed success and showed two accounts. No credential or address was added to this repository.
@@ -160,13 +182,13 @@ same host memory kill (`/tmp/thunderbird-ut-drawer-list-test.log`). The earlier 
 drawer edit; list behavior still needs a fresh run or device verification. This source is included in the installed
 0.1.47 Click, and the 2026-11-01 FP4 walkthrough above verifies drawer navigation to the cached INBOX.
 
-## Current next phase
+## Prior integration phase and source checkpoints
 
-Finish the shared single-account mail flow, then accept it on the FP4. The integration branch has the canonical list,
+The integration branch established the shared single-account mail flow and accepted its online path on the FP4. It has the canonical list,
 shared plain-text reader, Bolt drawer for cache-backed account/folder navigation, server search, and shared attachment
 metadata presentation; the original eight search WIP files remain untouched. The remaining implementation work is
-cache-backed MIME-part Open behavior, richer HTML/privacy handling, and on-device UI acceptance of
-the installed clean integrated Click.
+cache-backed MIME-part Open behavior, richer HTML/privacy handling, and broader on-device UI acceptance of
+the installed clean integrated Click. The next-goal packages above supersede this earlier phase description.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
 navigation and attachment presentation. The 2026-11-01 walkthrough proved startup, cached read/navigation, new-account
 creation and account editing with protected credential storage, live sync/read, draft persistence, SMTP send with
@@ -185,8 +207,8 @@ worktree and its eight WIP files were not changed. Focused app tests pass 18/18,
 search suites (`/tmp/thunderbird-ut-search-reader-rebased-focused.log`); app Detekt and Spotless pass
 (`/tmp/thunderbird-ut-search-reader-quality-retry.log`). A full app test retry compiled and reached test execution,
 then the Gradle daemon disappeared under host pressure without an assertion result
-(`/tmp/thunderbird-ut-search-reader-app-test-retry.log`). This branch is a source integration checkpoint, not a phone
-accepted Click.
+(`/tmp/thunderbird-ut-search-reader-app-test-retry.log`). At this earlier checkpoint the branch was source-only; the
+later 0.1.47 install and UI acceptance are recorded above.
 
 ## 2026-10-31 shared reader slice (0.1.43 candidate)
 

@@ -2,6 +2,12 @@
 
 Updated 2026-11-01. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
 
+## 2026-11-01 resumed device check and attachment fixture
+
+Read-only recheck found the FP4 still running the installed 0.1.47 Click and its confined JVM. The live schema-19 SQLite database returned `quick_check=ok` with two accounts, ten folders, two cached messages, two outgoing records and no pending credential cleanup. These are counts only; the last verified UI send and reader results remain in the sections below.
+
+A second-account self-addressed message with a small plain-text attachment was submitted directly to the disposable Ethereal server for the next reader/Content Hub check. Independent read-only IMAP search found exactly one matching Inbox copy. The subject is `UT FP4 attachment save fixture 2026-11-01` and its attachment is `ut-attachment-fixture.txt`; both contain only synthetic test data. The phone's Mir physical capture was black because the display was off, and attempted Xwayland taps did not change the app view. **The fixture has not been synced into the app or opened through the phone UI.** After waking/unlocking the FP4, open the second account's INBOX, sync, inspect the attachment row, try Save with a real receiving app, and verify the decoded bytes and private lease cleanup. Do not submit the fixture again to make the test pass or claim Content Hub acceptance from the server-side copy alone.
+
 ## 2026-11-01 handover: next goal — daily-use foreground mail
 
 **Goal:** Deliver the roadmap's [Milestone 3](ubuntu-touch-roadmap.md#milestone-3-daily-use-in-the-foreground) as a substantial, usable foreground mail experience on Ubuntu Touch. Reuse Thunderbird's shared mobile list, reader and state contracts with JVM/Linux adapters. Keep the existing protected account-scoped cache, mail engine and guarded outgoing/operation journals until a shared replacement proves equivalent. This goal ends with physical FP4 journeys and server assertions, not merely source compilation or a new screen.

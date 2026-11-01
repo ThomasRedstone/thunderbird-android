@@ -1,6 +1,18 @@
 # Ubuntu Touch mail port handover
 
-Updated 2026-10-31. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
+Updated 2026-11-01. Resume the full roadmap from the current source and evidence, with the corrected shared mobile UI architecture.
+
+## 2026-11-01 FP4 0.1.47 UI acceptance
+
+Tom unlocked the FP4. Launching the installed `mail-demo.thomasredstone_mail-demo_0.1.47` through Lomiri started the confined JVM, and a Mir physical screencast showed the real mailbox screen with the existing Ethereal test account. The greeter process name alone was not evidence that the screen was locked. Xwayland window captures then showed the real account's folder screen, the cached INBOX with five messages, and the shared reader opening the Ethereal welcome message and stepping to `Ubuntu Touch list fixture 1`. The reader displayed the cached plain-text body, sender, star/read controls, reply actions, and previous/next navigation. This confirms production startup and cached list/reader rendering on the phone; the account was provisioned earlier, so it does not prove the UI setup form.
+
+The `Write` route opened the existing account's composer. Through the UI, an addressed message was saved as a draft, restored with its subject/body intact, queued, and submitted with `Send now`. The first submission showed **Uncertain delivery** and retained the outgoing row as `UNCERTAIN` with `uncertain_attempt=1`. The phone journal showed a SignOn permission failure: the original test credentials had been provisioned by an unconfined helper and were not readable by the confined app. A read-only IMAP subject search found no delivered copy at that point.
+
+A metadata-only SignOn ACL repair attempted from the helper unexpectedly replaced those old identities' secrets with empty values. The old credentials were restored through the app's masked account-edit form, which created new, nonempty identities owned by the confined 0.1.47 app. This changed the account's cache binding and invalidated the five previously cached disposable messages; the private pre-upgrade backup remains available. The old empty helper identities and stale cleanup-index rows were removed after an integrity-checked SQLite backup. The UI reported **Obsolete credentials removed**. Do not use `store_info` on a SignOn identity reconstructed from metadata alone: its empty `Secret` field can replace the stored password.
+
+A restart before the credential repair reopened the account, five-message cached INBOX, and reader successfully. A fresh self-addressed fixture was then deposited directly through the disposable mailbox for sync testing. The app's **Sync folder** fetched it, and the shared reader displayed its body. After confirming the original send subject was absent from IMAP, the UI's guarded **Review retry** → **Send again despite duplicate risk** path accepted the queued message. The app reported **Accepted by SMTP** and **Server copy saved in Sent Mail**. Independent read-only IMAP checks found exactly one matching copy in INBOX and one in Sent Mail. The outgoing row is now `SENT`; `uncertain_attempt=1` records the earlier uncertain attempt, not a current delivery failure.
+
+Final phone database check: schema 19 `quick_check=ok`, one account, five folders, one freshly synced message, one `SENT` outgoing row, zero pending credential cleanup rows, and active app-owned SignOn identities with nonempty secrets. Screenshots under `/tmp/ut-screen-047-*` are private local evidence. Still open: end-to-end **new account creation** through the UI, a genuine network-offline reader check, and attachment presentation/action checks on a message with attachments. Also verify that versioned SignOn ownership survives the next Click upgrade before treating the restored credentials as upgrade-safe. Capture screenshots and diagnostic logs under private permissions; never commit mailbox credentials or message contents. The initial phone lock and uncertain-send blockers are resolved.
 
 ## 2026-10-31 installed 0.1.47 real-mailbox candidate
 
@@ -11,10 +23,9 @@ Clickable review and ARM64 launcher/JVM/AWT/Skiko checks pass (`/tmp/thunderbird
 ARM64 runtime and pinned packager image were reused. The FP4 transfer hash matched; an integrity-checked private backup
 was made at `/home/phablet/.cache/mail-demo.thomasredstone/upgrades/pre-reader-47-czwqp8t3`, then Phone Manager installed
 0.1.47. The installed source marker and empty patch match the Click. The production cache remains schema 19 with
-`quick_check=ok`, one account, five folders, and five messages (`/tmp/thunderbird-047-upgrade.log`). Phone Manager
+`quick_check=ok`, one account, five folders, and five messages at installation time (`/tmp/thunderbird-047-upgrade.log`). Phone Manager
 reported launcher/user-bus and signature warnings, but the install command and post-install checks completed. The
-device still runs `lomiri --mode=full-greeter`, with Xwayland `:28` owned by the greeter. No 0.1.47 UI walkthrough is
-claimed.
+2026-11-01 phone UI findings above supersede the earlier greeter-only observation.
 
 ## 2026-10-31 real mailbox startup without demo dependency
 
@@ -138,8 +149,8 @@ App Detekt and Spotless pass (`/tmp/thunderbird-ut-drawer-check8.log`). A broade
 host workload memory limit before reaching app test execution (`/tmp/thunderbird-ut-drawer-relevant-tests.log`); no
 additional app test result is claimed. An isolated `LiveMailScreenTest` retry also reached the test task before the
 same host memory kill (`/tmp/thunderbird-ut-drawer-list-test.log`). The earlier 9/9 list UI tests passed before this
-drawer edit; list behavior still needs a fresh run or device verification. This source is not yet packaged or accepted
-on the FP4.
+drawer edit; list behavior still needs a fresh run or device verification. This source is included in the installed
+0.1.47 Click, and the 2026-11-01 FP4 walkthrough above verifies drawer navigation to the cached INBOX.
 
 ## Current next phase
 
@@ -149,8 +160,9 @@ metadata presentation; the original eight search WIP files remain untouched. The
 cache-backed MIME-part Open behavior, richer HTML/privacy handling, and on-device UI acceptance of
 the installed clean integrated Click.
 The phone gate is one UI-driven setup → sync → read → compose/send → restart → offline read journey, including reader
-navigation and attachment presentation. The installed 0.1.47 package still needs an unlocked Lomiri full shell before
-that UI acceptance can run.
+navigation and attachment presentation. The 2026-11-01 walkthrough proved startup, cached read/navigation, account
+editing with protected credential storage, live sync/read, draft persistence, guarded SMTP send with server-copy
+verification, and restart persistence. New-account creation, network-offline reading, and attachment actions remain open.
 
 The JVM reader implementation now aliases `MailPart` to the shared mail engine's `Part` interface, matching Android's
 MIME part type. A JVM reader test passes a real `MimeBodyPart` through attachment state; app JVM compilation, reader
